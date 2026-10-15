@@ -313,3 +313,20 @@
 .param-color{display:flex;flex-direction:column;align-items:stretch;gap:5px}
 .param-color input{width:100%;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
 .param-color code{font-size:10px}
+
+/* Simplified onboarding and clearer mental model */
+.library-dock{flex:0 0 auto;overflow:visible;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding-bottom:5px}
+.model-intro{padding:12px 12px 2px;color:#d9deea}
+.model-intro b{font-size:11px;font-weight:700}
+.model-intro p{font-size:10px;line-height:1.55;color:#929aab;margin:6px 0 8px}
+.template-picker{margin:7px 12px 8px}
+.template-picker:before{content:"MODELO INICIAL";font-size:9px;color:#8e9bb3;font-weight:800;letter-spacing:.7px}
+.right-tabs{height:43px}
+.right-tab{font-size:11px;font-weight:600}
+.section-description{padding:9px 10px;border:1px solid #343b4a;border-radius:6px;background:#202530;color:#b0b9cb;margin:0 0 13px}
+.inspector-heading{letter-spacing:.5px}
+@media(max-width:790px){.library-dock{flex:0 0 auto}.model-intro p{max-width:720px}}
+
+.param-usage{margin-top:10px;padding:8px;border-radius:5px;background:#191c23;border:1px solid #303542}
+.param-usage b{display:block;font-size:10px;color:#c4d0ef;margin-bottom:5px}
+.param-usage p{font:10px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-line;overflow-wrap:anywhere;color:#929bad;margin:0}

@@ -33,7 +33,7 @@ Não requer Node.js, npm, bibliotecas externas ou acesso à internet. O servidor
 - Navegação por Espaço + arrastar, zoom com Alt + scroll e zoom pela barra de ferramentas.
 - Parâmetros editáveis com valores de pré-visualização independentes dos valores padrão exportados.
 - Importação e exportação de arquivos `.xtemplate`.
-- Cinco modelos rápidos e seletor de 23 templates de demonstração no painel esquerdo, na seção Modelos.
+- Seletor único de modelos de demonstração, com explicação de que servem como ponto de partida e podem ser exportados como arquivos próprios.
 - Atalhos Ctrl+N (novo), Ctrl+O (abrir), Ctrl+S (exportar), Ctrl+D (duplicar), Delete (remover), Insert (inserir), Alt + setas (ordenar), setas (mover 1 mm; Shift + setas: 10 mm), V/R/O/L/T (ferramentas), Ctrl+Enter (JSON), Espaço (navegação) e Alt + scroll (zoom).
 
 ## Compatibilidade
