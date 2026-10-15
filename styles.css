@@ -284,11 +284,11 @@
 .canvas-area.zoomed-in .paper-wrap{flex:0 0 auto;margin:0;}
 @media(max-width:790px){.canvas-area.zoomed-in{padding-left:60px;padding-right:16px;}}
 
-/* Numeric fields expose a compact horizontal scrubber on hover or keyboard focus. */
-.transform-panel .scrub-field{position:relative;padding-bottom:2px;}
-.transform-panel .number-scrubber{display:block;width:100%;height:4px;min-height:4px;margin:0;padding:0;border:0;border-radius:4px;appearance:none;background:#3a4050;opacity:0;pointer-events:none;transition:opacity .12s ease;cursor:ew-resize;}
-.transform-panel .scrub-field:hover .number-scrubber,.transform-panel .scrub-field:focus-within .number-scrubber,.transform-panel .scrub-field.scrubbing .number-scrubber{opacity:1;pointer-events:auto;}
-.transform-panel .number-scrubber::-webkit-slider-thumb{appearance:none;width:10px;height:10px;border:2px solid #dce5ff;border-radius:50%;background:#6485f5;box-shadow:0 0 0 2px #6485f533;}
-.transform-panel .number-scrubber::-moz-range-thumb{width:7px;height:7px;border:2px solid #dce5ff;border-radius:50%;background:#6485f5;}
-.transform-panel .number-scrubber:focus-visible{outline:1px solid var(--accent);outline-offset:3px;}
-.marquee-selection{fill:#6485f52b;stroke:#6485f5;stroke-width:.45;stroke-dasharray:1.8 1;pointer-events:none;}
+/* Photoshop-like scrubby numeric controls: drag the field label horizontally. */
+.transform-panel .scrubby-field{position:relative;}
+.transform-panel .scrubby-field>input[type="number"]{cursor:text;}
+.transform-panel .scrubby-field:not(:has(input:disabled)){cursor:ew-resize;}
+.transform-panel .scrubby-field.scrubbing{color:var(--accent);user-select:none;}
+.transform-panel .scrubby-field.scrubbing input{pointer-events:none;}
+.transform-panel .scrubby-field:not(:has(input:disabled)):hover{ text-decoration:underline dotted #7589d7;text-underline-offset:3px;}
+.transform-panel .scrubby-field.scrubbing input{border-color:var(--accent);}

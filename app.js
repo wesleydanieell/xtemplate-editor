@@ -103,9 +103,10 @@ if(n.rotate!==undefined&&type!=="text"){const rb=selectionBounds(n,box);g.setAtt
 return g;}
 function selectionBounds(n,b){const t=n.type,x=b.x+evalN(n.x??0,b,"x"),y=b.y+evalN(n.y??0,b,"y"),w=evalN(n.w??"100%",b,"x",b.w),h=evalN(n.h??"100%",b,"y",b.h);if(t==="hline")return{x:b.x,y:b.y+evalN(n.y??0,b,"y"),w:b.w,h:0.6};if(t==="vline")return{x:b.x+evalN(n.x??0,b,"x"),y:b.y,w:0.6,h:b.h};if(t==="line"){const x1=evalN(n.x1??0,b,"x"),y1=evalN(n.y1??0,b,"y"),x2=evalN(n.x2??0,b,"x"),y2=evalN(n.y2??0,b,"y");return{x:b.x+Math.min(x1,x2),y:b.y+Math.min(y1,y2),w:Math.abs(x2-x1),h:Math.abs(y2-y1)};}if(t==="text")return{x,y,w:Math.max(10,String(n.text||"").length*1.8),h:5};if(t==="ellipse"){const rx=evalN(n.rx??"15mm",b,"short"),ry=evalN(n.ry??"8mm",b,"short");return{x:b.x+evalN(n.cx??0,b,"x")-rx,y:b.y+evalN(n.cy??0,b,"y")-ry,w:2*rx,h:2*ry};}if(["circle","dot"].includes(t)){const r=evalN(n.r??"0.35mm",b,"short");return{x:b.x+evalN(n.cx??0,b,"x")-r,y:b.y+evalN(n.cy??0,b,"y")-r,w:2*r,h:2*r};}if(["polyline","polygon"].includes(t)){let values=n.points;if(typeof values==="string")values=values.trim().split(/[\s,]+/).map(Number);if(Array.isArray(values)){const flat=values.flat(Infinity),xs=[],ys=[];for(let i=0;i+1<flat.length;i+=2){xs.push(b.x+evalN(flat[i],b,"x"));ys.push(b.y+evalN(flat[i+1],b,"y"));}if(xs.length)return{x:Math.min(...xs),y:Math.min(...ys),w:Math.max(...xs)-Math.min(...xs),h:Math.max(...ys)-Math.min(...ys)};}}return{x,y,w,h};}
 function initializePreviewValues(){previewValues={};for(const [name,p] of Object.entries(doc.params||{})){const d=p.default;if(p.type==="color")previewValues["$"+name]=d||"#333333";else previewValues[name]=typeof d==="number"?d:(mm(d,1) ?? (Number(d)||0));}}
-function render(){paper.replaceChildren();paper.setAttribute("viewBox","0 0 "+pageSize[0]+" "+pageSize[1]);paper.appendChild(svg("rect",{x:0,y:0,width:pageSize[0],height:pageSize[1],fill:"#fffefa"}));const box={x:0,y:0,w:pageSize[0],h:pageSize[1],vars:{...previewValues,W:pageSize[0],H:pageSize[1],i:0,j:0}};(doc.items||[]).forEach((n,i)=>{const e=renderNode(n,["items",i],box);if(e)paper.appendChild(e);});
+function renderCanvas(){paper.replaceChildren();paper.setAttribute("viewBox","0 0 "+pageSize[0]+" "+pageSize[1]);paper.appendChild(svg("rect",{x:0,y:0,width:pageSize[0],height:pageSize[1],fill:"#fffefa"}));const box={x:0,y:0,w:pageSize[0],h:pageSize[1],vars:{...previewValues,W:pageSize[0],H:pageSize[1],i:0,j:0}};(doc.items||[]).forEach((n,i)=>{const e=renderNode(n,["items",i],box);if(e)paper.appendChild(e);});
 if(smartGuides.x!==null)paper.appendChild(svg("line",{class:"smart-guide",x1:smartGuides.x,y1:0,x2:smartGuides.x,y2:pageSize[1]}));
-if(smartGuides.y!==null)paper.appendChild(svg("line",{class:"smart-guide",x1:0,y1:smartGuides.y,x2:pageSize[0],y2:smartGuides.y}));
+if(smartGuides.y!==null)paper.appendChild(svg("line",{class:"smart-guide",x1:0,y1:smartGuides.y,x2:pageSize[0],y2:pageSize[1]}));}
+function render(){renderCanvas();
 $("pageDimensions").textContent=pageSize[0]+" × "+pageSize[1]+" mm";$("docName").textContent=doc.name||"Sem título";$("nodeStatus").textContent=countNodes(doc.items||[])+" nós";if(document.activeElement!==$("metaName"))$("metaName").value=doc.name||"";if(document.activeElement!==$("metaId"))$("metaId").value=doc.id||"";if(document.activeElement!==$("metaDescription"))$("metaDescription").value=doc.description||"";if(document.activeElement!==$("metaAuthor"))$("metaAuthor").value=doc.author||"";if(document.activeElement!==$("metaLicense"))$("metaLicense").value=doc.license||"";if(document.activeElement!==$("metaVersion"))$("metaVersion").value=doc.version||"";if(document.activeElement!==$("metaTags"))$("metaTags").value=(doc.tags||[]).join(", ");renderTree();renderInspector();renderParams();fitPaper();}
 function countNodes(items){return items.reduce((sum,n)=>sum+1+((n.type==="group"||n.type==="repeat")?countNodes(n.children||[]):0),0);}
 function renderTree(){
@@ -485,17 +486,27 @@ Object.entries({transformX:"x",transformY:"y",transformW:"w",transformH:"h",tran
  const n=getAt(selectedPath);if(!n||e.target.disabled)return;const v=Number(e.target.value);if(!Number.isFinite(v))return;
  commit(()=>applyTransformChange(n,key,v));
 }));
-// Numeric scrubbing: reveal a horizontal slider on hover/focus, then commit once when released.
-const scrubRanges={transformX:[-300,300,.1],transformY:[-420,420,.1],transformW:[0,300,.1],transformH:[0,420,.1],transformRotate:[-360,360,1],transformOpacity:[0,100,1]};
-for(const [id,range] of Object.entries(scrubRanges)){
+// Photoshop-style scrubby fields: drag the label horizontally to adjust the value in place.
+const scrubConfig={transformX:{step:.1,min:-300,max:300},transformY:{step:.1,min:-420,max:420},transformW:{step:.1,min:0,max:300},transformH:{step:.1,min:0,max:420},transformRotate:{step:1,min:-360,max:360},transformOpacity:{step:1,min:0,max:100}};
+for(const [id,cfg] of Object.entries(scrubConfig)){
  const input=$(id),label=input.closest("label");if(!input||!label)continue;
- label.classList.add("scrub-field");const slider=document.createElement("input");slider.type="range";slider.className="number-scrubber";slider.min=range[0];slider.max=range[1];slider.step=range[2];slider.value=input.value||0;slider.setAttribute("aria-label","Ajustar "+label.firstChild.textContent.trim()+" deslizando");
- let startValue=Number(input.value)||0,finished=false;slider.addEventListener("pointerdown",()=>{startValue=Number(input.value)||0;finished=false;});
- slider.addEventListener("input",()=>{input.value=slider.value;label.classList.add("scrubbing");});
- const finish=()=>{label.classList.remove("scrubbing");if(!finished&&Number(input.value)!==startValue){finished=true;input.dispatchEvent(new Event("change",{bubbles:true}));}};
- slider.addEventListener("change",finish);slider.addEventListener("pointerup",finish);slider.addEventListener("pointercancel",finish);
- input.addEventListener("input",()=>{if(document.activeElement===input&&input.value!=="")slider.value=Math.max(Number(slider.min),Math.min(Number(slider.max),Number(input.value)));});
- label.appendChild(slider);
+ label.classList.add("scrubby-field");label.title="Arraste o rótulo para ajustar · Shift = precisão · Ctrl = rápido";
+ let state=null;
+ label.addEventListener("pointerdown",e=>{
+  if(e.button!==0||e.target===input||input.disabled||e.target.closest("button,input,select,textarea"))return;
+  const n=getAt(selectedPath);if(!n)return;
+  state={pointerId:e.pointerId,startX:e.clientX,startValue:Number(input.value)||0,origin:clone(n),path:selectedPath.slice(),fine:e.shiftKey,fast:e.ctrlKey||e.metaKey,moved:false};
+  label.classList.add("scrubbing");label.setPointerCapture(e.pointerId);e.preventDefault();
+ });
+ label.addEventListener("pointermove",e=>{
+  if(!state||state.pointerId!==e.pointerId)return;
+  const delta=e.clientX-state.startX;if(Math.abs(delta)<1&&!state.moved)return;state.moved=true;
+  const factor=e.shiftKey?0.1:(e.ctrlKey||e.metaKey)?10:1,raw=state.startValue+delta*cfg.step*factor,value=Math.max(cfg.min,Math.min(cfg.max,raw)),n=getAt(state.path);
+  if(!n)return;Object.assign(n,clone(state.origin));applyTransformChange(n,Object.entries({transformX:"x",transformY:"y",transformW:"w",transformH:"h",transformRotate:"rotate",transformOpacity:"opacity"}).find(([k])=>k===id)[1],value);
+  input.value=Number(value.toFixed(2));renderCanvas();
+ });
+ const finish=e=>{if(!state||state.pointerId!==e.pointerId)return;const changed=state.moved;state=null;label.classList.remove("scrubbing");if(changed)commit(()=>{});};
+ label.addEventListener("pointerup",finish);label.addEventListener("pointercancel",finish);
 }
 
 const originalRenderInspector=renderInspector;
