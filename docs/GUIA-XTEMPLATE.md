@@ -1,12 +1,12 @@
 # Guia de autoria de arquivos `.xtemplate` para XNotes
 
-Este guia descreve o formato que o XNotes lê, com base no leitor Android `TemplateReader.kt`, no avaliador `TemplateEval.kt`/`TemplateExpr.kt` e nos templates oficiais do repositório. O arquivo é JSON: mantenha aspas duplas, vírgulas corretas e não inclua comentários.
+This guide describes the format read by XNotes, based on the Android reader `TemplateReader.kt`, no avaliador `TemplateEval.kt`/`TemplateExpr.kt` and the repository’s official templates. The file is JSON: use double quotes, correct commas, and no comments.
 
 ## 1. Como o arquivo funciona
 
-Um `.xtemplate` é uma descrição vetorial de uma página, não uma imagem pronta. O XNotes lê a árvore de elementos, calcula expressões em milímetros para o tamanho da página e desenha as formas. Isso permite que o mesmo template se adapte a páginas de tamanhos diferentes.
+An `.xtemplate` is a vector description of a page, not a finished image. XNotes reads the element tree, evaluates expressions in millimeters for the page size, and draws the shapes. This lets the same template adapt to different page sizes.
 
-Estrutura mínima:
+Minimal structure:
 
 ```json
 {
@@ -34,7 +34,7 @@ O XNotes tem limites de leitura, incluindo 1 MiB, 32 níveis de árvore e 10.000
 
 ## 2. Elementos e contêineres
 
-Cada item tem um `type` e propriedades específicas. Tipos reconhecidos pelo leitor:
+Each item has a `type` and specific properties. Types recognized by the reader:
 
 | Tipo | Uso / propriedades principais |
 |---|---|
@@ -74,7 +74,7 @@ Exemplo de grupo e repetição:
 
 `inset` pode ser um valor único, um par ou uma lista de 3 ou 4 valores. Em `repeat`, `axis` pode ser `x`, `y`, `xy` ou `none`; `fit` aceita `repeat`, `space`, `round` ou `center`. Para repetir nos dois eixos, use `period`/`count`/`fit` como um par quando precisar de valores diferentes para X e Y.
 
-## 3. Medidas e expressões
+## 3. Measurements and expressions
 
 Comprimentos literais são convertidos para milímetros. Exemplos: `"12mm"`, `"1.2cm"`, `"0.5in"`, `"10pt"` ou o número `12` (milímetros). Para propriedades geométricas, uma string também pode ser uma expressão matemática.
 
@@ -97,7 +97,7 @@ Uma expressão deve referenciar nomes definidos em `params` ou nomes reservados.
 
 ## 4. Parâmetros: a que ficam vinculados?
 
-Um parâmetro **não fica automaticamente vinculado a um elemento específico**. Ele é uma variável nomeada do template. Você precisa referenciá-la nas propriedades dos elementos onde deseja que tenha efeito. O mesmo parâmetro pode controlar vários elementos ao mesmo tempo.
+A variable is **not automatically linked to a specific element**. It is a named template variable. Reference it in the properties of the elements where it should take effect. The same variable can control multiple elements at once.
 
 ```json
 "params": {
@@ -152,12 +152,12 @@ Para `path`, `d` usa os comandos de caminho SVG aceitos pelo XNotes e `viewBox` 
 
 ## 7. Fluxo recomendado para desenvolver
 
-1. Comece duplicando um exemplo próximo do resultado desejado, em vez de criar toda a árvore do zero.
-2. Escolha nomes de parâmetros claros (`spacing`, `margin`, `lineColor`) e defina `label`, `default` e limites úteis.
-3. Faça cada elemento referenciar os parâmetros de que depende; criar um parâmetro sozinho não muda o desenho.
+1. Start by duplicating a similar example rather than building the entire tree from scratch.
+2. Choose clear variable names (`spacing`, `margin`, `lineColor`) e defina `label`, `default` e limites úteis.
+3. Make each element reference the variables it depends on; creating a variable alone does not change the drawing.
 4. Use `group` para organizar e herdar estilos e `repeat` para padrões regulares, em vez de duplicar dezenas de linhas manualmente.
 5. Teste diferentes valores, tamanhos de página e limites no editor. Verifique que `min` não ultrapassa `max` e que expressões não dividem por zero.
-6. Exporte `.xtemplate`, abra o arquivo no XNotes Android e confira o resultado real. A pré-visualização web é aproximada: fontes, alguns detalhes de geometria e opções avançadas podem diferir.
+6. Export the `.xtemplate`, open it in XNotes Android, and check the actual result. A pré-visualização web é aproximada: fontes, alguns detalhes de geometria e opções avançadas podem diferir.
 7. Mantenha `id` estável, atualize `version` quando fizer uma nova versão do modelo e valide o JSON antes de compartilhar.
 
 ## 8. Desenvolver o próprio editor
