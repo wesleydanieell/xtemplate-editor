@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Editor visual local e offline de templates .xtemplate para XNotes Android",
   "scripts": {
-    "check": "node --check app.js && node --check src/features/alignment.js && node --check src/core/validate-template.js && node --check tests/validate-template.test.js",
+    "check": "node --check app.js && node --check src/features/alignment.js && node --check src/features/zoom.js && node --check src/core/validate-template.js && node --check src/core/template-schema.js && node --check tests/validate-template.test.js && node --check tests/template-schema.test.js && node --check tests/zoom.test.js",
     "test": "node --test"
   },
   "engines": {
