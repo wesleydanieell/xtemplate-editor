@@ -459,7 +459,7 @@ $("structureAddBtn").addEventListener("click",()=>{
 async function loadOfficialExample(file,source){
  if(!file)return;
  if(dirty&&!confirm("Descartar alterações não exportadas e abrir este exemplo?")){if(source)source.value="";return;}
- try{const res=await fetch("./examples/"+encodeURIComponent(file));if(!res.ok)throw Error("Exemplo não encontrado.");const parsed=JSON.parse(await res.text());validate(parsed);doc=parsed;selectedPath=null;collapsedTree.clear();initializePreviewValues();setDirty(false);syncJson();render();document.querySelectorAll(".template-card").forEach(b=>b.classList.remove("active"));setStatus("Exemplo: "+file);toast("Template carregado.");}
+ try{const res=await fetch("./examples/"+encodeURIComponent(file));if(!res.ok)throw Error("Exemplo não encontrado.");const parsed=JSON.parse(await res.text());validate(parsed);doc=parsed;selectedPath=null;collapsedTree.clear();resetHistory();initializePreviewValues();setDirty(false);syncJson();render();document.querySelectorAll(".template-card").forEach(b=>b.classList.remove("active"));setStatus("Exemplo: "+file);toast("Template carregado.");}
  catch(err){toast("Falha ao abrir exemplo: "+err.message);}
  if(source)source.value="";
 }
