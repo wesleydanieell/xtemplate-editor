@@ -22,7 +22,7 @@ Não requer Node.js, npm, bibliotecas externas ou acesso à internet. O servidor
 - Editor JSON avançado em painel dividido ao lado da pré-visualização, com numeração de linhas, formatação e validação estrutural.
 - Árvore de elementos no painel esquerdo; propriedades, parâmetros e metadados em painéis laterais separados.
 - Paleta fixa na área de design para seleção, navegação e inserção de formas; o menu contextual oferece todos os tipos de elemento.
-- Controles de transformação por tipo de geometria, com posição da caixa delimitadora para elipses/círculos, rotação e opacidade; alças para mover e redimensionar formas compatíveis.
+- Controles de transformação por tipo de geometria, com alças para mover, redimensionar e rotacionar elementos compatíveis.
 - Menu de contexto que fecha ao inserir, clicar fora ou pressionar Esc; clique direito na estrutura (inclusive no espaço vazio) ou na página para inserir elementos.
 - Navegação por Espaço + arrastar, zoom com Alt + scroll e zoom pela barra de ferramentas.
 - Parâmetros editáveis com valores de pré-visualização independentes dos valores padrão exportados.
@@ -37,3 +37,15 @@ O formato é baseado em `TemplateReader.kt`, `TemplateEval.kt` e nos exemplos de
 A pré-visualização implementa os tipos básicos e expressões aritméticas usuais do formato, parâmetros, grupos, repetições, clipping e paths SVG. Ainda não é uma reprodução pixel a pixel do renderizador Android: o texto é renderizado pelas fontes do navegador, e hachuras, algumas expressões avançadas e detalhes de geometria podem diferir. Confira o resultado final no XNotes Android, sobretudo para templates complexos.
 
 A pasta `examples/` contém cópias locais dos templates de demonstração. Os arquivos originais do repositório Android não são modificados por esta aplicação.
+
+
+## Atalhos de edição
+
+- Ctrl+Z: desfazer.
+- Ctrl+Shift+Z ou Ctrl+Y: refazer.
+- V: selecionar; R: retângulo; O: elipse; L: linha; T: texto.
+- Com retângulo, elipse ou linha ativa, clique e arraste no papel para desenhar e dimensionar.
+- Com texto ativo, clique no papel para inserir texto naquele ponto.
+- Espaço + arrastar: mover a página na área de trabalho.
+- Alt + roda do mouse: alterar o zoom.
+- O histórico mantém até 100 estados e é reiniciado ao abrir outro template.
