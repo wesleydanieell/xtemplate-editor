@@ -300,4 +300,3 @@
 .tree-item.tree-drop-target { outline: 1px solid #88a7ff; background: #304264; box-shadow: inset 3px 0 #9bb4ff; }
 .smart-guide { stroke: #ff4f91; stroke-width: .55; stroke-dasharray: 2 1; vector-effect: non-scaling-stroke; pointer-events: none; }
 .canvas-tools .canvas-tool[data-tool="ruled"], .canvas-tools .canvas-tool[data-tool="grid"] { color: #9cb9e9; }
-.canvas-tools .canvas-tool[data-tool="eyedropper"] { color: #d7bdff; }
