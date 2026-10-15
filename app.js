@@ -215,7 +215,35 @@ document.querySelectorAll(".right-tab").forEach(b=>b.addEventListener("click",()
 function renderParams(){const root=$("paramsEditor");root.replaceChildren();const params=doc.params||(doc.params={});const entries=Object.entries(params);if(!entries.length){const p=document.createElement("p");p.className="param-empty";p.textContent="Este template não define parâmetros. Adicione um para expor valores configuráveis sem editar a estrutura dos elementos.";root.appendChild(p);}entries.forEach(([name,p])=>{const card=document.createElement("div");card.className="param-card";const head=document.createElement("div");head.className="param-card-head";const code=document.createElement("code");code.textContent=name;const del=document.createElement("button");del.textContent="×";del.title="Remover parâmetro";del.addEventListener("click",()=>{if(!confirm("Remover o parâmetro "+name+"?"))return;delete doc.params[name];delete previewValues[name];delete previewValues["$"+name];commit(()=>{});});head.append(code,del);card.appendChild(head);const grid=document.createElement("div");grid.className="param-grid";function field(label,value,key,wide=false,type="text"){const lab=document.createElement("label");if(wide)lab.className="wide";lab.append(document.createTextNode(label));const inp=document.createElement("input");inp.type=type;inp.value=value??"";inp.addEventListener("change",()=>{commit(()=>{if(inp.value==="")delete p[key];else if(["min","max","step"].includes(key)&&p.type!=="color"&&Number.isFinite(Number(inp.value)))p[key]=Number(inp.value);else if(key==="default"&&["number","integer"].includes(p.type)&&Number.isFinite(Number(inp.value)))p[key]=Number(inp.value);else p[key]=inp.value;initializePreviewValues();});});lab.appendChild(inp);grid.appendChild(lab);}const typelab=document.createElement("label");typelab.textContent="Tipo";const sel=document.createElement("select");["length","number","integer","color"].forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=v;sel.appendChild(o);});sel.value=p.type||"length";sel.addEventListener("change",()=>commit(()=>{p.type=sel.value;p.default=sel.value==="color"?"#4f7cff":sel.value==="length"?"5mm":1;initializePreviewValues();}));typelab.appendChild(sel);grid.appendChild(typelab);field("Rótulo",p.label||"", "label",true);field("Padrão",p.default??"", "default",true,p.type==="color"?"color":"text");if(p.type!=="color"){field("Mínimo",p.min??"","min");field("Máximo",p.max??"","max");field("Passo",p.step??"","step");}const live=document.createElement("label");live.className="wide";live.textContent=p.type==="length"?"Valor de pré-visualização (mm)":"Valor de pré-visualização";if(p.type==="color"){const row=document.createElement("span");row.className="param-color";const inp=document.createElement("input");inp.type="color";inp.value=previewValues["$"+name]||p.default||"#4f7cff";const val=document.createElement("code");val.textContent=inp.value;inp.addEventListener("change",()=>{previewValues["$"+name]=inp.value;val.textContent=inp.value;render();});row.append(inp,val);live.appendChild(row);}else{const inp=document.createElement("input");inp.value=previewValues[name]??p.default??"";inp.addEventListener("change",()=>{let v=p.type==="length"?(mm(inp.value)??0):Number(inp.value);const low=p.min===undefined?null:(p.type==="length"?(mm(p.min)??Number(p.min)):Number(p.min)),high=p.max===undefined?null:(p.type==="length"?(mm(p.max)??Number(p.max)):Number(p.max));if(Number.isFinite(low))v=Math.max(low,v);if(Number.isFinite(high))v=Math.min(high,v);if(p.type==="integer")v=Math.round(v);previewValues[name]=Number.isFinite(v)?v:0;render();});live.appendChild(inp);}grid.appendChild(live);card.appendChild(grid);root.appendChild(card);});}
 $("addParam").addEventListener("click",()=>{const name=prompt("Nome do parâmetro (letras, números e _):","spacing");if(!name)return;if(!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)||["W","H","i","j","pi"].includes(name)||Object.hasOwn(doc.params||{},name)){toast("Nome inválido ou já utilizado.");return;}if(!doc.params)doc.params={};doc.params[name]={type:"length",default:"5mm",label:name};initializePreviewValues();commit(()=>{});setInspectorTab("params");});
 const validate = validateTemplate;
-function renderJsonInput(){try{const next=JSON.parse(jsonEditor.value);validate(next);doc=next;selectedPath=null;initializePreviewValues();commit(()=>{});setValidation("ok","JSON válido");setStatus("JSON aplicado à pré-visualização");}catch(e){setValidation("error","JSON inválido");setStatus(e.message);}}
+function renderJsonInput(){
+ const source=jsonEditor.value;
+ try{
+  const next=JSON.parse(source);
+  validate(next);
+  const serialized=JSON.stringify(next);
+  if(serialized!==JSON.stringify(doc)){
+   if(!historyRestoring&&serialized!==historyState){
+    undoStack.push(historyState);
+    if(undoStack.length>100)undoStack.shift();
+    redoStack.length=0;
+    historyState=serialized;
+   }
+   doc=next;
+   selectedPath=null;
+   initializePreviewValues();
+   setDirty(true);
+   updateHistoryButtons();
+   render();
+   renderTree();
+   renderInspector();
+   setStatus("JSON aplicado à pré-visualização");
+  }
+  setValidation("ok","JSON válido");
+ }catch(e){
+  setValidation("error","JSON inválido");
+  setStatus(e.message);
+ }
+}
 let jsonInputTimer;
 jsonEditor.addEventListener("input",()=>{if(suppressJson)return;updateLineNumbers();clearTimeout(jsonInputTimer);jsonInputTimer=setTimeout(renderJsonInput,250);});
 jsonEditor.addEventListener("scroll",()=>$("lineNumbers").scrollTop=jsonEditor.scrollTop);
