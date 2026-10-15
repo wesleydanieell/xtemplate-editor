@@ -330,3 +330,8 @@
 .param-usage{margin-top:10px;padding:8px;border-radius:5px;background:#191c23;border:1px solid #303542}
 .param-usage b{display:block;font-size:10px;color:#c4d0ef;margin-bottom:5px}
 .param-usage p{font:10px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-line;overflow-wrap:anywhere;color:#929bad;margin:0}
+
+/* Language picker */
+.language-switch{display:flex;align-items:center;gap:5px;color:#aeb8ce;font-size:12px}
+.language-switch select{max-width:138px;min-width:0;padding:6px 7px;font-size:10px}
+@media(max-width:790px){.language-switch select{max-width:120px}.language-switch{font-size:11px}}
