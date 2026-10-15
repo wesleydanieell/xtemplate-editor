@@ -57,7 +57,20 @@ A pasta `examples/` contém cópias locais dos templates de demonstração. Os a
 
 - app.js: inicialização e coordenação do editor existente.
 - src/features/alignment.js: comandos isolados de alinhamento e preenchimento em relação à página.
+- src/core/validate-template.js: validação independente da interface, compartilhada por importação, edição JSON e operações visuais; centraliza os limites do formato.
+- tests/validate-template.test.js: testes automatizados de estrutura, limites, tamanho UTF-8 e compatibilidade dos exemplos.
 - examples/: templates de demonstração usados para validar compatibilidade.
-- package.json: metadados do projeto e verificações de sintaxe; não adiciona dependências de runtime.
+- package.json: verificações de sintaxe e testes nativos do Node.js; não adiciona dependências de runtime.
+
+### Verificações locais
+
+Com Node.js 18 ou superior, execute antes de publicar mudanças:
+
+```bash
+npm run check
+npm test
+```
+
+A suíte valida todos os arquivos `.xtemplate` de `examples/` e cobre os limites de 1 MiB, 32 níveis e 10.000 nós. Ela complementa — não substitui — a verificação visual no XNotes Android, pois o renderizador do editor é uma aproximação do renderizador nativo.
 
 A aplicação continua sendo servida localmente e funciona offline após abrir. O uso de módulos ES permite adicionar novas funcionalidades em src/features/ sem introduzir um framework ou dependências externas desnecessárias.
