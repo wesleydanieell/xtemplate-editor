@@ -122,7 +122,12 @@ function renderTree(){
   const key=nodeKey(path),children=branchTypes.has(n.type)?(n.children||[]):[],canExpand=children.length>0;
   const b=document.createElement("button");
   b.type="button";b.className="tree-item"+(selectedPaths.some(p=>nodeKey(p)===key)?" active":"");b.setAttribute("aria-pressed",String(selectedPaths.some(p=>nodeKey(p)===key)));
-  b.dataset.path=key;b.style.paddingLeft=(6+depth*13)+"px";
+  b.dataset.path=key;b.draggable=true;b.style.paddingLeft=(6+depth*13)+"px";
+  b.addEventListener("dragstart",e=>{e.dataTransfer.setData("text/plain",key);e.dataTransfer.effectAllowed="move";b.classList.add("tree-dragging");});
+  b.addEventListener("dragend",()=>{b.classList.remove("tree-dragging");tree.querySelectorAll(".tree-drop-target").forEach(el=>el.classList.remove("tree-drop-target"));});
+  b.addEventListener("dragover",e=>{const source=toPath(e.dataTransfer.getData("text/plain"));if(!source.length||nodeKey(source)===key||key.startsWith(nodeKey(source)+"."))return;e.preventDefault();e.dataTransfer.dropEffect="move";b.classList.add("tree-drop-target");});
+  b.addEventListener("dragleave",()=>b.classList.remove("tree-drop-target"));
+  b.addEventListener("drop",e=>{e.preventDefault();b.classList.remove("tree-drop-target");const source=toPath(e.dataTransfer.getData("text/plain")),target=toPath(b.dataset.path);if(!source.length||nodeKey(source)===nodeKey(target)||nodeKey(target).startsWith(nodeKey(source)+"."))return;moveTreeNode(source,target,branchTypes.has(n.type)&&(e.altKey||e.offsetY>b.clientHeight*.65));});
   const disclosure=document.createElement("span");disclosure.className="tree-disclosure";
   disclosure.textContent=canExpand?(collapsedTree.has(key)?"▸":"▾"):"";
   disclosure.title=canExpand?(collapsedTree.has(key)?"Expandir":"Recolher"):"";
@@ -147,6 +152,14 @@ function renderTree(){
  $("treeCount").textContent=selectedPaths.length>1?selectedPaths.length+" selecionados · "+countNodes(roots)+" elementos":countNodes(roots)+" elementos";
  const expand=$("expandTree");expand.textContent=collapsedTree.size?"＋":"−";
  expand.title=collapsedTree.size?"Expandir toda a estrutura":"Recolher os grupos";
+}
+function findNodePath(target){let found=null;function visit(items,parentPath){for(let i=0;i<items.length&&!found;i++){const n=items[i],path=parentPath.concat(i);if(n===target){found=path;return;}if(["group","repeat"].includes(n.type))visit(n.children||[],path.concat("children"));}}visit(doc.items||[],["items"]);return found;}
+function moveTreeNode(source,target,intoTarget=false){
+ const sourceArr=getAt(source.slice(0,-1)),targetArr=getAt(target.slice(0,-1));if(!Array.isArray(sourceArr)||!Array.isArray(targetArr))return;
+ const sourceIndex=source.at(-1),targetIndex=target.at(-1),node=sourceArr[sourceIndex];if(!node)return;
+ if(intoTarget){const parent=getAt(target);if(!parent||!["group","repeat"].includes(parent.type))return;sourceArr.splice(sourceIndex,1);(parent.children||(parent.children=[])).push(node);const newPath=findNodePath(node);selectedPath=newPath;selectedPaths=newPath?[newPath]:[];commit(()=>{});toast("Elemento movido para dentro do contêiner");return;}
+ if(sourceArr!==targetArr){toast("Para reordenar, solte no mesmo nível; segure Alt ao soltar em um grupo para aninhar.");return;}
+ sourceArr.splice(sourceIndex,1);const insertion=sourceIndex<targetIndex?targetIndex-1:targetIndex;sourceArr.splice(insertion,0,node);const parent=source.slice(0,-1),newPath=parent.concat(insertion);selectedPath=newPath;selectedPaths=[newPath];commit(()=>{});
 }
 function select(path){
  selectedPath=path;selectedPaths=path?[path.slice()]:[];
@@ -299,8 +312,21 @@ $("expandTree").addEventListener("click",()=>{
  renderTree();
 });
 
+function snapToGuides(proposed,excludedPaths=[]){
+ const tolerance=2.4,ignored=new Set(excludedPaths.map(nodeKey)),xEdges=[proposed.x,proposed.x+proposed.w/2,proposed.x+proposed.w],yEdges=[proposed.y,proposed.y+proposed.h/2,proposed.y+proposed.h];
+ const targetsX=[0,pageSize[0]/2,pageSize[0]],targetsY=[0,pageSize[1]/2,pageSize[1]];
+ (doc.items||[]).forEach((node,i)=>{const path=["items",i];if(ignored.has(nodeKey(path)))return;const b=transformGeometry(node,path);if(!b)return;targetsX.push(b.x,b.x+b.w/2,b.x+b.w);targetsY.push(b.y,b.y+b.h/2,b.y+b.h);});
+ let bestX=null,bestY=null;for(const x of xEdges)for(const target of targetsX){const shift=target-x;if(Math.abs(shift)<=tolerance&&(!bestX||Math.abs(shift)<Math.abs(bestX.shift)))bestX={shift,guide:target};}for(const y of yEdges)for(const target of targetsY){const shift=target-y;if(Math.abs(shift)<=tolerance&&(!bestY||Math.abs(shift)<Math.abs(bestY.shift)))bestY={shift,guide:target};}
+ return{dx:bestX?.shift||0,dy:bestY?.shift||0,guides:{x:bestX?.guide??null,y:bestY?.guide??null}};
+}
 const draggableTypes=new Set(["group","rect","path","text","ellipse","circle","dot","line","hline","vline","polyline","polygon"]);
 paper.addEventListener("pointerdown",e=>{
+ if(activeTool==="eyedropper"){
+  const target=e.target.closest("[data-path]"),source=target&&getAt(toPath(target.dataset.path)),dest=getAt(selectedPath);
+  if(source&&dest&&source!==dest){const color=source.stroke||source.fill;if(color){commit(()=>{if(source.stroke)dest.stroke=source.stroke;if(source.fill)dest.fill=source.fill;if(source.strokeWidth)dest.strokeWidth=source.strokeWidth;});setActiveTool("select");toast("Estilo copiado para o elemento selecionado.");}else toast("Esse elemento não define uma cor direta para copiar.");}
+  else toast("Selecione primeiro o elemento que receberá o estilo; depois clique na origem.");
+  e.preventDefault();e.stopImmediatePropagation();return;
+ }
  const g=e.target.closest("[data-path]");
  if(!g){if(activeTool!=="select"||e.button!==0)return;const r=paper.getBoundingClientRect(),pt={x:(e.clientX-r.left)*pageSize[0]/r.width,y:(e.clientY-r.top)*pageSize[1]/r.height};marqueeState={pointerId:e.pointerId,start:pt,current:pt};const rect=svg("rect",{id:"marquee-selection",class:"marquee-selection",x:pt.x,y:pt.y,width:0,height:0});paper.appendChild(rect);paper.setPointerCapture(e.pointerId);e.preventDefault();return;}
  const path=toPath(g.dataset.path),n=getAt(path),handle=e.target.closest("[data-handle]")?.dataset.handle,key=nodeKey(path);
@@ -323,22 +349,14 @@ paper.addEventListener("pointermove",e=>{
  if(Math.abs(dx)+Math.abs(dy)>.4)drag.moved=true;if(!drag.moved)return;
  if(drag.mode==="move"&&drag.items?.length>1){
   for(const item of drag.items)Object.assign(getAt(item.path),clone(item.origin));
-  const g=drag.bounds,proposed={x:g.x+dx,y:g.y+dy,w:g.w,h:g.h},snapDistance=2.4;
-  const xt=[{shift:-proposed.x,guide:0},{shift:pageSize[0]-(proposed.x+proposed.w),guide:pageSize[0]},{shift:pageSize[0]/2-(proposed.x+proposed.w/2),guide:pageSize[0]/2}].sort((a,b)=>Math.abs(a.shift)-Math.abs(b.shift))[0];
-  const yt=[{shift:-proposed.y,guide:0},{shift:pageSize[1]-(proposed.y+proposed.h),guide:pageSize[1]},{shift:pageSize[1]/2-(proposed.y+proposed.h/2),guide:pageSize[1]/2}].sort((a,b)=>Math.abs(a.shift)-Math.abs(b.shift))[0];
-  smartGuides={x:null,y:null};if(Math.abs(xt.shift)<=snapDistance){dx+=xt.shift;smartGuides.x=xt.guide;}if(Math.abs(yt.shift)<=snapDistance){dy+=yt.shift;smartGuides.y=yt.guide;}
+  const g=drag.bounds,proposed={x:g.x+dx,y:g.y+dy,w:g.w,h:g.h},snap=snapToGuides(proposed,drag.items.map(item=>item.path));
+  dx+=snap.dx;dy+=snap.dy;smartGuides=snap.guides;
   for(const item of drag.items)moveBy(getAt(item.path),dx,dy,parentBoxForPath(item.path));render();return;
  }
  const base=drag.origin,g=drag.bounds,type=base.type,fmt=v=>Number(v.toFixed(2))+"mm",box=transformContext();
  Object.assign(n,clone(base));
  if(drag.mode==="move"){
-  smartGuides={x:null,y:null};
-  const proposed={x:g.x+dx,y:g.y+dy,w:g.w,h:g.h},snapDistance=2.4;
-  const xTargets=[{shift:-proposed.x,guide:0},{shift:pageSize[0]-(proposed.x+proposed.w),guide:pageSize[0]},{shift:pageSize[0]/2-(proposed.x+proposed.w/2),guide:pageSize[0]/2}];
-  const yTargets=[{shift:-proposed.y,guide:0},{shift:pageSize[1]-(proposed.y+proposed.h),guide:pageSize[1]},{shift:pageSize[1]/2-(proposed.y+proposed.h/2),guide:pageSize[1]/2}];
-  const sx=xTargets.sort((a,b)=>Math.abs(a.shift)-Math.abs(b.shift))[0],sy=yTargets.sort((a,b)=>Math.abs(a.shift)-Math.abs(b.shift))[0];
-  if(Math.abs(sx.shift)<=snapDistance){dx+=sx.shift;smartGuides.x=sx.guide;}
-  if(Math.abs(sy.shift)<=snapDistance){dy+=sy.shift;smartGuides.y=sy.guide;}
+  const proposed={x:g.x+dx,y:g.y+dy,w:g.w,h:g.h},snap=snapToGuides(proposed,[drag.path]);dx+=snap.dx;dy+=snap.dy;smartGuides=snap.guides;
   moveBy(n,dx,dy);
 }
  else if(drag.handle==="rotate"){
@@ -608,32 +626,35 @@ function insertDrawnNode(type,a,b,points){
  else if(type==="line")n={type,x1:f(a.x),y1:f(a.y),x2:f(b.x),y2:f(b.y),stroke:"ink",strokeWidth:"0.3mm"};
  else if(type==="polygon")n={type,points:[[f(left),f(top)],[f(left+w),f(top)],[f(left+w),f(top+h)],[f(left),f(top+h)]],stroke:"ink",fill:"none",strokeWidth:"0.3mm"};
  else if(type==="polyline")n={type,points:(points||[a,b]).map(p=>[f(p.x),f(p.y)]),stroke:"ink",fill:"none",strokeWidth:"0.5mm"};
+ else if(type==="curve"){const pts=points||[a,b],minX=Math.min(...pts.map(p=>p.x)),minY=Math.min(...pts.map(p=>p.y)),pw=Math.max(1,Math.max(...pts.map(p=>p.x))-minX),ph=Math.max(1,Math.max(...pts.map(p=>p.y))-minY),local=pts.map(p=>({x:p.x-minX,y:p.y-minY}));let d=`M ${local[0].x.toFixed(2)} ${local[0].y.toFixed(2)}`;for(let i=1;i<local.length-1;i++){const midX=(local[i].x+local[i+1].x)/2,midY=(local[i].y+local[i+1].y)/2;d+=` Q ${local[i].x.toFixed(2)} ${local[i].y.toFixed(2)} ${midX.toFixed(2)} ${midY.toFixed(2)}`;}if(local.length>1){const last=local.at(-1);d+=` T ${last.x.toFixed(2)} ${last.y.toFixed(2)}`;}n={type:"path",x:f(minX),y:f(minY),w:f(pw),h:f(ph),viewBox:[0,0,pw,ph],d,stroke:"ink",fill:"none",strokeWidth:"0.5mm"};}
  else return;
  const parent=selectedPath&&["group","repeat"].includes(getAt(selectedPath)?.type)?getAt(selectedPath):null;
  const arr=parent?parent.children:(doc.items||(doc.items=[]));arr.push(n);
  selectedPath=parent?selectedPath.concat(["children",arr.length-1]):["items",arr.length-1];selectedPaths=[selectedPath.slice()];
  commit(()=>{});setInspectorTab("properties");
 }
-function renderDrawPreview(){let p=paper.querySelector("#draw-preview");if(!drawState){p?.remove();return;}if(!p){p=svg("g",{id:"draw-preview","pointer-events":"none"});paper.appendChild(p);}p.replaceChildren();const a=drawState.start,b=drawState.current,x=Math.min(a.x,b.x),y=Math.min(a.y,b.y),w=Math.max(.3,Math.abs(b.x-a.x)),h=Math.max(.3,Math.abs(b.y-a.y));if(drawState.tool==="rect")p.appendChild(svg("rect",{x,y,width:w,height:h,fill:"#6485f522",stroke:"#6485f5","stroke-width":.6,"stroke-dasharray":"2 1"}));else if(drawState.tool==="ellipse")p.appendChild(svg("ellipse",{cx:x+w/2,cy:y+h/2,rx:w/2,ry:h/2,fill:"#6485f522",stroke:"#6485f5","stroke-width":.6,"stroke-dasharray":"2 1"}));else if(drawState.tool==="polygon")p.appendChild(svg("polygon",{points:`${x},${y} ${x+w},${y} ${x+w},${y+h} ${x},${y+h}`,fill:"#6485f522",stroke:"#6485f5","stroke-width":.6,"stroke-dasharray":"2 1"}));else if(drawState.tool==="pen")p.appendChild(svg("polyline",{points:drawState.points.map(q=>`${q.x},${q.y}`).join(" "),fill:"none",stroke:"#6485f5","stroke-width":.8,"stroke-linecap":"round","stroke-linejoin":"round"}));else p.appendChild(svg("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:"#6485f5","stroke-width":.8,"stroke-dasharray":"2 1"}));}
-toolButtons.forEach(b=>b.addEventListener("click",()=>{const tool=b.dataset.tool;if(tool==="group"){toast("Para criar um grupo, selecione elementos e use Agrupar no menu contextual.");return;}setActiveTool(tool);if(tool==="pan")toast("Segure e arraste para mover a página; Espaço + arraste também funciona.");else if(["rect","ellipse","polygon","line"].includes(tool))toast("Clique e arraste sobre a página para desenhar.");else if(tool==="pen")toast("Clique e arraste para desenhar à mão livre.");}));
+function renderDrawPreview(){let p=paper.querySelector("#draw-preview");if(!drawState){p?.remove();return;}if(!p){p=svg("g",{id:"draw-preview","pointer-events":"none"});paper.appendChild(p);}p.replaceChildren();const a=drawState.start,b=drawState.current,x=Math.min(a.x,b.x),y=Math.min(a.y,b.y),w=Math.max(.3,Math.abs(b.x-a.x)),h=Math.max(.3,Math.abs(b.y-a.y));if(drawState.tool==="rect")p.appendChild(svg("rect",{x,y,width:w,height:h,fill:"#6485f522",stroke:"#6485f5","stroke-width":.6,"stroke-dasharray":"2 1"}));else if(drawState.tool==="ellipse")p.appendChild(svg("ellipse",{cx:x+w/2,cy:y+h/2,rx:w/2,ry:h/2,fill:"#6485f522",stroke:"#6485f5","stroke-width":.6,"stroke-dasharray":"2 1"}));else if(drawState.tool==="polygon")p.appendChild(svg("polygon",{points:`${x},${y} ${x+w},${y} ${x+w},${y+h} ${x},${y+h}`,fill:"#6485f522",stroke:"#6485f5","stroke-width":.6,"stroke-dasharray":"2 1"}));else if(["pen","curve"].includes(drawState.tool))p.appendChild(svg("polyline",{points:drawState.points.map(q=>`${q.x},${q.y}`).join(" "),fill:"none",stroke:"#6485f5","stroke-width":.8,"stroke-linecap":"round","stroke-linejoin":"round"}));else p.appendChild(svg("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:"#6485f5","stroke-width":.8,"stroke-dasharray":"2 1"}));}
+function addPattern(type){const spacing=type==="grid"?"5mm":"8mm",line={type:"repeat",axis:type==="grid"?"xy":"y",period:spacing,fit:"space",children:type==="grid"?[{type:"hline",y:"100%",stroke:"#b5c5df",strokeWidth:"0.15mm"},{type:"vline",x:"100%",stroke:"#b5c5df",strokeWidth:"0.15mm"}]:[{type:"hline",y:"100%",stroke:"#9eb8df",strokeWidth:"0.2mm"}]},node={type:"group",inset:"10mm",children:[line]};const items=doc.items||(doc.items=[]);items.push(node);const path=["items",items.length-1];selectedPath=path;selectedPaths=[path];commit(()=>{});setInspectorTab("properties");toast(type==="grid"?"Grade inserida — ajuste o período nas propriedades.":"Pautado inserido — ajuste o espaçamento nas propriedades.");setActiveTool("select");}
+toolButtons.forEach(b=>b.addEventListener("click",()=>{const tool=b.dataset.tool;if(tool==="group"){toast("Para criar um grupo, selecione elementos e use Agrupar no menu contextual.");return;}if(tool==="ruled"||tool==="grid"){addPattern(tool);return;}setActiveTool(tool);if(tool==="pan")toast("Segure e arraste para mover a página; Espaço + arraste também funciona.");else if(["rect","ellipse","polygon","line"].includes(tool))toast("Clique e arraste sobre a página para desenhar.");else if(tool==="pen")toast("Clique e arraste para desenhar à mão livre.");else if(tool==="curve")toast("Arraste para desenhar uma curva Bézier suavizada.");else if(tool==="eyedropper")toast("Clique em um elemento para copiar sua cor para o elemento selecionado.");}));
 paper.addEventListener("pointerdown",e=>{
  if(spaceDown||activeTool==="pan")return;
  if(e.button!==0)return;
+
  if(activeTool==="text"){
   const pt=pagePoint(e),f=v=>Number(v.toFixed(2))+"mm",n={type:"text",x:f(pt.x),y:f(pt.y),text:"Novo texto",size:"4mm",fill:"ink"};
   const parent=selectedPath&&["group","repeat"].includes(getAt(selectedPath)?.type)?getAt(selectedPath):null;
   const arr=parent?parent.children:(doc.items||(doc.items=[]));arr.push(n);selectedPath=parent?selectedPath.concat(["children",arr.length-1]):["items",arr.length-1];selectedPaths=[selectedPath.slice()];commit(()=>{});setInspectorTab("properties");setActiveTool("select");return;
  }
- if(!["rect","ellipse","polygon","line","pen"].includes(activeTool))return;
+ if(!["rect","ellipse","polygon","line","pen","curve"].includes(activeTool))return;
  e.preventDefault();e.stopPropagation();
  const pt=pagePoint(e);drawState={tool:activeTool,start:pt,current:pt,points:[pt],pointerId:e.pointerId};paper.setPointerCapture(e.pointerId);renderDrawPreview();
 });
-paper.addEventListener("pointermove",e=>{if(!drawState||drawState.pointerId!==e.pointerId)return;drawState.current=pagePoint(e);if(e.shiftKey&&["rect","ellipse"].includes(drawState.tool)){const dx=drawState.current.x-drawState.start.x,dy=drawState.current.y-drawState.start.y,side=Math.max(Math.abs(dx),Math.abs(dy));drawState.current={x:drawState.start.x+Math.sign(dx||1)*side,y:drawState.start.y+Math.sign(dy||1)*side};}if(drawState.tool==="pen"){const last=drawState.points[drawState.points.length-1];if(Math.hypot(drawState.current.x-last.x,drawState.current.y-last.y)>.45)drawState.points.push(drawState.current);}renderDrawPreview();});
-function finishDrawing(e){if(!drawState||drawState.pointerId!==e.pointerId)return;const d=drawState;drawState=null;renderDrawPreview();if(d.tool==="pen"&&d.points.length<2){toast("Arraste para desenhar um traço.");return;}if(d.tool!=="pen"&&Math.hypot(d.current.x-d.start.x,d.current.y-d.start.y)<1){toast("Arraste para definir a dimensão do elemento.");return;}insertDrawnNode(d.tool,d.start,d.current,d.points);setActiveTool("select");}
+paper.addEventListener("pointermove",e=>{if(!drawState||drawState.pointerId!==e.pointerId)return;drawState.current=pagePoint(e);if(e.shiftKey&&["rect","ellipse"].includes(drawState.tool)){const dx=drawState.current.x-drawState.start.x,dy=drawState.current.y-drawState.start.y,side=Math.max(Math.abs(dx),Math.abs(dy));drawState.current={x:drawState.start.x+Math.sign(dx||1)*side,y:drawState.start.y+Math.sign(dy||1)*side};}if(["pen","curve"].includes(drawState.tool)){const last=drawState.points[drawState.points.length-1];if(Math.hypot(drawState.current.x-last.x,drawState.current.y-last.y)>.45)drawState.points.push(drawState.current);}renderDrawPreview();});
+function finishDrawing(e){if(!drawState||drawState.pointerId!==e.pointerId)return;const d=drawState;drawState=null;renderDrawPreview();if(["pen","curve"].includes(d.tool)&&d.points.length<2){toast("Arraste para desenhar um traço.");return;}if(d.tool!=="pen"&&Math.hypot(d.current.x-d.start.x,d.current.y-d.start.y)<1){toast("Arraste para definir a dimensão do elemento.");return;}insertDrawnNode(d.tool,d.start,d.current,d.points);setActiveTool("select");}
 paper.addEventListener("pointerup",finishDrawing);
 paper.addEventListener("pointercancel",()=>{drawState=null;renderDrawPreview();});
 // Additional editor shortcuts. Inputs retain normal text-editing behavior.
-window.addEventListener("keydown",e=>{const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){if(typing)return;e.preventDefault();if(e.shiftKey)redo();else undo();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="y"){if(typing)return;e.preventDefault();redo();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="n"){e.preventDefault();$("newBtn").click();}if(typing)return;if(selectedPath&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(e.key)){const n=getAt(selectedPath);if(n&&["group","rect","text","path"].includes(n.type)){e.preventDefault();const step=e.shiftKey?10:1,dx=e.key==="ArrowLeft"?-step:e.key==="ArrowRight"?step:0,dy=e.key==="ArrowUp"?-step:e.key==="ArrowDown"?step:0;n.x=numericMm(n.x)+dx+"mm";n.y=numericMm(n.y)+dy+"mm";commit(()=>{});}return;}if(!e.ctrlKey&&!e.metaKey&&!e.altKey){const key=e.key.toLowerCase(),tools={v:"select",r:"rect",o:"ellipse",p:"polygon",b:"pen",l:"line",t:"text"};if(tools[key]){setActiveTool(tools[key]);return;}}if(e.key==="Insert"){e.preventDefault();$("addMenu").classList.toggle("hidden");}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="d"&&selectedPath){e.preventDefault();$("duplicateElement").click();}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="g"&&selectedPaths.length>1){e.preventDefault();groupSelection();}if(e.key==="Delete"||e.key==="Backspace"){if(selectedPath){e.preventDefault();$("deleteElement").click();}}if(e.key==="Escape")hideContextMenu();if(e.altKey&&["ArrowUp","ArrowDown"].includes(e.key)&&selectedPath){e.preventDefault();const menuAction=e.key==="ArrowUp"?"up":"down";$("contextMenu").querySelector(`[data-action="${menuAction}"]`).click();}});
+window.addEventListener("keydown",e=>{const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){if(typing)return;e.preventDefault();if(e.shiftKey)redo();else undo();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="y"){if(typing)return;e.preventDefault();redo();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="n"){e.preventDefault();$("newBtn").click();}if(typing)return;if(selectedPath&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(e.key)){const n=getAt(selectedPath);if(n&&["group","rect","text","path"].includes(n.type)){e.preventDefault();const step=e.shiftKey?10:1,dx=e.key==="ArrowLeft"?-step:e.key==="ArrowRight"?step:0,dy=e.key==="ArrowUp"?-step:e.key==="ArrowDown"?step:0;n.x=numericMm(n.x)+dx+"mm";n.y=numericMm(n.y)+dy+"mm";commit(()=>{});}return;}if(!e.ctrlKey&&!e.metaKey&&!e.altKey){const key=e.key.toLowerCase(),tools={v:"select",r:"rect",o:"ellipse",p:"polygon",b:"pen",c:"curve",i:"eyedropper",l:"line",t:"text"};if(tools[key]){setActiveTool(tools[key]);return;}}if(e.key==="Insert"){e.preventDefault();$("addMenu").classList.toggle("hidden");}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="d"&&selectedPath){e.preventDefault();$("duplicateElement").click();}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="g"&&selectedPaths.length>1){e.preventDefault();groupSelection();}if(e.key==="Delete"||e.key==="Backspace"){if(selectedPath){e.preventDefault();$("deleteElement").click();}}if(e.key==="Escape")hideContextMenu();if(e.altKey&&["ArrowUp","ArrowDown"].includes(e.key)&&selectedPath){e.preventDefault();const menuAction=e.key==="ArrowUp"?"up":"down";$("contextMenu").querySelector(`[data-action="${menuAction}"]`).click();}});
 
 createAlignmentTools({
   getContext(){
@@ -657,6 +678,10 @@ const commands=[
  {label:"Desenhar elipse",group:"Ferramentas",shortcut:"O",keywords:"círculo oval forma",run:()=>setActiveTool("ellipse")},
  {label:"Desenhar linha",group:"Ferramentas",shortcut:"L",keywords:"traço",run:()=>setActiveTool("line")},
  {label:"Inserir texto",group:"Ferramentas",shortcut:"T",keywords:"tipografia",run:()=>setActiveTool("text")},
+ {label:"Caneta Bézier",group:"Ferramentas",shortcut:"C",keywords:"curva suave caminho vetor",run:()=>setActiveTool("curve")},
+ {label:"Conta-gotas",group:"Ferramentas",shortcut:"I",keywords:"copiar estilo cor traço preenchimento",run:()=>setActiveTool("eyedropper")},
+ {label:"Inserir linhas pautadas",group:"Ferramentas",keywords:"linhas caderno espaçamento repetição",run:()=>addPattern("ruled")},
+ {label:"Inserir grade quadriculada",group:"Ferramentas",keywords:"grade quadrados matemática grid",run:()=>addPattern("grid")},
  {label:"Novo template",group:"Arquivo",shortcut:"Ctrl+N",keywords:"criar documento",run:()=> $("newBtn").click()},
  {label:"Abrir arquivo .xtemplate",group:"Arquivo",shortcut:"Ctrl+O",keywords:"importar carregar",run:()=> $("openBtn").click()},
  {label:"Exportar template",group:"Arquivo",shortcut:"Ctrl+S",keywords:"salvar baixar",run:()=> $("saveBtn").click()},
