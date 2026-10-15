@@ -291,3 +291,4 @@
 .transform-panel .number-scrubber::-webkit-slider-thumb{appearance:none;width:10px;height:10px;border:2px solid #dce5ff;border-radius:50%;background:#6485f5;box-shadow:0 0 0 2px #6485f533;}
 .transform-panel .number-scrubber::-moz-range-thumb{width:7px;height:7px;border:2px solid #dce5ff;border-radius:50%;background:#6485f5;}
 .transform-panel .number-scrubber:focus-visible{outline:1px solid var(--accent);outline-offset:3px;}
+.marquee-selection{fill:#6485f52b;stroke:#6485f5;stroke-width:.45;stroke-dasharray:1.8 1;pointer-events:none;}

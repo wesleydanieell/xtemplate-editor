@@ -14,7 +14,7 @@ cornell:{xtemplate:1,id:"xtemplate.examples.cornell",name:"Cornell notes",descri
 engineering:{xtemplate:1,id:"xtemplate.examples.engineering",name:"Engineering paper",description:"Fine squares grouped into heavier blocks, centred on the sheet.",license:"MIT",tags:["grid","math","engineering"],params:{minor:{type:"length",default:"2mm",min:"1mm",max:"5mm",label:"Small square",role:"spacing"},every:{type:"integer",default:5,min:2,max:10,label:"Squares per block"}},items:[{type:"group",inset:"10mm",children:[{type:"repeat",axis:"xy",period:"minor * every",fit:"center",children:[{type:"group",opacity:0.45,strokeWidth:"0.15mm",children:[{type:"repeat",axis:"y",count:"every",children:[{type:"hline"}]},{type:"repeat",axis:"x",count:"every",children:[{type:"vline"}]}]},{type:"rect",strokeWidth:"0.3mm"}]}]}]},
 todo:{xtemplate:1,id:"xtemplate.examples.todo",name:"Checklist",description:"Rows with a tick box each, stretched slightly so the rows fill the page exactly.",license:"MIT",tags:["planner","lists"],params:{row:{type:"length",default:"9mm",min:"6mm",max:"14mm",label:"Row height",role:"spacing"}},items:[{type:"text",text:"To do",x:"15mm",y:"18mm",size:"5mm",weight:"bold"},{type:"group",inset:["25mm","15mm","15mm","15mm"],children:[{type:"repeat",axis:"y",period:"row",fit:"round",children:[{type:"rect",y:"50% - 2.25mm",w:"4.5mm",h:"4.5mm",rx:"0.8mm"},{type:"hline",y:"100%",x1:"8mm"}]}]}]}
 };
-let doc=clone(samples.ruled),selectedPath=null,selectedPaths=[],dirty=false,drag=null,split=false,activeInspector="properties",suppressJson=false,toastTimer;
+let doc=clone(samples.ruled),selectedPath=null,selectedPaths=[],dirty=false,drag=null,marqueeState=null,split=false,activeInspector="properties",suppressJson=false,toastTimer;
 let smartGuides={x:null,y:null};
 const undoStack=[],redoStack=[];let historyState=JSON.stringify(doc),historyRestoring=false;
 let pageSize=[210,297],zoomMode="fit",previewValues={},lastValidJson="",expanded=true,clipSerial=0;
@@ -300,7 +300,8 @@ $("expandTree").addEventListener("click",()=>{
 
 const draggableTypes=new Set(["group","rect","path","text","ellipse","circle","dot","line","hline","vline","polyline","polygon"]);
 paper.addEventListener("pointerdown",e=>{
- const g=e.target.closest("[data-path]");if(!g)return;
+ const g=e.target.closest("[data-path]");
+ if(!g){if(activeTool!=="select"||e.button!==0)return;const r=paper.getBoundingClientRect(),pt={x:(e.clientX-r.left)*pageSize[0]/r.width,y:(e.clientY-r.top)*pageSize[1]/r.height};marqueeState={pointerId:e.pointerId,start:pt,current:pt};const rect=svg("rect",{id:"marquee-selection",class:"marquee-selection",x:pt.x,y:pt.y,width:0,height:0});paper.appendChild(rect);paper.setPointerCapture(e.pointerId);e.preventDefault();return;}
  const path=toPath(g.dataset.path),n=getAt(path),handle=e.target.closest("[data-handle]")?.dataset.handle,key=nodeKey(path);
  if(e.ctrlKey||e.metaKey||e.shiftKey){selectFromTree(path,e);return;}
  const multi= !handle&&selectedPaths.length>1&&selectedPaths.some(p=>nodeKey(p)===key)&&selectedPaths.every(p=>p.length===2)&&selectedPaths.every(p=>sameParent(p,selectedPaths[0]));
@@ -315,6 +316,7 @@ paper.addEventListener("pointerdown",e=>{
  paper.setPointerCapture(e.pointerId);if(handle)e.preventDefault();
 });
 paper.addEventListener("pointermove",e=>{
+ if(marqueeState&&marqueeState.pointerId===e.pointerId){const r=paper.getBoundingClientRect();marqueeState.current={x:(e.clientX-r.left)*pageSize[0]/r.width,y:(e.clientY-r.top)*pageSize[1]/r.height};const a=marqueeState.start,b=marqueeState.current,el=paper.querySelector("#marquee-selection");if(el){el.setAttribute("x",Math.min(a.x,b.x));el.setAttribute("y",Math.min(a.y,b.y));el.setAttribute("width",Math.abs(b.x-a.x));el.setAttribute("height",Math.abs(b.y-a.y));}return;}
  if(!drag)return;const n=getAt(drag.path);if(!n)return;
  const dx=(e.clientX-drag.startX)*drag.sx,dy=(e.clientY-drag.startY)*drag.sy;
  if(Math.abs(dx)+Math.abs(dy)>.4)drag.moved=true;if(!drag.moved)return;
@@ -367,8 +369,8 @@ paper.addEventListener("pointermove",e=>{
  }
  render();
 });
-paper.addEventListener("pointerup",()=>{if(drag){const moved=drag.moved;drag=null;smartGuides={x:null,y:null};if(moved)commit(()=>{});render();}});
-paper.addEventListener("pointercancel",()=>{if(drag){drag=null;smartGuides={x:null,y:null};render();}});
+paper.addEventListener("pointerup",e=>{if(marqueeState&&marqueeState.pointerId===e.pointerId){const state=marqueeState;marqueeState=null;$("marquee-selection")?.remove();const a=state.start,b=state.current,box={x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.abs(b.x-a.x),h:Math.abs(b.y-a.y)};selectedPaths=box.w<1&&box.h<1?[]:(doc.items||[]).map((n,i)=>({n,path:["items",i]})).filter(({n,path})=>{const g=transformGeometry(n,path);return g&&g.x+g.w>=box.x&&g.x<=box.x+box.w&&g.y+g.h>=box.y&&g.y<=box.y+box.h;}).map(x=>x.path);selectedPath=selectedPaths.at(-1)||null;render();setInspectorTab("properties");return;}if(drag){const moved=drag.moved;drag=null;smartGuides={x:null,y:null};if(moved)commit(()=>{});render();}});
+paper.addEventListener("pointercancel",e=>{if(marqueeState&&marqueeState.pointerId===e.pointerId){marqueeState=null;$("marquee-selection")?.remove();}if(drag){drag=null;smartGuides={x:null,y:null};render();}});
 $("openBtn").addEventListener("click",()=>$("fileInput").click());$("fileInput").addEventListener("change",async e=>{const f=e.target.files?.[0];if(!f)return;if(dirty&&!confirm("Há alterações não exportadas. Abrir outro arquivo mesmo assim?")){e.target.value="";return;}try{if(f.size>1048576)throw Error("O arquivo excede 1 MiB.");const parsed=JSON.parse(await f.text());validate(parsed);doc=parsed;selectedPath=null;selectedPaths=[];setDirty(false);resetHistory();initializePreviewValues();syncJson();render();document.querySelectorAll(".template-card").forEach(b=>b.classList.remove("active"));setStatus("Arquivo aberto: "+f.name);toast("Template carregado.");}catch(err){toast("Não foi possível abrir: "+err.message);}e.target.value="";});
 $("saveBtn").addEventListener("click",()=>{try{const current=JSON.parse(jsonEditor.value);validate(current);doc=current;const blob=new Blob([JSON.stringify(doc,null,2)+"\n"],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=((doc.name||"template").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"template")+".xtemplate";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);setDirty(false);toast("Template exportado.");setStatus("Exportação concluída");}catch(e){toast(e.message);}});
 $("newBtn").addEventListener("click",()=>{if(dirty&&!confirm("Há alterações não exportadas. Criar novo template?"))return;doc={xtemplate:1,id:"xtemplate.custom.new",name:"Novo template",description:"",license:"MIT",tags:[],params:{},items:[{type:"group",inset:"10mm",children:[{type:"hline",y:"50%",stroke:"ink",strokeWidth:"0.2mm"}]}]};selectedPath=null;selectedPaths=[];resetHistory();initializePreviewValues();setDirty(true);syncJson();render();setInspectorTab("document");document.querySelectorAll(".template-card").forEach(b=>b.classList.remove("active"));});
