@@ -332,8 +332,13 @@ $("saveBtn").addEventListener("click",()=>{try{const current=JSON.parse(jsonEdit
 $("newBtn").addEventListener("click",()=>{if(dirty&&!confirm("Há alterações não exportadas. Criar novo template?"))return;doc={xtemplate:1,id:"xtemplate.custom.new",name:"Novo template",description:"",license:"MIT",tags:[],params:{},items:[{type:"group",inset:"10mm",children:[{type:"hline",y:"50%",stroke:"ink",strokeWidth:"0.2mm"}]}]};selectedPath=null;resetHistory();initializePreviewValues();setDirty(true);syncJson();render();setInspectorTab("document");document.querySelectorAll(".template-card").forEach(b=>b.classList.remove("active"));});
 document.querySelectorAll(".template-card").forEach(b=>b.addEventListener("click",()=>{const key=b.dataset.template;if(dirty&&!confirm("Descartar alterações não exportadas e abrir este modelo?"))return;doc=clone(samples[key]);selectedPath=null;resetHistory();initializePreviewValues();setDirty(false);syncJson();render();document.querySelectorAll(".template-card").forEach(x=>x.classList.toggle("active",x===b));}));
 $("paperSize").addEventListener("change",e=>{pageSize=SIZES[e.target.value]||SIZES.a4;wrap.style.aspectRatio=pageSize[0]+"/"+pageSize[1];render();});
-function fitPaper(){const canvas=$("canvasArea"),availableW=Math.max(100,canvas.clientWidth-55),availableH=Math.max(150,canvas.clientHeight-54);let w=Math.min(availableW,availableH*pageSize[0]/pageSize[1],500);if(zoomMode==="100")w=Math.min(availableW,pageSize[0]*2);if(zoomMode==="125")w=Math.min(availableW,pageSize[0]*2.5);if(zoomMode==="75")w=Math.min(availableW,pageSize[0]*1.5);wrap.style.width=Math.max(100,w)+"px";$("zoomLabel").textContent=zoomMode==="fit"?"Ajustado à tela":zoomMode+"%";} 
-$("zoom").addEventListener("change",e=>{zoomMode=e.target.value;fitPaper();});$("zoomOut").addEventListener("click",()=>{zoomMode=zoomMode==="125"?"100":zoomMode==="100"?"75":"fit";$("zoom").value=zoomMode;fitPaper();});$("zoomIn").addEventListener("click",()=>{zoomMode=zoomMode==="fit"?"75":zoomMode==="75"?"100":"125";$("zoom").value=zoomMode;fitPaper();});
+const ZOOM_LEVELS=[25,50,75,100,125,150,200,300];
+function fitWidth(){const canvas=$("canvasArea"),availableW=Math.max(100,canvas.clientWidth-75),availableH=Math.max(150,canvas.clientHeight-70);return Math.max(100,Math.min(availableW,availableH*pageSize[0]/pageSize[1],500));}
+function currentPaperWidth(){return wrap.getBoundingClientRect().width||fitWidth();}
+function fitPaper(){const canvas=$("canvasArea"),fit=fitWidth();let w=zoomMode==="fit"?fit:pageSize[0]*2*(Number(zoomMode)/100);wrap.style.width=Math.max(60,w)+"px";$("zoom").value=zoomMode;const actual=zoomMode==="fit"?Math.round(fit/(pageSize[0]*2)*100):Number(zoomMode);$("zoomLabel").textContent=zoomMode==="fit"?"Ajustar · "+actual+"%":actual+"%";canvas.classList.toggle("zoomed-in",zoomMode!=="fit"&&w>fit+1);}
+function setZoom(next,anchor=null){const oldWidth=currentPaperWidth();zoomMode=next;fitPaper();const newWidth=currentPaperWidth();if(next==="fit"){panOffset.x=0;panOffset.y=0;applyPan();return;}if(anchor&&oldWidth>0){const r=$("canvasArea").getBoundingClientRect(),x=anchor.x-r.left-r.width/2-panOffset.x,y=anchor.y-r.top-r.height/2-panOffset.y,ratio=newWidth/oldWidth;panOffset.x+=x*(1-ratio);panOffset.y+=y*(1-ratio);applyPan();}}
+function stepZoom(direction,anchor=null){const current=zoomMode==="fit"?100:Number(zoomMode);let index=ZOOM_LEVELS.findIndex(v=>v>=current);if(index<0)index=ZOOM_LEVELS.length-1;if(direction>0){if(ZOOM_LEVELS[index]<=current&&index<ZOOM_LEVELS.length-1)index++;}else if(ZOOM_LEVELS[index]>=current&&index>0)index--;setZoom(String(ZOOM_LEVELS[index]),anchor);}
+$("zoom").addEventListener("change",e=>setZoom(e.target.value));$("zoomOut").addEventListener("click",()=>stepZoom(-1));$("zoomIn").addEventListener("click",()=>stepZoom(1));
 window.addEventListener("resize",fitPaper);
 window.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s"){e.preventDefault();$("saveBtn").click();}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="o"){e.preventDefault();$("openBtn").click();}if(e.key==="Escape")$("addMenu").classList.add("hidden");if((e.ctrlKey||e.metaKey)&&e.key==="Enter"){e.preventDefault();toggleSplit();}});
 // Ergonomic editing: transform controls, context menu, canvas navigation, and shortcuts.
@@ -511,8 +516,8 @@ function applyPan(){paperWrap.style.transform="translate("+panOffset.x+"px, "+pa
 window.addEventListener("keydown",e=>{if(e.code==="Space"&&!e.repeat&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){spaceDown=true;canvas.classList.add("space-ready");e.preventDefault();}});
 window.addEventListener("keyup",e=>{if(e.code==="Space"){spaceDown=false;canvas.classList.remove("space-ready","panning");pan=null;}});
 window.addEventListener("blur",()=>{spaceDown=false;canvas.classList.remove("space-ready","panning");pan=null;});
-canvas.addEventListener("wheel",e=>{if(!e.altKey)return;e.preventDefault();const modes=["fit","75","100","125"];let i=modes.indexOf(zoomMode);i=Math.max(0,Math.min(modes.length-1,i+(e.deltaY<0?1:-1)));zoomMode=modes[i];$("zoom").value=zoomMode;fitPaper();},{passive:false});
-canvas.addEventListener("pointerdown",e=>{if(!spaceDown)return;pan={x:e.clientX,y:e.clientY,originX:panOffset.x,originY:panOffset.y};canvas.classList.add("panning");e.preventDefault();e.stopPropagation();canvas.setPointerCapture(e.pointerId);},true);
+canvas.addEventListener("wheel",e=>{if(!e.altKey)return;e.preventDefault();stepZoom(e.deltaY<0?1:-1,{x:e.clientX,y:e.clientY});},{passive:false});
+canvas.addEventListener("pointerdown",e=>{if(!spaceDown&&activeTool!=="pan")return;pan={x:e.clientX,y:e.clientY,originX:panOffset.x,originY:panOffset.y};canvas.classList.add("panning");e.preventDefault();e.stopPropagation();canvas.setPointerCapture(e.pointerId);},true);
 canvas.addEventListener("pointermove",e=>{if(!pan)return;panOffset.x=pan.originX+e.clientX-pan.x;panOffset.y=pan.originY+e.clientY-pan.y;applyPan();});
 canvas.addEventListener("pointerup",()=>{pan=null;canvas.classList.remove("panning");});
 canvas.addEventListener("pointercancel",()=>{pan=null;canvas.classList.remove("panning");});
@@ -584,7 +589,7 @@ const commands=[
  {label:"Alternar editor JSON",group:"Visualização",shortcut:"Ctrl+Enter",keywords:"código dividido fonte",run:()=>toggleSplit()},
  {label:"Formatar JSON",group:"Visualização",keywords:"indentação organizar código",run:()=>{if(!split)toggleSplit(true);$("formatJson").click()}},
  {label:"Adicionar elemento",group:"Estrutura",shortcut:"Insert",keywords:"nó grupo repetição forma",run:()=>{$("addMenu").classList.toggle("hidden");}},
- {label:"Ajustar página à tela",group:"Visualização",keywords:"zoom fit enquadrar",run:()=>{zoomMode="fit";$("zoom").value="fit";fitPaper()}}
+ {label:"Ajustar página à tela",group:"Visualização",keywords:"zoom fit enquadrar",run:()=>setZoom("fit")}
 ];
 let commandMatches=[],commandIndex=0,previousFocus=null;
 function renderCommandResults(){

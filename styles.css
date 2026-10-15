@@ -270,3 +270,11 @@
   .command-palette { top: 8vh; max-height: 84vh; }
   .command-palette-foot { gap: 5px; }
 }
+
+/* Predictable zoom sizing: large pages stay fully pannable instead of being height-clamped. */
+.paper-wrap{max-height:none;transition:none}
+#zoom{min-width:76px;font-variant-numeric:tabular-nums}
+#zoomOut,#zoomIn{min-width:27px;font-size:15px;font-weight:700}
+.canvas-area.zoomed-in{cursor:grab}
+.canvas-area.zoomed-in .paper-wrap{filter:drop-shadow(0 10px 24px #0009)}
+@media(prefers-reduced-motion:reduce){.paper-wrap{transition:none!important}}
