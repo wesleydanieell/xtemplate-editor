@@ -2,6 +2,10 @@
 
 Editor local, offline e independente para criar e personalizar arquivos `.xtemplate` do XNotes Android.
 
+## Guia de autoria `.xtemplate`
+
+Leia [o guia do formato XTemplate](docs/GUIA-XTEMPLATE.md) para entender elementos, expressões, cores, preenchimentos, parâmetros e como testar compatibilidade com o XNotes Android.
+
 ## Executar
 
 **Forma simples:** execute `./start.sh`. O script inicia o servidor local e abre o navegador em http://127.0.0.1:8765. Se o servidor já estiver ativo, apenas abre a aplicação.

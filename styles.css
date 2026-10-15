@@ -301,3 +301,15 @@
 .smart-guide { stroke: #ff4f91; stroke-width: .55; stroke-dasharray: 2 1; vector-effect: non-scaling-stroke; pointer-events: none; }
 .canvas-tools .canvas-tool[data-tool="ruled"], .canvas-tools .canvas-tool[data-tool="grid"] { color: #9cb9e9; }
 .param-add-button{font-size:10px;padding:5px 8px;white-space:nowrap}.param-create{border:1px solid #3d4659;background:#1b202a;border-radius:6px;padding:10px;margin:10px 0 14px}.param-create-title{font-size:9px;font-weight:800;letter-spacing:.8px;color:#a9bdff;margin-bottom:8px}.param-create .field{margin:8px 0}.param-create .field small{font-size:9px;color:#858fa3;line-height:1.4}.param-create .field-row{gap:8px}.param-create .field-row>.field{flex:1;min-width:0}.param-create-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:12px}.param-create-actions button{font-size:10px}.param-form-error{color:#ff9ca4;font-size:10px;line-height:1.45;margin:7px 0}
+
+/* Inline color palettes avoid native picker popovers escaping the inspector viewport. */
+.color-choices{display:flex;flex-direction:column;gap:5px;margin-top:5px;min-width:0}
+.color-choices select{width:100%;min-width:0;font-size:9px;padding:5px}
+.color-swatch-row{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.color-swatch{width:16px;height:16px;min-width:16px;padding:0;border:1px solid #71798a;border-radius:4px;box-shadow:inset 0 0 0 1px #0002}
+.color-swatch:hover,.color-swatch:focus-visible{outline:2px solid #a9beff;outline-offset:1px;transform:scale(1.08)}
+.color-field{display:flex;flex-direction:column;align-items:stretch;gap:5px}
+.color-field input{width:100%;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.param-color{display:flex;flex-direction:column;align-items:stretch;gap:5px}
+.param-color input{width:100%;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.param-color code{font-size:10px}
