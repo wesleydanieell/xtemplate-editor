@@ -518,7 +518,7 @@ canvas.addEventListener("pointerup",()=>{pan=null;canvas.classList.remove("panni
 canvas.addEventListener("pointercancel",()=>{pan=null;canvas.classList.remove("panning");});
 const toolButtons=[...document.querySelectorAll(".canvas-tool")];
 let activeTool="select",drawState=null;
-function setActiveTool(tool){activeTool=tool;toolButtons.forEach(b=>b.classList.toggle("active",b.dataset.tool===tool));paper.style.cursor=tool==="select"?"default":tool==="pan"?"grab":tool==="text"?"text":"crosshair";}
+function setActiveTool(tool){activeTool=tool;toolButtons.forEach(b=>{const active=b.dataset.tool===tool;b.classList.toggle("active",active);b.setAttribute("aria-pressed",String(active));});paper.style.cursor=tool==="select"?"default":tool==="pan"?"grab":tool==="text"?"text":"crosshair";}
 function pagePoint(e){const r=paper.getBoundingClientRect();return{x:(e.clientX-r.left)*pageSize[0]/r.width,y:(e.clientY-r.top)*pageSize[1]/r.height};}
 function insertDrawnNode(type,a,b){
  const left=Math.min(a.x,b.x),top=Math.min(a.y,b.y),w=Math.max(1,Math.abs(b.x-a.x)),h=Math.max(1,Math.abs(b.y-a.y));
@@ -566,5 +566,56 @@ createAlignmentTools({
   commit(){commit(()=>{});},
   toast(message){toast(message);}
 });
+const commandPalette=$("commandPalette"),commandSearch=$("commandSearch"),commandResults=$("commandResults");
+const commands=[
+ {label:"Selecionar ferramenta",group:"Ferramentas",shortcut:"V",keywords:"cursor mover transformar",run:()=>setActiveTool("select")},
+ {label:"Mover tela",group:"Ferramentas",shortcut:"Espaço",keywords:"pan mão navegar",run:()=>setActiveTool("pan")},
+ {label:"Desenhar retângulo",group:"Ferramentas",shortcut:"R",keywords:"forma quadrado",run:()=>setActiveTool("rect")},
+ {label:"Desenhar elipse",group:"Ferramentas",shortcut:"O",keywords:"círculo oval forma",run:()=>setActiveTool("ellipse")},
+ {label:"Desenhar linha",group:"Ferramentas",shortcut:"L",keywords:"traço",run:()=>setActiveTool("line")},
+ {label:"Inserir texto",group:"Ferramentas",shortcut:"T",keywords:"tipografia",run:()=>setActiveTool("text")},
+ {label:"Novo template",group:"Arquivo",shortcut:"Ctrl+N",keywords:"criar documento",run:()=> $("newBtn").click()},
+ {label:"Abrir arquivo .xtemplate",group:"Arquivo",shortcut:"Ctrl+O",keywords:"importar carregar",run:()=> $("openBtn").click()},
+ {label:"Exportar template",group:"Arquivo",shortcut:"Ctrl+S",keywords:"salvar baixar",run:()=> $("saveBtn").click()},
+ {label:"Desfazer",group:"Editar",shortcut:"Ctrl+Z",keywords:"undo voltar",run:()=>undo()},
+ {label:"Refazer",group:"Editar",shortcut:"Ctrl+Shift+Z",keywords:"redo repetir",run:()=>redo()},
+ {label:"Duplicar elemento",group:"Editar",shortcut:"Ctrl+D",keywords:"cópia clonar",run:()=>{if(selectedPath)$("duplicateElement").click();else toast("Selecione um elemento primeiro.")}},
+ {label:"Remover elemento",group:"Editar",shortcut:"Delete",keywords:"apagar excluir",run:()=>{if(selectedPath)$("deleteElement").click();else toast("Selecione um elemento primeiro.")}},
+ {label:"Alternar editor JSON",group:"Visualização",shortcut:"Ctrl+Enter",keywords:"código dividido fonte",run:()=>toggleSplit()},
+ {label:"Formatar JSON",group:"Visualização",keywords:"indentação organizar código",run:()=>{if(!split)toggleSplit(true);$("formatJson").click()}},
+ {label:"Adicionar elemento",group:"Estrutura",shortcut:"Insert",keywords:"nó grupo repetição forma",run:()=>{$("addMenu").classList.toggle("hidden");}},
+ {label:"Ajustar página à tela",group:"Visualização",keywords:"zoom fit enquadrar",run:()=>{zoomMode="fit";$("zoom").value="fit";fitPaper()}}
+];
+let commandMatches=[],commandIndex=0,previousFocus=null;
+function renderCommandResults(){
+ const q=commandSearch.value.trim().toLocaleLowerCase("pt-BR");
+ commandMatches=commands.map((c,i)=>({...c,index:i})).filter(c=>(c.label+" "+c.group+" "+(c.keywords||"")+" "+(c.shortcut||"")).toLocaleLowerCase("pt-BR").includes(q));
+ commandIndex=Math.min(commandIndex,Math.max(0,commandMatches.length-1));
+ commandResults.replaceChildren();
+ if(!commandMatches.length){const empty=document.createElement("div");empty.className="command-empty";empty.textContent="Nenhum comando encontrado";commandResults.appendChild(empty);return;}
+ let lastGroup="";
+ commandMatches.forEach((c,i)=>{
+  if(c.group!==lastGroup){const group=document.createElement("div");group.className="command-group";group.textContent=c.group;commandResults.appendChild(group);lastGroup=c.group;}
+  const b=document.createElement("button");b.type="button";b.className="command-result"+(i===commandIndex?" active":"");b.setAttribute("role","option");b.setAttribute("aria-selected",String(i===commandIndex));b.dataset.commandIndex=String(i);
+  const label=document.createElement("span");label.textContent=c.label;b.appendChild(label);
+  if(c.shortcut){const k=document.createElement("kbd");k.textContent=c.shortcut;b.appendChild(k);}
+  b.addEventListener("click",()=>runCommand(c));commandResults.appendChild(b);
+ });
+ commandResults.querySelector(".command-result.active")?.scrollIntoView({block:"nearest"});
+}
+function openCommandPalette(){previousFocus=document.activeElement;commandPalette.classList.remove("hidden");commandSearch.value="";commandIndex=0;renderCommandResults();commandSearch.focus();}
+function closeCommandPalette(){if(commandPalette.classList.contains("hidden"))return;commandPalette.classList.add("hidden");if(previousFocus?.isConnected)previousFocus.focus();}
+function runCommand(command){closeCommandPalette();command.run();}
+commandSearch.addEventListener("input",()=>{commandIndex=0;renderCommandResults();});
+commandSearch.addEventListener("keydown",e=>{
+ if(e.key==="ArrowDown"||e.key==="ArrowUp"){e.preventDefault();if(commandMatches.length){commandIndex=(commandIndex+(e.key==="ArrowDown"?1:-1)+commandMatches.length)%commandMatches.length;renderCommandResults();}return;}
+ if(e.key==="Enter"){e.preventDefault();if(commandMatches[commandIndex])runCommand(commandMatches[commandIndex]);return;}
+ if(e.key==="Escape"){e.preventDefault();closeCommandPalette();}
+});
+commandPalette.addEventListener("pointerdown",e=>{if(e.target===commandPalette)closeCommandPalette();});
+window.addEventListener("keydown",e=>{
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();e.stopPropagation();if(commandPalette.classList.contains("hidden"))openCommandPalette();else closeCommandPalette();return;}
+ if(!commandPalette.classList.contains("hidden")&&e.key==="Escape"){closeCommandPalette();}
+},true);
 initializePreviewValues();syncJson();render();setInspectorTab("document");resetHistory();
 })();

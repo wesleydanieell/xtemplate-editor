@@ -123,3 +123,150 @@
 
 /* Page-edge and center snapping guides shown during object movement. */
 .smart-guide{stroke:#f04475;stroke-width:.45;stroke-dasharray:2 1;vector-effect:non-scaling-stroke;pointer-events:none}
+
+/* A compact, Figma-inspired tool rail with consistent vector geometry. */
+.canvas-tools {
+  width: 48px;
+  padding: 6px;
+  gap: 5px;
+  border-color: #414958;
+  background: #20242d;
+}
+.canvas-tools .canvas-tool {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  padding: 6px;
+  color: #bfc8da;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  transition: background-color .12s ease, border-color .12s ease, color .12s ease;
+}
+.canvas-tools .canvas-tool svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  overflow: visible;
+}
+.canvas-tools .canvas-tool[data-tool="select"] svg { fill: currentColor; stroke-width: 1.15; }
+.canvas-tools .canvas-tool[data-tool="text"] svg { stroke-width: 1.8; }
+.canvas-tools .canvas-tool kbd {
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 2px;
+  color: #8792a8;
+  background: #20242d;
+  font: 8px/10px ui-monospace, monospace;
+  opacity: .9;
+}
+.canvas-tools .canvas-tool:hover { color: #f0f4ff; border-color: #48536a; background: #303746; }
+.canvas-tools .canvas-tool.active,
+.canvas-tools .canvas-tool[aria-pressed="true"] {
+  color: #f5f7ff;
+  border-color: #718fe2;
+  background: linear-gradient(145deg, #405581, #304263);
+  box-shadow: inset 0 0 0 1px #8da9fa55, 0 2px 7px #0003;
+}
+.canvas-tools .canvas-tool.active kbd { color: #dce6ff; background: transparent; }
+.canvas-tools .canvas-tool:focus-visible { outline: 2px solid #b4c7ff; outline-offset: 2px; z-index: 2; }
+.canvas-tools .tool-separator { display: block; flex: 0 0 1px; width: 25px; height: 1px; margin: 2px auto; background: #444b59; }
+@media (max-width: 790px) {
+  .canvas-tools { width: 42px; padding: 4px; }
+  .canvas-tools .canvas-tool { width: 32px; height: 32px; flex-basis: 32px; padding: 5px; }
+  .canvas-tools .canvas-tool svg { width: 20px; height: 20px; }
+  .canvas-tools .canvas-tool kbd { font-size: 7px; }
+}
+@media (prefers-reduced-motion: reduce) { .canvas-tools .canvas-tool { transition: none; } }
+
+/* Command palette: keyboard-first discovery for the editor's growing toolset. */
+.command-palette {
+  position: fixed;
+  z-index: 1000;
+  top: min(18vh, 150px);
+  left: 50%;
+  width: min(560px, calc(100vw - 28px));
+  max-height: min(72vh, 640px);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(-50%);
+  overflow: hidden;
+  border: 1px solid #4a5365;
+  border-radius: 12px;
+  background: #20242d;
+  color: #e6eaf2;
+  box-shadow: 0 22px 70px #0009, 0 0 0 100vmax #090b10a8;
+}
+.command-palette.hidden { display: none; }
+.command-palette-head, .command-palette-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 15px;
+  color: #8e9ab0;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .75px;
+}
+.command-palette-head { border-bottom: 1px solid #343a47; }
+.command-palette-head kbd, .command-result kbd {
+  padding: 3px 6px;
+  border: 1px solid #454d5d;
+  border-radius: 4px;
+  background: #292e39;
+  color: #aab5ca;
+  font: 10px ui-monospace, monospace;
+  letter-spacing: 0;
+}
+#commandSearch {
+  width: calc(100% - 24px);
+  margin: 12px;
+  padding: 12px 13px;
+  border: 1px solid #536a98;
+  border-radius: 7px;
+  outline: none;
+  background: #171a21;
+  color: #f2f5ff;
+  font-size: 13px;
+  font-family: inherit;
+}
+#commandSearch:focus { border-color: #86a5ff; box-shadow: 0 0 0 2px #668cff30; }
+.command-results { overflow: auto; min-height: 60px; padding: 0 7px 8px; }
+.command-group { padding: 9px 9px 5px; color: #78869e; font-size: 9px; font-weight: 750; letter-spacing: .8px; text-transform: uppercase; }
+.command-result {
+  display: flex;
+  width: 100%;
+  min-height: 37px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #d8dfed;
+  text-align: left;
+  font-size: 12px;
+  cursor: pointer;
+}
+.command-result:hover, .command-result.active { border-color: #536b9b; background: #34435e; color: #fff; }
+.command-result.active kbd { border-color: #657ba5; color: #e0e8ff; }
+.command-empty { padding: 24px 12px; color: #9aa4b7; text-align: center; font-size: 12px; }
+.command-palette-foot { justify-content: flex-start; flex-wrap: wrap; border-top: 1px solid #343a47; font-weight: 500; letter-spacing: 0; }
+.command-palette-foot span { margin-right: 8px; }
+@media (max-width: 600px) {
+  .command-palette { top: 8vh; max-height: 84vh; }
+  .command-palette-foot { gap: 5px; }
+}
