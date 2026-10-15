@@ -55,7 +55,7 @@ function repeatPositions(start,size,period,count,fit,limit=500,extended=null,shi
  const total=last-first+1;if(total<1||total>limit)return[];
  return Array.from({length:total},(_,i)=>{const k=first+i;return{index:k,pos:start+shift+k*period,size:period};});
 }
-function renderNode(n,path,box,parentStyle={stroke:"ink",strokeWidth:0.25,fill:null,opacity:1,font:"sans",size:3.5,weight:"normal",italic:false,align:"start",baseline:"alphabetic"}){if(!n||typeof n!=="object")return null;const type=n.type,st=mergedStyle(n,parentStyle),attrs=svgStyle(st),key=nodeKey(path),isSelected=selectedPath&&nodeKey(selectedPath)===key,g=svg("g",{"data-path":key,class:"svg-node",tabindex:0,role:"button","aria-label":type||"element"});const x=evalN(n.x??0,box,"x"),y=evalN(n.y??0,box,"y"),w=evalN(n.w??"100%",box,"x",box.w),h=evalN(n.h??"100%",box,"y",box.h);
+function renderNode(n,path,box,parentStyle={stroke:"ink",strokeWidth:0.25,fill:null,opacity:1,font:"sans",size:3.5,weight:"normal",italic:false,align:"start",baseline:"alphabetic"}){if(!n||typeof n!=="object")return null;const type=n.type,st=mergedStyle(n,parentStyle),attrs=svgStyle(st),key=nodeKey(path),isSelected=selectedPaths.some(p=>nodeKey(p)===key),g=svg("g",{"data-path":key,class:"svg-node",tabindex:0,role:"button","aria-label":type||"element"});const x=evalN(n.x??0,box,"x"),y=evalN(n.y??0,box,"y"),w=evalN(n.w??"100%",box,"x",box.w),h=evalN(n.h??"100%",box,"y",box.h);
 switch(type){
 case"group":{let [top,right,bottom,left]=[0,0,0,0];if(n.inset!==undefined){let a=Array.isArray(n.inset)?n.inset:[n.inset];if(a.length===1)a=[a[0],a[0],a[0],a[0]];else if(a.length===2)a=[a[0],a[1],a[0],a[1]];else if(a.length===3)a=[a[0],a[1],a[2],a[1]];[top,right,bottom,left]=[evalN(a[0],box,"y"),evalN(a[1],box,"x"),evalN(a[2],box,"y"),evalN(a[3],box,"x")];}const b={x:box.x+x+left,y:box.y+y+top,w:Math.max(0,w-left-right),h:Math.max(0,h-top-bottom),vars:box.vars||previewValues};const child=childrenRender(n,path,b,st);if(n.clip)applyClip(child,b);g.appendChild(child);break;}
 case"repeat":{
@@ -297,16 +297,20 @@ $("expandTree").addEventListener("click",()=>{
  }
  renderTree();
 });
-paper.addEventListener("click",e=>{const g=e.target.closest("[data-path]");if(g)select(toPath(g.dataset.path));});
+
 const draggableTypes=new Set(["group","rect","path","text","ellipse","circle","dot","line","hline","vline","polyline","polygon"]);
 paper.addEventListener("pointerdown",e=>{
  const g=e.target.closest("[data-path]");if(!g)return;
- const path=toPath(g.dataset.path),n=getAt(path),handle=e.target.closest("[data-handle]")?.dataset.handle;
- select(path);
+ const path=toPath(g.dataset.path),n=getAt(path),handle=e.target.closest("[data-handle]")?.dataset.handle,key=nodeKey(path);
+ if(e.ctrlKey||e.metaKey||e.shiftKey){selectFromTree(path,e);return;}
+ const multi= !handle&&selectedPaths.length>1&&selectedPaths.some(p=>nodeKey(p)===key)&&selectedPaths.every(p=>p.length===2)&&selectedPaths.every(p=>sameParent(p,selectedPaths[0]));
+ if(!multi)select(path);
  if(!n||path.length!==2||!draggableTypes.has(n.type))return;
  const box=paper.getBoundingClientRect(),bounds=transformGeometry(n);
  const sx=pageSize[0]/box.width,sy=pageSize[1]/box.height;
- drag={path,mode:handle?"transform":"move",handle,startX:e.clientX,startY:e.clientY,sx,sy,bounds,origin:clone(n),moved:false,
+ const paths=multi?selectedPaths.map(p=>p.slice()):[path.slice()];
+ const items=paths.map(p=>({path:p,origin:clone(getAt(p)),bounds:transformGeometry(getAt(p),p)}));
+ drag={path,mode:handle?"transform":"move",handle,startX:e.clientX,startY:e.clientY,sx,sy,bounds,origin:clone(n),items,moved:false,
   startAngle:Math.atan2((e.clientY-box.top)*sy-(bounds.y+bounds.h/2),(e.clientX-box.left)*sx-(bounds.x+bounds.w/2))*180/Math.PI};
  paper.setPointerCapture(e.pointerId);if(handle)e.preventDefault();
 });
@@ -314,6 +318,14 @@ paper.addEventListener("pointermove",e=>{
  if(!drag)return;const n=getAt(drag.path);if(!n)return;
  const dx=(e.clientX-drag.startX)*drag.sx,dy=(e.clientY-drag.startY)*drag.sy;
  if(Math.abs(dx)+Math.abs(dy)>.4)drag.moved=true;if(!drag.moved)return;
+ if(drag.mode==="move"&&drag.items?.length>1){
+  for(const item of drag.items)Object.assign(getAt(item.path),clone(item.origin));
+  const g=drag.bounds,proposed={x:g.x+dx,y:g.y+dy,w:g.w,h:g.h},snapDistance=2.4;
+  const xt=[{shift:-proposed.x,guide:0},{shift:pageSize[0]-(proposed.x+proposed.w),guide:pageSize[0]},{shift:pageSize[0]/2-(proposed.x+proposed.w/2),guide:pageSize[0]/2}].sort((a,b)=>Math.abs(a.shift)-Math.abs(b.shift))[0];
+  const yt=[{shift:-proposed.y,guide:0},{shift:pageSize[1]-(proposed.y+proposed.h),guide:pageSize[1]},{shift:pageSize[1]/2-(proposed.y+proposed.h/2),guide:pageSize[1]/2}].sort((a,b)=>Math.abs(a.shift)-Math.abs(b.shift))[0];
+  smartGuides={x:null,y:null};if(Math.abs(xt.shift)<=snapDistance){dx+=xt.shift;smartGuides.x=xt.guide;}if(Math.abs(yt.shift)<=snapDistance){dy+=yt.shift;smartGuides.y=yt.guide;}
+  for(const item of drag.items)moveBy(getAt(item.path),dx,dy,parentBoxForPath(item.path));render();return;
+ }
  const base=drag.origin,g=drag.bounds,type=base.type,fmt=v=>Number(v.toFixed(2))+"mm",box=transformContext();
  Object.assign(n,clone(base));
  if(drag.mode==="move"){
