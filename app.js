@@ -1,3 +1,4 @@
+import { createAlignmentTools } from "./src/features/alignment.js";
 (() => {
 "use strict";
 const $=id=>document.getElementById(id),NS="http://www.w3.org/2000/svg";
@@ -11,6 +12,7 @@ engineering:{xtemplate:1,id:"xtemplate.examples.engineering",name:"Engineering p
 todo:{xtemplate:1,id:"xtemplate.examples.todo",name:"Checklist",description:"Rows with a tick box each, stretched slightly so the rows fill the page exactly.",license:"MIT",tags:["planner","lists"],params:{row:{type:"length",default:"9mm",min:"6mm",max:"14mm",label:"Row height",role:"spacing"}},items:[{type:"text",text:"To do",x:"15mm",y:"18mm",size:"5mm",weight:"bold"},{type:"group",inset:["25mm","15mm","15mm","15mm"],children:[{type:"repeat",axis:"y",period:"row",fit:"round",children:[{type:"rect",y:"50% - 2.25mm",w:"4.5mm",h:"4.5mm",rx:"0.8mm"},{type:"hline",y:"100%",x1:"8mm"}]}]}]}
 };
 let doc=clone(samples.ruled),selectedPath=null,dirty=false,drag=null,split=false,activeInspector="properties",suppressJson=false,toastTimer;
+let smartGuides={x:null,y:null};
 const undoStack=[],redoStack=[];let historyState=JSON.stringify(doc),historyRestoring=false;
 let pageSize=[210,297],zoomMode="fit",previewValues={},lastValidJson="",expanded=true,clipSerial=0;
 const collapsedTree=new Set();
@@ -98,7 +100,10 @@ if(n.rotate!==undefined&&type!=="text"){const rb=selectionBounds(n,box);g.setAtt
 return g;}
 function selectionBounds(n,b){const t=n.type,x=b.x+evalN(n.x??0,b,"x"),y=b.y+evalN(n.y??0,b,"y"),w=evalN(n.w??"100%",b,"x",b.w),h=evalN(n.h??"100%",b,"y",b.h);if(t==="hline")return{x:b.x,y:b.y+evalN(n.y??0,b,"y"),w:b.w,h:0.6};if(t==="vline")return{x:b.x+evalN(n.x??0,b,"x"),y:b.y,w:0.6,h:b.h};if(t==="line"){const x1=evalN(n.x1??0,b,"x"),y1=evalN(n.y1??0,b,"y"),x2=evalN(n.x2??0,b,"x"),y2=evalN(n.y2??0,b,"y");return{x:b.x+Math.min(x1,x2),y:b.y+Math.min(y1,y2),w:Math.abs(x2-x1),h:Math.abs(y2-y1)};}if(t==="text")return{x,y,w:Math.max(10,String(n.text||"").length*1.8),h:5};if(t==="ellipse"){const rx=evalN(n.rx??"15mm",b,"short"),ry=evalN(n.ry??"8mm",b,"short");return{x:b.x+evalN(n.cx??0,b,"x")-rx,y:b.y+evalN(n.cy??0,b,"y")-ry,w:2*rx,h:2*ry};}if(["circle","dot"].includes(t)){const r=evalN(n.r??"0.35mm",b,"short");return{x:b.x+evalN(n.cx??0,b,"x")-r,y:b.y+evalN(n.cy??0,b,"y")-r,w:2*r,h:2*r};}return{x,y,w,h};}
 function initializePreviewValues(){previewValues={};for(const [name,p] of Object.entries(doc.params||{})){const d=p.default;if(p.type==="color")previewValues["$"+name]=d||"#333333";else previewValues[name]=typeof d==="number"?d:(mm(d,1) ?? (Number(d)||0));}}
-function render(){paper.replaceChildren();paper.setAttribute("viewBox","0 0 "+pageSize[0]+" "+pageSize[1]);paper.appendChild(svg("rect",{x:0,y:0,width:pageSize[0],height:pageSize[1],fill:"#fffefa"}));const box={x:0,y:0,w:pageSize[0],h:pageSize[1],vars:{...previewValues,W:pageSize[0],H:pageSize[1],i:0,j:0}};(doc.items||[]).forEach((n,i)=>{const e=renderNode(n,["items",i],box);if(e)paper.appendChild(e);});$("pageDimensions").textContent=pageSize[0]+" × "+pageSize[1]+" mm";$("docName").textContent=doc.name||"Sem título";$("nodeStatus").textContent=countNodes(doc.items||[])+" nós";if(document.activeElement!==$("metaName"))$("metaName").value=doc.name||"";if(document.activeElement!==$("metaId"))$("metaId").value=doc.id||"";if(document.activeElement!==$("metaDescription"))$("metaDescription").value=doc.description||"";if(document.activeElement!==$("metaAuthor"))$("metaAuthor").value=doc.author||"";if(document.activeElement!==$("metaLicense"))$("metaLicense").value=doc.license||"";if(document.activeElement!==$("metaVersion"))$("metaVersion").value=doc.version||"";if(document.activeElement!==$("metaTags"))$("metaTags").value=(doc.tags||[]).join(", ");renderTree();renderInspector();renderParams();fitPaper();}
+function render(){paper.replaceChildren();paper.setAttribute("viewBox","0 0 "+pageSize[0]+" "+pageSize[1]);paper.appendChild(svg("rect",{x:0,y:0,width:pageSize[0],height:pageSize[1],fill:"#fffefa"}));const box={x:0,y:0,w:pageSize[0],h:pageSize[1],vars:{...previewValues,W:pageSize[0],H:pageSize[1],i:0,j:0}};(doc.items||[]).forEach((n,i)=>{const e=renderNode(n,["items",i],box);if(e)paper.appendChild(e);});
+if(smartGuides.x!==null)paper.appendChild(svg("line",{class:"smart-guide",x1:smartGuides.x,y1:0,x2:smartGuides.x,y2:pageSize[1]}));
+if(smartGuides.y!==null)paper.appendChild(svg("line",{class:"smart-guide",x1:0,y1:smartGuides.y,x2:pageSize[0],y2:smartGuides.y}));
+$("pageDimensions").textContent=pageSize[0]+" × "+pageSize[1]+" mm";$("docName").textContent=doc.name||"Sem título";$("nodeStatus").textContent=countNodes(doc.items||[])+" nós";if(document.activeElement!==$("metaName"))$("metaName").value=doc.name||"";if(document.activeElement!==$("metaId"))$("metaId").value=doc.id||"";if(document.activeElement!==$("metaDescription"))$("metaDescription").value=doc.description||"";if(document.activeElement!==$("metaAuthor"))$("metaAuthor").value=doc.author||"";if(document.activeElement!==$("metaLicense"))$("metaLicense").value=doc.license||"";if(document.activeElement!==$("metaVersion"))$("metaVersion").value=doc.version||"";if(document.activeElement!==$("metaTags"))$("metaTags").value=(doc.tags||[]).join(", ");renderTree();renderInspector();renderParams();fitPaper();}
 function countNodes(items){return items.reduce((sum,n)=>sum+1+((n.type==="group"||n.type==="repeat")?countNodes(n.children||[]):0),0);}
 function renderTree(){
  const tree=$("tree");tree.replaceChildren();
@@ -252,7 +257,16 @@ paper.addEventListener("pointermove",e=>{
  if(Math.abs(dx)+Math.abs(dy)>.4)drag.moved=true;if(!drag.moved)return;
  const base=drag.origin,g=drag.bounds,type=base.type,fmt=v=>Number(v.toFixed(2))+"mm",box=transformContext();
  Object.assign(n,clone(base));
- if(drag.mode==="move"){moveBy(n,dx,dy);}
+ if(drag.mode==="move"){
+  smartGuides={x:null,y:null};
+  const proposed={x:g.x+dx,y:g.y+dy,w:g.w,h:g.h},snapDistance=2.4;
+  const xTargets=[{shift:-proposed.x,guide:0},{shift:pageSize[0]-(proposed.x+proposed.w),guide:pageSize[0]},{shift:pageSize[0]/2-(proposed.x+proposed.w/2),guide:pageSize[0]/2}];
+  const yTargets=[{shift:-proposed.y,guide:0},{shift:pageSize[1]-(proposed.y+proposed.h),guide:pageSize[1]},{shift:pageSize[1]/2-(proposed.y+proposed.h/2),guide:pageSize[1]/2}];
+  const sx=xTargets.sort((a,b)=>Math.abs(a.shift)-Math.abs(b.shift))[0],sy=yTargets.sort((a,b)=>Math.abs(a.shift)-Math.abs(b.shift))[0];
+  if(Math.abs(sx.shift)<=snapDistance){dx+=sx.shift;smartGuides.x=sx.guide;}
+  if(Math.abs(sy.shift)<=snapDistance){dy+=sy.shift;smartGuides.y=sy.guide;}
+  moveBy(n,dx,dy);
+}
  else if(drag.handle==="rotate"){
   const r=paper.getBoundingClientRect(),px=(e.clientX-r.left)*drag.sx,py=(e.clientY-r.top)*drag.sy,cx=g.x+g.w/2,cy=g.y+g.h/2;
   const angle=Math.atan2(py-cy,px-cx)*180/Math.PI;
@@ -282,8 +296,8 @@ paper.addEventListener("pointermove",e=>{
  }
  render();
 });
-paper.addEventListener("pointerup",()=>{if(drag){const moved=drag.moved;drag=null;if(moved)commit(()=>{});}});
-paper.addEventListener("pointercancel",()=>{if(drag){drag=null;render();}});
+paper.addEventListener("pointerup",()=>{if(drag){const moved=drag.moved;drag=null;smartGuides={x:null,y:null};if(moved)commit(()=>{});render();}});
+paper.addEventListener("pointercancel",()=>{if(drag){drag=null;smartGuides={x:null,y:null};render();}});
 $("openBtn").addEventListener("click",()=>$("fileInput").click());$("fileInput").addEventListener("change",async e=>{const f=e.target.files?.[0];if(!f)return;if(dirty&&!confirm("Há alterações não exportadas. Abrir outro arquivo mesmo assim?")){e.target.value="";return;}try{if(f.size>1048576)throw Error("O arquivo excede 1 MiB.");const parsed=JSON.parse(await f.text());validate(parsed);doc=parsed;selectedPath=null;setDirty(false);resetHistory();initializePreviewValues();syncJson();render();document.querySelectorAll(".template-card").forEach(b=>b.classList.remove("active"));setStatus("Arquivo aberto: "+f.name);toast("Template carregado.");}catch(err){toast("Não foi possível abrir: "+err.message);}e.target.value="";});
 $("saveBtn").addEventListener("click",()=>{try{const current=JSON.parse(jsonEditor.value);validate(current);doc=current;const blob=new Blob([JSON.stringify(doc,null,2)+"\n"],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=((doc.name||"template").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"template")+".xtemplate";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);setDirty(false);toast("Template exportado.");setStatus("Exportação concluída");}catch(e){toast(e.message);}});
 $("newBtn").addEventListener("click",()=>{if(dirty&&!confirm("Há alterações não exportadas. Criar novo template?"))return;doc={xtemplate:1,id:"xtemplate.custom.new",name:"Novo template",description:"",license:"MIT",tags:[],params:{},items:[{type:"group",inset:"10mm",children:[{type:"hline",y:"50%",stroke:"ink",strokeWidth:"0.2mm"}]}]};selectedPath=null;resetHistory();initializePreviewValues();setDirty(true);syncJson();render();setInspectorTab("document");document.querySelectorAll(".template-card").forEach(b=>b.classList.remove("active"));});
@@ -510,5 +524,18 @@ paper.addEventListener("pointercancel",()=>{drawState=null;renderDrawPreview();}
 // Additional editor shortcuts. Inputs retain normal text-editing behavior.
 window.addEventListener("keydown",e=>{const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){if(typing)return;e.preventDefault();if(e.shiftKey)redo();else undo();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="y"){if(typing)return;e.preventDefault();redo();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="n"){e.preventDefault();$("newBtn").click();}if(typing)return;if(selectedPath&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(e.key)){const n=getAt(selectedPath);if(n&&["group","rect","text","path"].includes(n.type)){e.preventDefault();const step=e.shiftKey?10:1,dx=e.key==="ArrowLeft"?-step:e.key==="ArrowRight"?step:0,dy=e.key==="ArrowUp"?-step:e.key==="ArrowDown"?step:0;n.x=numericMm(n.x)+dx+"mm";n.y=numericMm(n.y)+dy+"mm";commit(()=>{});}return;}if(!e.ctrlKey&&!e.metaKey&&!e.altKey){const key=e.key.toLowerCase(),tools={v:"select",r:"rect",o:"ellipse",l:"line",t:"text"};if(tools[key]){setActiveTool(tools[key]);return;}}if(e.key==="Insert"){e.preventDefault();$("addMenu").classList.toggle("hidden");}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="d"&&selectedPath){e.preventDefault();$("duplicateElement").click();}if(e.key==="Delete"||e.key==="Backspace"){if(selectedPath){e.preventDefault();$("deleteElement").click();}}if(e.key==="Escape")hideContextMenu();if(e.altKey&&["ArrowUp","ArrowDown"].includes(e.key)&&selectedPath){e.preventDefault();const menuAction=e.key==="ArrowUp"?"up":"down";$("contextMenu").querySelector(`[data-action="${menuAction}"]`).click();}});
 
+createAlignmentTools({
+  getContext(){
+    const node=getAt(selectedPath);
+    if(!node)return null;
+    const type=node.type;
+    const parent=parentBoxForPath(selectedPath);
+    return {node,type,bounds:transformGeometry(node),pageSize,parent,path:selectedPath};
+  },
+  getParentBox(){return parentBoxForPath(selectedPath);},
+  moveBy(node,dx,dy){moveBy(node,dx,dy);},
+  commit(){commit(()=>{});},
+  toast(message){toast(message);}
+});
 initializePreviewValues();syncJson();render();setInspectorTab("document");resetHistory();
 })();

@@ -111,3 +111,15 @@
 #paper .svg-selection{fill:#4c7dff0c;stroke:#245de0;stroke-width:.65;stroke-dasharray:2 1;vector-effect:non-scaling-stroke}
 #paper .svg-hitbox{fill:transparent;pointer-events:all}
 @media(max-width:790px){.top-actions{flex-wrap:wrap}.history-button{width:28px;min-width:28px}}
+
+/* Alignment commands are isolated in src/features/alignment.js. */
+.alignment-tools{margin:10px 0 12px;padding:9px;border:1px solid #343945;border-radius:6px;background:#20232b}
+.alignment-caption{margin-bottom:7px;color:#929bad;font-size:9px;font-weight:750;letter-spacing:.65px}
+.alignment-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+.alignment-grid button{min-width:0;min-height:29px;border:1px solid #3d4350;border-radius:4px;background:#292e39;color:#d8e1f6;font-size:15px}
+.alignment-grid button:hover{border-color:#718fe2;background:#34415e}
+.alignment-grid.alignment-fill{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:5px}
+.alignment-grid.alignment-fill button{font-size:10px;font-weight:650}
+
+/* Page-edge and center snapping guides shown during object movement. */
+.smart-guide{stroke:#f04475;stroke-width:.45;stroke-dasharray:2 1;vector-effect:non-scaling-stroke;pointer-events:none}
