@@ -24,20 +24,21 @@ No Node.js, npm, external libraries, or internet access required. The server lis
 
 - Visual editor with SVG preview, A4/A5/Letter page sizes, and automatic zoom fitting.
 - Advanced JSON editor in a split pane beside the preview, with line numbers, formatting, and structural validation.
-- Barra lateral com abas Camadas/Modelos para evitar exibir estrutura e exemplos ao mesmo tempo; propriedades comuns à vista e geometria avançada recolhida. Propriedades, variáveis e metadados ficam em abas separadas.
-- Paleta fixa na área de design para seleção, navegação e inserção de formas; o menu contextual oferece todos os tipos de elemento.
+- Árvore Structure com uma raiz virtual Page, rótulos numerados por tipo, metadados curtos e arrastar/soltar para reordenar ou mover nós entre grupos e a raiz. Exemplos ficam no menu File, em vez de ocupar uma aba da barra lateral.
+- Barra de ferramentas organizada por frequência de uso; o botão + da estrutura e o menu contextual usam `New >` com tipos de elementos em ordem alfabética e ícones uniformes.
 - Controles de transformação por tipo de geometria, com alças para mover, redimensionar e rotacionar; cancelamento de gestos restaura a geometria original.
 - Seleção múltipla com alinhamento entre elementos (esquerda, centro, direita, topo e base) e distribuição uniforme de espaçamento horizontal/vertical.
-- Agrupamento, duplicação e exclusão de vários elementos extraídos para operações de árvore testáveis, preservando a ordem e as referências dos nós.
+- Agrupamento, duplicação, exclusão com confirmação e mover camadas com Alt+↑/↓. Ctrl+C, Ctrl+X e Ctrl+V copiam, cortam e colam nós entre grupos e a raiz.
 - Alinhamento rápido à esquerda, centro, direita, topo e base da página; ações para preencher toda a largura (X) ou altura (Y).
 - Arrastar com prévia SVG leve (sem redesenhar a página inteira a cada movimento), guias inteligentes com tolerância constante em pixels e encaixe à página e a outras formas, inclusive com zoom, multisseleção e grupos aninhados.
 - Redimensionamento de grupos com grades/repetições usa uma transformação SVG temporária; o conteúdo denso só é recalculado ao soltar o mouse.
 - Menu de contexto que fecha ao inserir, clicar fora ou pressionar Esc; clique direito na estrutura (inclusive no espaço vazio) ou na página para inserir elementos.
 - Coordenadas do mouse convertidas pela matriz SVG real; navegação por Espaço + arrastar, zoom com Alt + scroll e zoom pela barra de ferramentas.
-- Parâmetros editáveis com valores de pré-visualização independentes dos valores padrão exportados.
-- Import and export `.xtemplate`.
-- Seletor único de modelos de demonstração, com explicação de que servem como ponto de partida e podem ser exportados como arquivos próprios.
-- Atalhos Ctrl+N (novo), Ctrl+O (abrir), Ctrl+S (exportar), Ctrl+D (duplicar), Delete (remover), Insert (inserir), Alt + setas (ordenar), setas (mover 1 mm; Shift + setas: 10 mm), V/R/O/L/T (ferramentas), Ctrl+Enter (JSON), Espaço (navegação) e Alt + scroll (zoom).
+- Seleção múltipla entre tipos diferentes e edição simultânea das propriedades compartilhadas; variáveis recomendadas por tipo (cores versus valores numéricos) e formulário de criação em janela flutuante.
+- Fluxo de criação de template com metadados e tamanho de pré-visualização, nome do arquivo editável na aba, menu File com configurações/idioma/abrir/exemplos/exportar e confirmação antes da exportação.
+- Opacidade como slider e barra de propriedades rápidas na área livre da barra do canvas.
+- Cores de pré-visualização para `ink`, `accent` e variáveis de cor são preferências locais do editor; os valores padrão das variáveis de cor, metadados e estrutura é que são exportados no `.xtemplate`.
+- Atalhos Ctrl+N (novo), Ctrl+O (abrir), Ctrl+S (exportar), Ctrl+C/X/V (copiar/cortar/colar), Ctrl+D (duplicar), Delete (remover), Insert (inserir), Alt+↑/↓ (ordenar camadas), setas (mover 1 mm; Shift+setas: 10 mm), V/R/O/L/T (ferramentas), Ctrl+Enter (JSON), Espaço (navegação) e Alt+scroll (zoom).
 
 ## Compatibilidade
 
