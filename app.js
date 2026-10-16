@@ -1,10 +1,13 @@
 import { createAlignmentTools } from "./src/features/alignment.js";
 import { validateTemplate } from "./src/core/validate-template.js";
 import { createDefaultNode } from "./src/core/template-schema.js";
+import { evalExpr, mm } from "./src/core/expressions.js";
 import { anchoredPan, nextZoomLevel } from "./src/features/zoom.js";
 import { calculateSnap } from "./src/features/snapping.js";
 import { screenToDocumentPoint } from "./src/features/pointer-geometry.js";
 import { repeatPositions } from "./src/features/repeat-layout.js";
+import { deleteSiblingNodes, duplicateSiblingNodes, getSiblingSelection as getTreeSiblingSelection, groupSiblingNodes, normalizePaths, sameParent } from "./src/core/tree-operations.js";
+import { arrangeBounds } from "./src/features/arrange-selection.js";
 (() => {
 "use strict";
 const $=id=>document.getElementById(id),NS="http://www.w3.org/2000/svg";
@@ -31,9 +34,6 @@ function fmt(){return JSON.stringify(doc,null,2);}
 function syncJson(){suppressJson=true;jsonEditor.value=fmt();lastValidJson=jsonEditor.value;updateLineNumbers();suppressJson=false;setValidation("ok","JSON válido");}
 function setValidation(type,msg){const e=$("validationStatus");e.textContent=(type==="ok"?"● ":type==="error"?"● ":"⚠ ")+msg;e.className="validation "+type;}
 function updateLineNumbers(){const n=(jsonEditor.value.match(/\n/g)||[]).length+1;$("lineNumbers").textContent=Array.from({length:n},(_,i)=>i+1).join("\n");}
-function mm(v,dim=1,axis="short",ctx=null){if(typeof v==="number")return v;if(typeof v!=="string")return null;const s=v.trim(),m=s.match(/^([-+]?(?:\d+(?:\.\d*)?|\.\d+))\s*(mm|cm|in|pt|deg)?$/i);if(m){const u=(m[2]||"mm").toLowerCase(),n=Number(m[1]);return n*(u==="cm"?10:u==="in"?25.4:u==="pt"?25.4/72:1);}return null;}
-function lexExpr(s){s=s.trim();const re=/\s*(?:(\d+(?:\.\d*)?|\.\d+)(%|mm|cm|in|pt|deg)?|([A-Za-z_][A-Za-z0-9_]*)|([()+\-*/ ,]))/gy,t=[];let p=0;while(p<s.length){re.lastIndex=p;const m=re.exec(s);if(!m)throw Error("Expressão inválida perto de "+s.slice(p,p+12));p=re.lastIndex;if(m[1]!==undefined)t.push({type:"num",v:Number(m[1]),u:m[2]||""});else if(m[3])t.push({type:"name",v:m[3]});else if(m[4]&&m[4]!==",")t.push({type:m[4],v:m[4]});else if(m[4]===",")t.push({type:",",v:","});}return t;}
-function evalExpr(expr,ctx,axis="x",fallback=0){if(typeof expr==="number")return expr;if(typeof expr!=="string")return fallback;const literal=mm(expr);if(literal!==null)return literal;try{const t=lexExpr(expr);let i=0;const dim=axis==="y"?ctx.h:axis==="x"?ctx.w:axis==="short"?Math.min(ctx.w,ctx.h):1;const vars={W:ctx.w,H:ctx.h,i:ctx.i||0,j:ctx.j||0,pi:Math.PI,...(ctx.vars||{})};function atom(){const a=t[i++];if(!a)throw Error();if(a.type==="-")return-atom();if(a.type==="+")return atom();if(a.type==="("){const v=sum();if(t[i++]?.type!==")")throw Error();return v;}if(a.type==="num"){const u=a.u;return a.v*(u==="%"?dim/100:u==="cm"?10:u==="in"?25.4:u==="pt"?25.4/72:1);}if(a.type==="name"){if(t[i]?.type==="("){i++;const args=[];if(t[i]?.type!==")"){do{args.push(sum());if(t[i]?.type!==",")break;i++;}while(true);}if(t[i++]?.type!==")")throw Error();const f={abs:Math.abs,floor:Math.floor,ceil:Math.ceil,round:Math.round,sqrt:Math.sqrt,sin:v=>Math.sin(v*Math.PI/180),cos:v=>Math.cos(v*Math.PI/180),tan:v=>Math.tan(v*Math.PI/180),log10:Math.log10,min:Math.min,max:Math.max,mod:(a,b)=>a-Math.floor(a/b)*b,pow:Math.pow}[a.v];if(!f)throw Error();return f(...args);}if(!(a.v in vars))throw Error();return vars[a.v];}throw Error();}function product(){let v=atom();while(t[i]?.type==="*"||t[i]?.type==="/"){const op=t[i++].type,b=atom();v=op==="*"?v*b:v/b;}return v;}function sum(){let v=product();while(t[i]?.type==="+"||t[i]?.type==="-"){const op=t[i++].type,b=product();v=op==="+"?v+b:v-b;}return v;}const v=sum();if(i!==t.length||!Number.isFinite(v))return fallback;return v;}catch{return fallback;}}
 function ctxVars(c){return{...previewValues,...(c.vars||{}),W:c.w,H:c.h,i:c.i??c.vars?.i??0,j:c.j??c.vars?.j??0};}
 function resolveColor(v){if(v==null)return null;if(v==="ink")return $("inkColor").value;if(v==="accent")return $("accentColor").value;if(v==="none")return"none";if(Object.prototype.hasOwnProperty.call(previewValues,"$"+v))return previewValues["$"+v];return v;}
 const COLOR_SWATCHES=["#262626","#ffffff","#4f7cff","#e5484d","#f59e0b","#16a34a","#0ea5e9","#8b5cf6","#ec4899","#9ca3af"];
@@ -173,11 +173,7 @@ function select(path){
  if(path)for(let i=2;i<path.length;i+=2)collapsedTree.delete(nodeKey(path.slice(0,i)));
  render();setInspectorTab("properties");
 }
-function sameParent(a,b){return a.length===b.length&&a.slice(0,-1).every((v,i)=>v===b[i]);}
-function normalizeSelectedPaths(paths){
- const unique=[...new Map(paths.filter(Boolean).map(path=>[nodeKey(path),path.slice()])).values()];
- return unique.filter(path=>!unique.some(other=>other.length<path.length&&nodeKey(path).startsWith(nodeKey(other)+".")));
-}
+function normalizeSelectedPaths(paths){return normalizePaths(paths);}
 function selectFromTree(path,e){
  if(e.shiftKey&&selectedPath&&sameParent(path,selectedPath)){
   const siblings=[...$("tree").querySelectorAll(".tree-item")].map(b=>toPath(b.dataset.path)).filter(p=>sameParent(p,path));
@@ -192,25 +188,19 @@ function selectFromTree(path,e){
  for(const p of selectedPaths)for(let i=2;i<p.length;i+=2)collapsedTree.delete(nodeKey(p.slice(0,i)));
  render();setInspectorTab("properties");
 }
-function getSiblingSelection(){
- if(!selectedPaths.length)return null;
- const paths=selectedPaths.slice().sort((a,b)=>a.at(-1)-b.at(-1));
- if(paths.some(p=>!sameParent(p,paths[0])))return null;
- const parentPath=paths[0].slice(0,-1),array=getAt(parentPath);
- if(!Array.isArray(array))return null;
- return {paths,parentPath,array,indices:paths.map(p=>p.at(-1))};
-}
+function getSiblingSelection(){return getTreeSiblingSelection(doc,selectedPaths);}
 function groupSelection(){
- const s=getSiblingSelection();if(!s||s.indices.length<2){toast("Selecione ao menos dois elements irmãos para agrupar.");return;}
- const nodes=s.indices.map(i=>s.array[i]),first=s.indices[0],group={type:"group",children:nodes};
- for(const i of [...s.indices].sort((a,b)=>b-a))s.array.splice(i,1);
- s.array.splice(first,0,group);selectedPath=s.parentPath.concat(first);selectedPaths=[selectedPath.slice()];commit(()=>{});setInspectorTab("properties");toast("Elements grouped.");
+ const result=groupSiblingNodes(doc,selectedPaths);
+ if(!result){toast("Selecione ao menos dois elementos irmãos para agrupar.");return;}
+ selectedPath=result.path;selectedPaths=result.paths;commit(()=>{});setInspectorTab("properties");toast("Elementos agrupados.");
 }
 function getValue(n,k){if(n[k]===undefined)return"";return typeof n[k]==="object"?JSON.stringify(n[k]):String(n[k]);}
 function renderInspector(){
  const n=getAt(selectedPath),has=!!n;
+ $("selectionArrange")?.classList.toggle("hidden",selectedPaths.length<2);
+ document.querySelector(".transform-panel")?.classList.toggle("hidden",selectedPaths.length>1);
  $("emptySelection").classList.toggle("hidden",has);$("elementInspector").classList.toggle("hidden",!has);
- $("selectedType").textContent=has?(n.type||"NODE").toUpperCase():"—";if(!has){$("advancedInspector").replaceChildren();return;}
+ $("selectedType").textContent=selectedPaths.length>1?selectedPaths.length+" ELEMENTS":has?(n.type||"NODE").toUpperCase():"—";if(!has){$("advancedInspector").replaceChildren();return;}
  $("elementType").value=n.type||"";
  for(const [id,k] of [["elementX","x"],["elementY","y"],["elementW","w"],["elementH","h"],["elementStroke","stroke"],["elementFill","fill"],["elementStrokeWidth","strokeWidth"],["elementOpacity","opacity"],["elementText","text"]])if(document.activeElement!==$(id))$(id).value=getValue(n,k);
  const dims={elementX:["group","repeat","rect","text","path"],elementY:["group","repeat","rect","text","path"],elementW:["group","rect","path"],elementH:["group","rect","path"]};
@@ -342,8 +332,20 @@ $("metaName").addEventListener("change",e=>commit(()=>doc.name=e.target.value.tr
 ["inkColor","accentColor"].forEach(id=>$(id).addEventListener("input",()=>{if(/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test($(id).value))renderCanvas();}));
 function addNode(type){const n=createDefaultNode(type);if(!n){toast("Unsupported element type: "+type);return;}const {parent,parentPath}=insertionContext();const arr=parent?parent.children:(doc.items||(doc.items=[]));arr.push(n);selectedPath=parent?parentPath.concat(["children",arr.length-1]):["items",arr.length-1];selectedPaths=[selectedPath.slice()];commit(()=>{});setInspectorTab("properties");setStatus("Element added");}
 $("addElement").addEventListener("click",()=>$("addMenu").classList.toggle("hidden"));$("addMenu").addEventListener("click",e=>{if(e.target.dataset.add)addNode(e.target.dataset.add);});
-$("deleteElement").addEventListener("click",()=>{if(!selectedPaths.length)return;const s=getSiblingSelection();if(selectedPaths.length>1&&!s){toast("Para remover vários elements juntos, selecione itens do mesmo grupo.");return;}if(s&&selectedPaths.length>1){for(const i of [...s.indices].sort((a,b)=>b-a))s.array.splice(i,1);}else{const pp=selectedPath.slice(0,-1),idx=selectedPath.at(-1),parent=getAt(pp);if(!Array.isArray(parent))return;parent.splice(idx,1);}selectedPath=null;selectedPaths=[];commit(()=>{});});
-$("duplicateElement").addEventListener("click",()=>{if(!selectedPaths.length)return;const s=getSiblingSelection();if(selectedPaths.length>1&&!s){toast("Para duplicar vários elements juntos, selecione itens do mesmo grupo.");return;}if(s&&selectedPaths.length>1){const copies=s.indices.map(i=>clone(s.array[i])),at=s.indices.at(-1)+1;s.array.splice(at,0,...copies);selectedPaths=copies.map((_,i)=>s.parentPath.concat(at+i));selectedPath=selectedPaths.at(-1);commit(()=>{});toast(copies.length+" elements duplicados.");return;}const pp=selectedPath.slice(0,-1),idx=selectedPath.at(-1),parent=getAt(pp);if(!Array.isArray(parent))return;parent.splice(idx+1,0,clone(getAt(selectedPath)));selectedPath=pp.concat([idx+1]);selectedPaths=[selectedPath.slice()];commit(()=>{});});
+$("deleteElement").addEventListener("click",()=>{
+ if(!selectedPaths.length)return;
+ if(selectedPaths.length===1){const path=selectedPaths[0],parent=getAt(path.slice(0,-1)),index=path.at(-1);if(!Array.isArray(parent))return;parent.splice(index,1);selectedPath=null;selectedPaths=[];commit(()=>{});return;}
+ const result=deleteSiblingNodes(doc,selectedPaths);
+ if(!result){toast("Para remover vários elementos juntos, selecione itens do mesmo grupo.");return;}
+ selectedPath=null;selectedPaths=[];commit(()=>{});
+});
+$("duplicateElement").addEventListener("click",()=>{
+ if(!selectedPaths.length)return;
+ if(selectedPaths.length===1){const path=selectedPaths[0],parent=getAt(path.slice(0,-1)),index=path.at(-1);if(!Array.isArray(parent))return;parent.splice(index+1,0,clone(getAt(path)));selectedPath=path.slice(0,-1).concat(index+1);selectedPaths=[selectedPath.slice()];commit(()=>{});return;}
+ const result=duplicateSiblingNodes(doc,selectedPaths);
+ if(!result){toast("Para duplicar vários elementos juntos, selecione itens do mesmo grupo.");return;}
+ selectedPaths=result.paths;selectedPath=result.path;commit(()=>{});toast(result.count+" elementos duplicados.");
+});
 $("expandTree").addEventListener("click",()=>{
  if(collapsedTree.size)collapsedTree.clear();
  else{
@@ -606,6 +608,15 @@ function moveBy(n,dx,dy,box=parentBoxForPath(selectedPath)){
  else if(["polyline","polygon"].includes(type)){const points=Array.isArray(n.points)?n.points.flat(Infinity):String(n.points??"").trim().split(/[\s,]+/).map(Number);const moved=[];for(let i=0;i+1<points.length;i+=2)moved.push([(evalN(points[i],box,"x")+dx)+"mm",(evalN(points[i+1],box,"y")+dy)+"mm"]);n.points=moved;}
  else{n.x=(evalN(n.x??0,box,"x")+dx)+"mm";n.y=(evalN(n.y??0,box,"y")+dy)+"mm";}
 }
+function arrangeSelection(action){
+ if(selectedPaths.length<2)return;
+ const items=selectedPaths.map(path=>({path,bounds:transformGeometry(getAt(path),path)}));
+ if(items.some(item=>!item.bounds)){toast("A seleção contém elementos que não podem ser organizados visualmente.");return;}
+ const deltas=arrangeBounds(items,action);if(!deltas)return;
+ commit(()=>{for(const item of items){const delta=deltas.get(nodeKey(item.path));if(delta&&(delta.dx||delta.dy))moveBy(getAt(item.path),delta.dx,delta.dy,parentBoxForPath(item.path));}});
+}
+document.querySelectorAll("[data-arrange-selection]").forEach(button=>button.addEventListener("click",()=>arrangeSelection(button.dataset.arrangeSelection)));
+
 function applyTransformChange(n,key,value){
  const g=transformGeometry(n),type=n.type,box=parentBoxForPath(selectedPath),v=Number(value);
  if(key==="rotate"){n.rotate=v;return;}

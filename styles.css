@@ -353,3 +353,11 @@
 
 .canvas-tools{overflow-x:hidden;scrollbar-width:none}
 .canvas-tools::-webkit-scrollbar{display:none}
+
+
+/* Multi-selection layout actions */
+.selection-arrange{margin:0 0 12px;padding:10px;border:1px solid #343945;border-radius:6px;background:#20232b}
+.selection-arrange-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.selection-arrange-grid button{min-height:29px;padding:4px 3px;border:1px solid #3d4350;border-radius:4px;background:#292e39;color:#d8e1f6;font-size:11px}
+.selection-arrange-grid button:hover{border-color:#718fe2;background:#34415e}
+.selection-arrange-grid button[data-arrange-selection^="distribute"]{grid-column:span 1;font-size:10px}

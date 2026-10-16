@@ -27,6 +27,8 @@ No Node.js, npm, external libraries, or internet access required. The server lis
 - Barra lateral com abas Camadas/Modelos para evitar exibir estrutura e exemplos ao mesmo tempo; propriedades comuns à vista e geometria avançada recolhida. Propriedades, variáveis e metadados ficam em abas separadas.
 - Paleta fixa na área de design para seleção, navegação e inserção de formas; o menu contextual oferece todos os tipos de elemento.
 - Controles de transformação por tipo de geometria, com alças para mover, redimensionar e rotacionar; cancelamento de gestos restaura a geometria original.
+- Seleção múltipla com alinhamento entre elementos (esquerda, centro, direita, topo e base) e distribuição uniforme de espaçamento horizontal/vertical.
+- Agrupamento, duplicação e exclusão de vários elementos extraídos para operações de árvore testáveis, preservando a ordem e as referências dos nós.
 - Alinhamento rápido à esquerda, centro, direita, topo e base da página; ações para preencher toda a largura (X) ou altura (Y).
 - Arrastar com prévia SVG leve (sem redesenhar a página inteira a cada movimento), guias inteligentes com tolerância constante em pixels e encaixe à página e a outras formas, inclusive com zoom, multisseleção e grupos aninhados.
 - Menu de contexto que fecha ao inserir, clicar fora ou pressionar Esc; clique direito na estrutura (inclusive no espaço vazio) ou na página para inserir elementos.
@@ -59,11 +61,15 @@ The folder `examples/` contains local copies of demo templates. The original And
 
 ## Estrutura para desenvolvimento
 
-- app.js: inicialização e coordenação do editor existente.
+- app.js: inicialização, eventos e coordenação do editor.
+- src/core/expressions.js: avaliação segura de expressões e conversão de unidades, isoladas do DOM.
+- src/core/tree-operations.js: normalização de seleção e operações de agrupar, duplicar e excluir nós.
+- src/features/arrange-selection.js: cálculo de alinhamento e distribuição de seleções múltiplas, independente da interface.
 - src/features/alignment.js: comandos isolados de alinhamento e preenchimento em relação à página.
 - src/features/pointer-geometry.js e src/features/snapping.js: conversão de coordenadas SVG e encaixe testáveis independentemente da interface.
 - src/features/repeat-layout.js: cálculo de repetições isolado e coberto por testes, alinhado à contagem do leitor Android.
 - src/features/translations.js: dicionário e tradução de mensagens dinâmicas, separados do observador DOM.
+- tests/expressions.test.js, tests/tree-operations.test.js e tests/arrange-selection.test.js: regressões de expressões, seleção/estrutura e organização de múltiplos elementos.
 - tests/pointer-geometry.test.js, tests/snapping.test.js, tests/repeat-layout.test.js e tests/translations.test.js: regressões da interação com o mouse, guias, repetições e idioma.
 - src/core/validate-template.js: validação independente da interface, compartilhada por importação, edição JSON e operações visuais; centraliza os limites do formato.
 - tests/validate-template.test.js: testes automatizados de estrutura, limites, tamanho UTF-8 e compatibilidade dos exemplos.
