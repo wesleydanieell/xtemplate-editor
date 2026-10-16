@@ -37,7 +37,7 @@ No Node.js, npm, external libraries, or internet access required. The server lis
 - Seleção múltipla entre tipos diferentes e edição simultânea das propriedades compartilhadas; variáveis recomendadas por tipo (cores versus valores numéricos) e formulário de criação em janela flutuante.
 - Fluxo de criação de template com metadados e tamanho de pré-visualização, nome do arquivo editável na aba, menu File com configurações/idioma/abrir/exemplos/exportar e confirmação antes da exportação.
 - Opacidade como slider e barra de propriedades rápidas na área livre da barra do canvas.
-- Cores de pré-visualização para `ink`, `accent` e variáveis de cor são preferências locais do editor; os valores padrão das variáveis de cor, metadados e estrutura é que são exportados no `.xtemplate`.
+- As configurações da Page oferecem cores de pré-visualização para `ink` e `accent`. Como `.xtemplate` não possui um campo separado para a cor de pré-visualização de cada variável, o painel Variables permite ajustar seu valor de pré-visualização local; somente o valor padrão da variável é exportado.
 - Atalhos Ctrl+N (novo), Ctrl+O (abrir), Ctrl+S (exportar), Ctrl+C/X/V (copiar/cortar/colar), Ctrl+D (duplicar), Delete (remover), Insert (inserir), Alt+↑/↓ (ordenar camadas), setas (mover 1 mm; Shift+setas: 10 mm), V/R/O/L/T (ferramentas), Ctrl+Enter (JSON), Espaço (navegação) e Alt+scroll (zoom).
 
 ## Compatibilidade
