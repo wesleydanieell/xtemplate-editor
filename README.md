@@ -24,7 +24,7 @@ No Node.js, npm, external libraries, or internet access required. The server lis
 
 - Visual editor with SVG preview, A4/A5/Letter page sizes, and automatic zoom fitting.
 - Advanced JSON editor in a split pane beside the preview, with line numbers, formatting, and structural validation.
-- Árvore de elementos no painel esquerdo; propriedades, parâmetros e metadados em painéis laterais separados.
+- Barra lateral com abas Camadas/Modelos para evitar exibir estrutura e exemplos ao mesmo tempo; propriedades comuns à vista e geometria avançada recolhida. Propriedades, variáveis e metadados ficam em abas separadas.
 - Paleta fixa na área de design para seleção, navegação e inserção de formas; o menu contextual oferece todos os tipos de elemento.
 - Controles de transformação por tipo de geometria, com alças para mover, redimensionar e rotacionar; cancelamento de gestos restaura a geometria original.
 - Alinhamento rápido à esquerda, centro, direita, topo e base da página; ações para preencher toda a largura (X) ou altura (Y).

@@ -311,3 +311,45 @@
 .language-switch{display:flex;align-items:center;gap:5px;color:#aeb8ce;font-size:12px}
 .language-switch select{max-width:138px;min-width:0;padding:6px 7px;font-size:10px}
 @media(max-width:790px){.language-switch select{max-width:120px}.language-switch{font-size:11px}}
+
+/* Focused workspace redesign: one left-side task at a time, clear property hierarchy. */
+.left-panel{display:flex;flex-direction:column;min-width:0}
+.left-tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:8px;border-bottom:1px solid var(--line);background:#20232b}
+.left-tab{min-width:0;padding:8px 7px;border:1px solid transparent;border-radius:5px;background:transparent;color:#929bad;font-size:11px;font-weight:650}
+.left-tab:hover{background:#2a2f3a;color:#e1e7f5}
+.left-tab.active{border-color:#485b81;background:#303e59;color:#f3f6ff;box-shadow:inset 0 -2px #86a4ff}
+.outline-dock,.library-dock{flex:1 1 auto;min-height:0;overflow:auto}
+.library-dock.hidden,.outline-dock.hidden{display:none!important}
+.library-dock .dock-heading{position:sticky;top:0;z-index:2;background:#20232b}
+.model-intro{padding:12px 12px 3px}
+.model-intro p{max-width:240px;line-height:1.6}
+.template-picker{margin:8px 12px}
+.inspector-details{margin:10px 0;border:1px solid #343b49;border-radius:6px;background:#1e222b;overflow:hidden}
+.inspector-details>summary{padding:10px 11px;cursor:pointer;list-style:none;color:#b9c4da;font-size:11px;font-weight:650;user-select:none}
+.inspector-details>summary::-webkit-details-marker{display:none}
+.inspector-details>summary:before{content:"›";display:inline-block;width:16px;color:#8799bf;font-size:16px;vertical-align:-1px}
+.inspector-details[open]>summary:before{content:"⌄"}
+.inspector-details[open]>summary{border-bottom:1px solid #343b49;background:#242a36}
+.details-body{padding:9px}
+.details-body .field{margin:7px 0}
+.details-body .field-row{gap:7px}
+.inspector-content>.inspector-heading{margin-bottom:12px}
+.transform-panel{margin-top:6px}
+.transform-panel .transform-title{font-size:11px}
+.alignment-tools{background:#1b2029;border-color:#323b4c}
+.alignment-grid button{min-height:32px;font-size:14px}
+.alignment-grid.alignment-fill button{font-size:11px}
+.field input,.field textarea,.field select{min-height:32px}
+.inspector-actions{position:sticky;bottom:-1px;padding:10px 0 2px;background:linear-gradient(180deg,transparent,#191b21 18%)}
+@media(min-width:791px){
+ .left-panel{overflow:hidden}
+ .workspace{min-width:0}
+ .right-panel{min-width:0}
+}
+
+/* Only expose tools that support direct canvas interaction; other node types remain in Insert. */
+.canvas-tools .canvas-tool[data-tool="polygon"],
+.canvas-tools .canvas-tool[data-tool="curve"]{display:none!important}
+
+.canvas-tools{overflow-x:hidden;scrollbar-width:none}
+.canvas-tools::-webkit-scrollbar{display:none}
