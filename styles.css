@@ -87,30 +87,6 @@
 #paper .svg-selection{fill:#4c7dff0c;stroke:#245de0;stroke-width:.65;stroke-dasharray:2 1;vector-effect:non-scaling-stroke}
 #paper .svg-hitbox{fill:transparent;pointer-events:all}
 @media(max-width:790px){.top-actions{flex-wrap:wrap}.history-button{width:28px;min-width:28px}}
-/* Reliable history controls and visible drawing/selection affordances */
-.history-button{width:30px;height:30px;font-size:20px;line-height:1;border:1px solid #414754;background:#252a35;color:#e4e9f5}
-.history-button:disabled{opacity:.3;cursor:not-allowed}
-.history-button:not(:disabled):hover{background:#34415e;border-color:#718fe2}
-.canvas-area{touch-action:none}
-.canvas-area.space-ready,.canvas-area.space-ready *{cursor:grab!important}
-.canvas-area.panning,.canvas-area.panning *{cursor:grabbing!important}
-.paper-wrap{transform-origin:center center;will-change:transform}
-.canvas-tools{gap:5px}
-.canvas-tools .canvas-tool{border:1px solid transparent;font-size:18px}
-.canvas-tools .canvas-tool.active{background:#3c527e;border-color:#6d8ee7;box-shadow:inset 0 0 0 1px #8da9fa;color:#fff}
-.canvas-tools .canvas-tool[data-tool="rect"],.canvas-tools .canvas-tool[data-tool="ellipse"],.canvas-tools .canvas-tool[data-tool="line"]{color:#d8e2ff}
-#paper{touch-action:none;user-select:none}
-#paper .svg-node{cursor:grab}
-#paper .svg-node:active{cursor:grabbing}
-#paper .transform-handle{fill:#fff;stroke:#245de0;stroke-width:.75;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 1px #23345b);pointer-events:all}
-#paper .transform-handle.handle-n,#paper .transform-handle.handle-s{cursor:ns-resize}
-#paper .transform-handle.handle-e,#paper .transform-handle.handle-w{cursor:ew-resize}
-#paper .transform-handle.handle-ne,#paper .transform-handle.handle-sw{cursor:nesw-resize}
-#paper .transform-handle.handle-nw,#paper .transform-handle.handle-se{cursor:nwse-resize}
-#paper .rotate-handle{fill:#4c7dff;stroke:#fff;stroke-width:.6;cursor:grab}
-#paper .svg-selection{fill:#4c7dff0c;stroke:#245de0;stroke-width:.65;stroke-dasharray:2 1;vector-effect:non-scaling-stroke}
-#paper .svg-hitbox{fill:transparent;pointer-events:all}
-@media(max-width:790px){.top-actions{flex-wrap:wrap}.history-button{width:28px;min-width:28px}}
 
 /* Alignment commands are isolated in src/features/alignment.js. */
 .alignment-tools{margin:10px 0 12px;padding:9px;border:1px solid #343945;border-radius:6px;background:#20232b}

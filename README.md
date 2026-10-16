@@ -26,11 +26,11 @@ No Node.js, npm, external libraries, or internet access required. The server lis
 - Advanced JSON editor in a split pane beside the preview, with line numbers, formatting, and structural validation.
 - Árvore de elementos no painel esquerdo; propriedades, parâmetros e metadados em painéis laterais separados.
 - Paleta fixa na área de design para seleção, navegação e inserção de formas; o menu contextual oferece todos os tipos de elemento.
-- Controles de transformação por tipo de geometria, com alças para mover, redimensionar e rotacionar elementos compatíveis.
+- Controles de transformação por tipo de geometria, com alças para mover, redimensionar e rotacionar; cancelamento de gestos restaura a geometria original.
 - Alinhamento rápido à esquerda, centro, direita, topo e base da página; ações para preencher toda a largura (X) ou altura (Y).
-- Guias inteligentes temporárias e encaixe no centro e nas bordas da página ao arrastar elementos.
+- Arrastar com prévia SVG leve (sem redesenhar a página inteira a cada movimento), guias inteligentes com tolerância constante em pixels e encaixe à página e a outras formas, inclusive com zoom, multisseleção e grupos aninhados.
 - Menu de contexto que fecha ao inserir, clicar fora ou pressionar Esc; clique direito na estrutura (inclusive no espaço vazio) ou na página para inserir elementos.
-- Navegação por Espaço + arrastar, zoom com Alt + scroll e zoom pela barra de ferramentas.
+- Coordenadas do mouse convertidas pela matriz SVG real; navegação por Espaço + arrastar, zoom com Alt + scroll e zoom pela barra de ferramentas.
 - Parâmetros editáveis com valores de pré-visualização independentes dos valores padrão exportados.
 - Import and export `.xtemplate`.
 - Seletor único de modelos de demonstração, com explicação de que servem como ponto de partida e podem ser exportados como arquivos próprios.
@@ -50,10 +50,10 @@ The folder `examples/` contains local copies of demo templates. The original And
 - Ctrl+Z: desfazer.
 - Ctrl+Shift+Z ou Ctrl+Y: refazer.
 - V: selecionar; R: retângulo; O: elipse; L: linha; T: texto.
-- Com retângulo, elipse ou linha ativa, clique e arraste no papel para desenhar e dimensionar.
-- Com texto ativo, clique no papel para inserir texto naquele ponto.
+- Com retângulo, elipse, polígono ou linha ativa, clique e arraste no papel para desenhar e dimensionar. Shift mantém retângulos/elipses proporcionais.
+- Com texto ativo, clique no papel para inserir texto naquele ponto. Elementos criados dentro de um grupo são armazenados nas coordenadas locais corretas.
 - Espaço + arrastar: mover a página na área de trabalho.
-- Alt + roda do mouse: alterar o zoom.
+- Alt + roda do mouse: alterar o zoom. O arrasto usa a mesma escala real da página, incluindo o zoom e o deslocamento da tela.\n- Ao selecionar várias formas, arraste qualquer forma selecionada para mover o conjunto; use as setas para ajustes de 1 mm (Shift: 10 mm).
 - O histórico mantém até 100 estados e é reiniciado ao abrir outro template.
 
 
@@ -61,6 +61,10 @@ The folder `examples/` contains local copies of demo templates. The original And
 
 - app.js: inicialização e coordenação do editor existente.
 - src/features/alignment.js: comandos isolados de alinhamento e preenchimento em relação à página.
+- src/features/pointer-geometry.js e src/features/snapping.js: conversão de coordenadas SVG e encaixe testáveis independentemente da interface.
+- src/features/repeat-layout.js: cálculo de repetições isolado e coberto por testes, alinhado à contagem do leitor Android.
+- src/features/translations.js: dicionário e tradução de mensagens dinâmicas, separados do observador DOM.
+- tests/pointer-geometry.test.js, tests/snapping.test.js, tests/repeat-layout.test.js e tests/translations.test.js: regressões da interação com o mouse, guias, repetições e idioma.
 - src/core/validate-template.js: validação independente da interface, compartilhada por importação, edição JSON e operações visuais; centraliza os limites do formato.
 - tests/validate-template.test.js: testes automatizados de estrutura, limites, tamanho UTF-8 e compatibilidade dos exemplos.
 - examples/: templates de demonstração usados para validar compatibilidade.
