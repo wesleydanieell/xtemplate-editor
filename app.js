@@ -7,6 +7,7 @@ import { anchoredPan, nextZoomLevel } from "./src/features/zoom.js";
 import { calculateSnap } from "./src/features/snapping.js";
 import { screenToDocumentPoint } from "./src/features/pointer-geometry.js";
 import { repeatPositions } from "./src/features/repeat-layout.js";
+import { resizePreviewTransform, rotationPreviewTransform, resizedBounds } from "./src/features/resize-preview.js";
 import { deleteSiblingNodes, duplicateSiblingNodes, getSiblingSelection as getTreeSiblingSelection, groupSiblingNodes, normalizePaths, sameParent } from "./src/core/tree-operations.js";
 import { arrangeBounds } from "./src/features/arrange-selection.js";
 (() => {
@@ -390,6 +391,12 @@ function applyDragPreview(transforms,dx,dy){
  const translation="translate("+dx+" "+dy+")";
  for(const item of transforms)item.element.setAttribute("transform",translation+(item.transform?" "+item.transform:""));
 }
+function updateResizePreviewFields(state){
+ const bounds=state.previewBounds;if(!bounds)return;
+ for(const [id,value] of [["transformX",bounds.x],["transformY",bounds.y],["transformW",bounds.w],["transformH",bounds.h]]){
+  const input=$(id);if(input&&document.activeElement!==input)input.value=Number(value.toFixed(2));
+ }
+}
 function updateTransformPreview(dx,dy){
  const node=getAt(selectedPath);if(!node)return;
  const bounds=transformGeometry(node,selectedPath);
@@ -435,6 +442,21 @@ paper.addEventListener("pointermove",e=>{
  if(!drag||drag.pointerId!==e.pointerId)return;
  if(!drag.moved&&Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)<3)return;
  drag.moved=true;const point=pagePoint(e);let dx=point.x-drag.startPoint.x,dy=point.y-drag.startPoint.y;
+ if(drag.mode==="transform"&&drag.origin.type==="group"){
+  const g=drag.bounds,previewItem=drag.previewTransforms.find(item=>item.element.dataset.path===nodeKey(drag.path));
+  if(!previewItem)return;
+  const element=previewItem.element,baseTransform=previewItem.transform||"";
+  if(drag.handle==="rotate"){
+   const angle=Math.atan2(point.y-(g.y+g.h/2),point.x-(g.x+g.w/2))*180/Math.PI-drag.startAngle;
+   element.setAttribute("transform",rotationPreviewTransform(angle,g.x+g.w/2,g.y+g.h/2,baseTransform));
+  }else{
+   const preview=resizePreviewTransform(g,drag.handle,dx,dy,baseTransform);
+   element.setAttribute("transform",preview.transform);
+   drag.previewBounds=preview;
+  }
+  updateResizePreviewFields(drag);
+  return;
+ }
  if(drag.mode==="move"){
   const g=drag.bounds,proposed={x:g.x+dx,y:g.y+dy,w:g.w,h:g.h};
   const snap=drag.repeated||drag.items.some(item=>item.repeated)?{dx:0,dy:0,guides:{x:null,y:null}}:snapToGuides(proposed,drag.items.map(item=>item.path),drag.snapTargets);
@@ -490,6 +512,20 @@ paper.addEventListener("pointerup",e=>{
  }
  if(!drag||drag.pointerId!==e.pointerId)return;
  const state=drag;drag=null;
+ // Groups with dense descendants have been previewed using one SVG transform. Now apply the
+ // equivalent geometry change once so repeat layout is recomputed just once on commit.
+ if(state.mode==="transform"&&state.origin.type==="group"&&state.moved){
+  const endPoint=pagePoint(e),dx=endPoint.x-state.startPoint.x,dy=endPoint.y-state.startPoint.y;
+  replaceAt(state.path,state.origin);
+  const node=getAt(state.path),g=state.bounds,box=state.parentBox,fmt=value=>Number(value.toFixed(2))+"mm";
+  if(state.handle==="rotate"){
+   const angle=Math.atan2(endPoint.y-(g.y+g.h/2),endPoint.x-(g.x+g.w/2))*180/Math.PI;
+   node.rotate=Math.round((Number(state.origin.rotate)||0)+angle-state.startAngle);
+  }else{
+   const resized=resizedBounds(g,state.handle,dx,dy);
+   node.x=fmt(resized.x-box.x);node.y=fmt(resized.y-box.y);node.w=fmt(resized.w);node.h=fmt(resized.h);
+  }
+ }
  // Use the pointerup coordinates too; some browsers coalesce the last pointermove event.
  if(state.mode==="move"&&Math.hypot(e.clientX-state.startX,e.clientY-state.startY)>=3){
   const end=pagePoint(e);let dx=end.x-state.startPoint.x,dy=end.y-state.startPoint.y;

@@ -31,6 +31,7 @@ No Node.js, npm, external libraries, or internet access required. The server lis
 - Agrupamento, duplicação e exclusão de vários elementos extraídos para operações de árvore testáveis, preservando a ordem e as referências dos nós.
 - Alinhamento rápido à esquerda, centro, direita, topo e base da página; ações para preencher toda a largura (X) ou altura (Y).
 - Arrastar com prévia SVG leve (sem redesenhar a página inteira a cada movimento), guias inteligentes com tolerância constante em pixels e encaixe à página e a outras formas, inclusive com zoom, multisseleção e grupos aninhados.
+- Redimensionamento de grupos com grades/repetições usa uma transformação SVG temporária; o conteúdo denso só é recalculado ao soltar o mouse.
 - Menu de contexto que fecha ao inserir, clicar fora ou pressionar Esc; clique direito na estrutura (inclusive no espaço vazio) ou na página para inserir elementos.
 - Coordenadas do mouse convertidas pela matriz SVG real; navegação por Espaço + arrastar, zoom com Alt + scroll e zoom pela barra de ferramentas.
 - Parâmetros editáveis com valores de pré-visualização independentes dos valores padrão exportados.
@@ -69,9 +70,10 @@ The folder `examples/` contains local copies of demo templates. The original And
 - src/features/alignment.js: comandos isolados de alinhamento e preenchimento em relação à página.
 - src/features/pointer-geometry.js e src/features/snapping.js: conversão de coordenadas SVG e encaixe testáveis independentemente da interface.
 - src/features/repeat-layout.js: cálculo de repetições isolado e coberto por testes, alinhado à contagem do leitor Android.
+- src/features/resize-preview.js: prévia de redimensionamento/rotação de grupos via transformações SVG, sem reconstruir grids em cada movimento do mouse.
 - src/features/translations.js: dicionário e tradução de mensagens dinâmicas, separados do observador DOM.
 - tests/expressions.test.js, tests/history.test.js, tests/tree-operations.test.js e tests/arrange-selection.test.js: regressões de expressões, seleção/estrutura e organização de múltiplos elementos.
-- tests/pointer-geometry.test.js, tests/snapping.test.js, tests/repeat-layout.test.js e tests/translations.test.js: regressões da interação com o mouse, guias, repetições e idioma.
+- tests/pointer-geometry.test.js, tests/snapping.test.js, tests/repeat-layout.test.js, tests/resize-preview.test.js e tests/translations.test.js: regressões da interação com o mouse, guias, repetições e idioma.
 - src/core/validate-template.js: validação independente da interface, compartilhada por importação, edição JSON e operações visuais; centraliza os limites do formato.
 - tests/validate-template.test.js: testes automatizados de estrutura, limites, tamanho UTF-8 e compatibilidade dos exemplos.
 - examples/: templates de demonstração usados para validar compatibilidade.
