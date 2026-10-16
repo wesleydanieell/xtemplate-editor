@@ -63,13 +63,14 @@ The folder `examples/` contains local copies of demo templates. The original And
 
 - app.js: inicialização, eventos e coordenação do editor.
 - src/core/expressions.js: avaliação segura de expressões e conversão de unidades, isoladas do DOM.
+- src/core/history.js: histórico limitado de snapshots, com undo/redo e descarte de refazer após uma nova edição.
 - src/core/tree-operations.js: normalização de seleção e operações de agrupar, duplicar e excluir nós.
 - src/features/arrange-selection.js: cálculo de alinhamento e distribuição de seleções múltiplas, independente da interface.
 - src/features/alignment.js: comandos isolados de alinhamento e preenchimento em relação à página.
 - src/features/pointer-geometry.js e src/features/snapping.js: conversão de coordenadas SVG e encaixe testáveis independentemente da interface.
 - src/features/repeat-layout.js: cálculo de repetições isolado e coberto por testes, alinhado à contagem do leitor Android.
 - src/features/translations.js: dicionário e tradução de mensagens dinâmicas, separados do observador DOM.
-- tests/expressions.test.js, tests/tree-operations.test.js e tests/arrange-selection.test.js: regressões de expressões, seleção/estrutura e organização de múltiplos elementos.
+- tests/expressions.test.js, tests/history.test.js, tests/tree-operations.test.js e tests/arrange-selection.test.js: regressões de expressões, seleção/estrutura e organização de múltiplos elementos.
 - tests/pointer-geometry.test.js, tests/snapping.test.js, tests/repeat-layout.test.js e tests/translations.test.js: regressões da interação com o mouse, guias, repetições e idioma.
 - src/core/validate-template.js: validação independente da interface, compartilhada por importação, edição JSON e operações visuais; centraliza os limites do formato.
 - tests/validate-template.test.js: testes automatizados de estrutura, limites, tamanho UTF-8 e compatibilidade dos exemplos.

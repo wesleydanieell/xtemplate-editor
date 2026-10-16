@@ -2,6 +2,7 @@ import { createAlignmentTools } from "./src/features/alignment.js";
 import { validateTemplate } from "./src/core/validate-template.js";
 import { createDefaultNode } from "./src/core/template-schema.js";
 import { evalExpr, mm } from "./src/core/expressions.js";
+import { createHistory } from "./src/core/history.js";
 import { anchoredPan, nextZoomLevel } from "./src/features/zoom.js";
 import { calculateSnap } from "./src/features/snapping.js";
 import { screenToDocumentPoint } from "./src/features/pointer-geometry.js";
@@ -22,7 +23,7 @@ todo:{xtemplate:1,id:"xtemplate.examples.todo",name:"Checklist",description:"Row
 };
 let doc=clone(samples.ruled),selectedPath=null,selectedPaths=[],dirty=false,drag=null,marqueeState=null,split=false,activeInspector="properties",suppressJson=false,toastTimer;
 let smartGuides={x:null,y:null};
-const undoStack=[],redoStack=[];let historyState=JSON.stringify(doc),historyRestoring=false;
+const history=createHistory(JSON.stringify(doc));let historyRestoring=false;
 let pageSize=[210,297],zoomMode="fit",previewValues={},lastValidJson="",expanded=true,clipSerial=0;
 const collapsedTree=new Set();
 let treeDragSource=null;
@@ -247,12 +248,12 @@ function renderAdvanced(n){
  addField("Rotation (degrees)","rotate");
  addField("Tracejado [stroke, espaço]","dash",{wide:true,json:Array.isArray(n.dash)});
 }
-function commit(fn){try{fn();validate(doc);const next=JSON.stringify(doc);if(!historyRestoring&&next!==historyState){undoStack.push(historyState);if(undoStack.length>100)undoStack.shift();redoStack.length=0;historyState=next;updateHistoryButtons();}setDirty(true);syncJson();render();setStatus("Changes applied");}catch(e){toast(e.message);}}
-function updateHistoryButtons(){const u=$("undoBtn"),r=$("redoBtn");if(u)u.disabled=!undoStack.length;if(r)r.disabled=!redoStack.length;}
-function resetHistory(){undoStack.length=0;redoStack.length=0;historyState=JSON.stringify(doc);updateHistoryButtons();}
-function restoreHistory(target,source,label){if(!target.length)return;source.push(JSON.stringify(doc));const state=target.pop();historyRestoring=true;try{doc=JSON.parse(state);historyState=state;selectedPath=null;selectedPaths=[];setDirty(true);initializePreviewValues();syncJson();render();setInspectorTab("properties");setStatus(label);updateHistoryButtons();}finally{historyRestoring=false;}}
-function undo(){restoreHistory(undoStack,redoStack,"Desfeito");}
-function redo(){restoreHistory(redoStack,undoStack,"Refeito");}
+function commit(fn){try{fn();validate(doc);const next=JSON.stringify(doc);if(!historyRestoring&&history.record(next))updateHistoryButtons();setDirty(true);syncJson();render();setStatus("Changes applied");}catch(e){toast(e.message);}}
+function updateHistoryButtons(){const u=$("undoBtn"),r=$("redoBtn");if(u)u.disabled=!history.canUndo;if(r)r.disabled=!history.canRedo;}
+function resetHistory(){history.reset(JSON.stringify(doc));updateHistoryButtons();}
+function restoreHistory(direction,label){const state=direction==="undo"?history.undo(JSON.stringify(doc)):history.redo(JSON.stringify(doc));if(state===null)return;historyRestoring=true;try{doc=JSON.parse(state);selectedPath=null;selectedPaths=[];setDirty(true);initializePreviewValues();syncJson();render();setInspectorTab("properties");setStatus(label);updateHistoryButtons();}finally{historyRestoring=false;}}
+function undo(){restoreHistory("undo","Desfeito");}
+function redo(){restoreHistory("redo","Refeito");}
 $("undoBtn")?.addEventListener("click",undo);$("redoBtn")?.addEventListener("click",redo);
 function updateNode(k,v){const n=getAt(selectedPath);if(!n)return;if(v.trim()===""){delete n[k];return;}if(["opacity"].includes(k)&&Number.isFinite(Number(v)))n[k]=Number(v);else if(k==="text")n[k]=v;else n[k]=v;}
 [["elementX","x"],["elementY","y"],["elementW","w"],["elementH","h"],["elementStroke","stroke"],["elementFill","fill"],["elementStrokeWidth","strokeWidth"],["elementOpacity","opacity"],["elementText","text"]].forEach(([id,k])=>$(id).addEventListener("change",e=>commit(()=>updateNode(k,e.target.value))));
@@ -297,12 +298,7 @@ function renderJsonInput(){
   validate(next);
   const serialized=JSON.stringify(next);
   if(serialized!==JSON.stringify(doc)){
-   if(!historyRestoring&&serialized!==historyState){
-    undoStack.push(historyState);
-    if(undoStack.length>100)undoStack.shift();
-    redoStack.length=0;
-    historyState=serialized;
-   }
+   if(!historyRestoring&&history.record(serialized))updateHistoryButtons();
    doc=next;
    selectedPath=null;selectedPaths=[];
    initializePreviewValues();
