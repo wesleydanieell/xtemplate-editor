@@ -813,3 +813,30 @@
 :root[data-theme] .canvas-tools .canvas-tool:focus-visible{
  outline-color:var(--ui-focus);
 }
+
+/* Element inspector: readable, predictable layout in narrow sidebars.
+   Rotation contains a dial, numeric field and presets and must not share
+   a cramped half-column with the opacity slider. */
+#propertiesPanel{scrollbar-gutter:stable;overflow-x:hidden}
+#elementInspector{min-width:0}
+#elementInspector .transform-panel{min-width:0;padding:10px;margin:7px 0 14px}
+#elementInspector .transform-panel>.field-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:7px 8px;align-items:start}
+#elementInspector .transform-panel>.field-row>.field{min-width:0;width:100%;margin:4px 0 0}
+#elementInspector .transform-panel>.field-row:has(.rotation-controls){grid-template-columns:minmax(0,1fr)}
+#elementInspector .rotation-controls{width:100%;min-width:0;display:grid;grid-template-columns:minmax(0,1fr) 39px;align-items:center;gap:10px}
+#elementInspector .rotation-controls input[type="number"]{width:100%;min-width:0}
+#elementInspector .rotation-presets{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:7px}
+#elementInspector .rotation-presets button{width:100%;min-width:0;white-space:nowrap;padding:6px 2px;font-size:10px}
+#elementInspector .opacity-slider-field{min-width:0;width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px}
+#elementInspector .opacity-slider-field input[type="range"]{grid-column:1/-1;min-width:0;width:100%;margin:1px 0 4px}
+#elementInspector .opacity-slider-field .range-value{justify-self:end;min-width:32px}
+#elementInspector .alignment-tools{margin:9px 0 12px;padding:8px}
+#elementInspector .alignment-grid{gap:5px}
+#elementInspector .alignment-grid button{min-width:0}
+#elementInspector>.field,#elementInspector>.field-row{margin-top:10px;margin-bottom:10px}
+#elementInspector .advanced-inspector{margin-top:17px;padding-top:12px}
+#elementInspector .advanced-inspector .field-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#elementInspector .advanced-inspector .field-row>.field{min-width:0;margin:5px 0}
+#elementInspector .inspector-actions{position:static;bottom:auto;background:transparent;margin:18px 0 8px;padding:12px 0;border-top:1px solid var(--ui-divider)}
+#elementInspector .inspector-actions button{min-width:0}
+#elementInspector .transform-panel .inspector-tip{margin:10px 0 2px}

@@ -179,6 +179,23 @@ try{
   input.value='-35.5';input.dispatchEvent(new Event('change',{bubbles:true}));
  });
  assert.equal(Number(await workspacePage.$eval('#transformRotate',el=>el.value)),-35.5);
+ // Inspector layout: rotation presets and the opacity slider must not
+ // overlap or escape narrow sidebars, and actions must not hide fields.
+ for(const width of [1440,1024,900]){
+  await workspacePage.setViewport({width,height:850});
+  const inspectorLayout=await workspacePage.evaluate(()=>{
+   const panel=document.querySelector('#propertiesPanel');
+   const elements=[...panel.querySelectorAll('.transform-panel .field-row,.rotation-controls,.rotation-presets,.opacity-slider-field,.inspector-actions')].filter(el=>el.getClientRects().length);
+   const pane=panel.getBoundingClientRect();
+   return {pane:{left:pane.left,right:pane.right},rows:elements.map(el=>{
+    const r=el.getBoundingClientRect();return{cls:el.className,left:r.left,right:r.right,overflow:el.scrollWidth>el.clientWidth+2};
+   }),actionsPosition:getComputedStyle(panel.querySelector('.inspector-actions')).position};
+  });
+  assert(inspectorLayout.rows.every(row=>!row.overflow&&row.left>=inspectorLayout.pane.left-1&&row.right<=inspectorLayout.pane.right+1),
+   `Element controls must fit at ${width}px: ${JSON.stringify(inspectorLayout)}`);
+  assert.equal(inspectorLayout.actionsPosition,'static','inspector actions must not cover inputs');
+ }
+ await workspacePage.setViewport({width:1440,height:900});
  // Editor colors and themes should not introduce new fields in exported template JSON.
  const docJson=JSON.parse(await workspacePage.$eval('#jsonEditor',el=>el.value));
  assert(!Object.hasOwn(docJson,'theme')&&!Object.hasOwn(docJson,'previewColors'));
