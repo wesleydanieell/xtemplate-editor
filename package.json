@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Editor visual local e offline de templates .xtemplate para XNotes Android",
   "scripts": {
-    "check": "node --check app.js && node --check src/features/translations.js && node --check src/i18n.js && node --check src/features/alignment.js && node --check src/features/zoom.js && node --check src/features/snapping.js && node --check src/features/repeat-layout.js && node --check src/features/resize-preview.js && node --check src/features/pointer-geometry.js && node --check src/core/validate-template.js && node --check src/core/template-schema.js && node --check tests/validate-template.test.js && node --check tests/template-schema.test.js && node --check tests/zoom.test.js && node --check tests/snapping.test.js && node --check tests/repeat-layout.test.js && node --check tests/resize-preview.test.js && node --check tests/pointer-geometry.test.js && node --check tests/translations.test.js && node --check src/core/tree-operations.js && node --check tests/tree-operations.test.js && node --check src/features/arrange-selection.js && node --check tests/arrange-selection.test.js && node --check src/core/expressions.js && node --check tests/expressions.test.js && node --check src/core/history.js && node --check tests/history.test.js",
+    "check": "node --check app.js && node --check src/features/translations.js && node --check src/i18n.js && node --check src/features/alignment.js && node --check src/features/zoom.js && node --check src/features/snapping.js && node --check src/features/repeat-layout.js && node --check src/features/resize-preview.js && node --check src/features/pointer-geometry.js && node --check src/core/validate-template.js && node --check src/core/template-schema.js && node --check tests/validate-template.test.js && node --check tests/template-schema.test.js && node --check tests/zoom.test.js && node --check tests/snapping.test.js && node --check tests/repeat-layout.test.js && node --check tests/resize-preview.test.js && node --check tests/pointer-geometry.test.js && node --check tests/translations.test.js && node --check src/core/tree-operations.js && node --check tests/tree-operations.test.js && node --check src/features/arrange-selection.js && node --check tests/arrange-selection.test.js && node --check src/core/expressions.js && node --check tests/expressions.test.js && node --check src/core/history.js && node --check tests/history.test.js && node --check src/core/common-properties.js && node --check tests/common-properties.test.js",
     "test": "node --test",
     "package": "python3 scripts/package-release.py",
     "desktop:assets": "python3 scripts/build-desktop-assets.py",
@@ -17,5 +17,6 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0"
-  }
+  },
+  "license": "MIT"
 }

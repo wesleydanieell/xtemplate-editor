@@ -8,8 +8,9 @@ import { calculateSnap } from "./src/features/snapping.js";
 import { screenToDocumentPoint } from "./src/features/pointer-geometry.js";
 import { repeatPositions } from "./src/features/repeat-layout.js";
 import { resizePreviewTransform, rotationPreviewTransform, resizedBounds } from "./src/features/resize-preview.js";
-import { deleteSiblingNodes, duplicateSiblingNodes, getSiblingSelection as getTreeSiblingSelection, groupSiblingNodes, normalizePaths, sameParent } from "./src/core/tree-operations.js";
+import { deleteSiblingNodes, duplicateSiblingNodes, getSiblingSelection as getTreeSiblingSelection, groupSiblingNodes, normalizePaths, sameParent, moveNode, nudgeSiblingNodes } from "./src/core/tree-operations.js";
 import { arrangeBounds } from "./src/features/arrange-selection.js";
+import { sharedEditableProperties } from "./src/core/common-properties.js";
 (() => {
 "use strict";
 const $=id=>document.getElementById(id),NS="http://www.w3.org/2000/svg";
@@ -155,7 +156,7 @@ function renderTree(){
   const b=document.createElement("button");b.type="button";b.className="tree-item tree-type-"+(n.type||"other")+(active?" active":"");b.setAttribute("aria-pressed",String(active));b.dataset.path=key;b.draggable=true;b.style.paddingLeft=(6+depth*15)+"px";
   b.addEventListener("dragstart",e=>{treeDragSource=path.slice();e.dataTransfer.setData("text/plain",key);e.dataTransfer.effectAllowed="move";b.classList.add("tree-dragging");});
   b.addEventListener("dragend",()=>{treeDragSource=null;b.classList.remove("tree-dragging");tree.querySelectorAll(".tree-drop-target,.drop-before,.drop-after").forEach(el=>el.classList.remove("tree-drop-target","drop-before","drop-after"));});
-  b.addEventListener("dragover",e=>{const source=treeDragSource;if(!source||nodeKey(source)===key||key.startsWith(nodeKey(source)+".")||source[0]==="__page__")return;e.preventDefault();e.dataTransfer.dropEffect="move";tree.querySelectorAll(".tree-drop-target,.drop-before,.drop-after").forEach(el=>el.classList.remove("tree-drop-target","drop-before","drop-after"));const ratio=e.offsetY/Math.max(1,b.clientHeight);const place=branchTypes.has(n.type)&&ratio>=.3&&ratio<=.7?"inside":ratio<.3?"before":"after";b.classList.add(place==="inside"?"tree-drop-target":place==="before"?"drop-before":"drop-after");b.dataset.dropPlace=place;});
+  b.addEventListener("dragover",e=>{const source=treeDragSource;if(!source||nodeKey(source)===key||key.startsWith(nodeKey(source)+".")||source[0]==="__page__")return;e.preventDefault();e.dataTransfer.dropEffect="move";tree.querySelectorAll(".tree-drop-target,.drop-before,.drop-after").forEach(el=>el.classList.remove("tree-drop-target","drop-before","drop-after"));const rect=b.getBoundingClientRect(),ratio=(e.clientY-rect.top)/Math.max(1,rect.height);const place=branchTypes.has(n.type)&&ratio>=.3&&ratio<=.7?"inside":ratio<.3?"before":"after";b.classList.add(place==="inside"?"tree-drop-target":place==="before"?"drop-before":"drop-after");b.dataset.dropPlace=place;});
   b.addEventListener("dragleave",e=>{if(!b.contains(e.relatedTarget))b.classList.remove("tree-drop-target","drop-before","drop-after");});
   b.addEventListener("drop",e=>{e.preventDefault();b.classList.remove("tree-drop-target","drop-before","drop-after");const source=treeDragSource||toPath(e.dataTransfer.getData("text/plain")),target=toPath(b.dataset.path),place=b.dataset.dropPlace||"after";if(!source.length||source[0]==="__page__")return;moveTreeNode(source,target,place);treeDragSource=null;});
   const disclosure=document.createElement("span");disclosure.className="tree-disclosure";disclosure.textContent=canExpand?(collapsedTree.has(key)?"▸":"▾"):"";disclosure.title=canExpand?(collapsedTree.has(key)?"Expand":"Collapse"):"";disclosure.setAttribute("aria-hidden","true");
@@ -167,6 +168,31 @@ function renderTree(){
   const baseName=typeNames[n.type]||String(n.type||"Element");
   const content=n.type==="text"?String(Array.isArray(n.text)?n.text[0]:n.text||"").trim():"";
   label.textContent=n.name||(n.type==="text"&&content?baseName+" "+typeOrdinal+" · "+content:baseName+" "+typeOrdinal);
+  label.title="Double-click or press F2 to rename this layer";
+  function renameLayer(){
+   const oldName=n.name||"",initial=label.textContent;
+   const edit=document.createElement("input");edit.type="text";edit.className="tree-rename";
+   edit.value=oldName||initial;edit.maxLength=80;edit.setAttribute("aria-label","Layer name");
+   label.replaceWith(edit);b.draggable=false;
+   let finished=false;
+   const finish=save=>{
+    if(finished)return;finished=true;b.draggable=true;
+    const value=edit.value.trim();
+    if(save&&value!==oldName){commit(()=>{if(value)n.name=value;else delete n.name;});}
+    else renderTree();
+   };
+   edit.addEventListener("pointerdown",e=>e.stopPropagation());
+   edit.addEventListener("click",e=>e.stopPropagation());
+   edit.addEventListener("keydown",e=>{
+    e.stopPropagation();
+    if(e.key==="Enter"){e.preventDefault();finish(true);}
+    if(e.key==="Escape"){e.preventDefault();finish(false);}
+   });
+   edit.addEventListener("blur",()=>finish(true));
+   edit.focus();edit.select();
+  }
+  label.addEventListener("dblclick",e=>{e.preventDefault();e.stopPropagation();renameLayer();});
+  b.addEventListener("keydown",e=>{if(e.key==="F2"){e.preventDefault();renameLayer();}});
   const meta=document.createElement("span");meta.className="tree-meta";
   const info=[];
   if(n.type==="group"||n.type==="repeat")info.push((n.children||[]).length+" child"+((n.children||[]).length===1?"":"ren"));
@@ -176,6 +202,7 @@ function renderTree(){
   else if(n.type==="text")info.push(String(n.text||"").slice(0,22));
   else if(["circle","dot","ellipse"].includes(n.type))info.push("r "+String(n.r??n.rx??"default"));
   meta.textContent=info.join(" · ");
+  b.title=(n.name||baseName+" "+typeOrdinal)+(info.length?" — "+info.join(" · "):"");
   textWrap.append(label,meta);
   const idx=document.createElement("span");idx.className="tree-index";idx.textContent=String(path.at(-1)+1);idx.title="Sibling position "+(path.at(-1)+1);
   b.append(disclosure,icon,textWrap,idx);
@@ -187,25 +214,29 @@ function renderTree(){
  $("treeCount").textContent=(selectedPaths.length>1?selectedPaths.length+" selected · ":"")+countNodes(roots)+" elements";
  const expand=$("expandTree");expand.textContent=collapsedTree.size?"＋":"−";expand.title=collapsedTree.size?"Expand all layers":"Collapse all groups";
 }
+// Dropping in blank structure space sends the dragged layer to the Page root.
+$("tree").addEventListener("dragover",e=>{
+ if(!treeDragSource||e.target.closest(".tree-item"))return;
+ e.preventDefault();e.dataTransfer.dropEffect="move";
+});
+$("tree").addEventListener("drop",e=>{
+ if(!treeDragSource||e.target.closest(".tree-item"))return;
+ e.preventDefault();moveTreeNode(treeDragSource,null,"root");treeDragSource=null;
+});
 function findNodePath(target){let found=null;function visit(items,parentPath){for(let i=0;i<items.length&&!found;i++){const n=items[i],path=parentPath.concat(i);if(n===target){found=path;return;}if(["group","repeat"].includes(n.type))visit(n.children||[],path.concat("children"));}}visit(doc.items||[],["items"]);return found;}
 function moveTreeNode(source,target,place="after"){
- const sourceArr=getAt(source.slice(0,-1)),sourceIndex=source.at(-1),node=sourceArr?.[sourceIndex];
- if(!Array.isArray(sourceArr)||!node||source[0]==="__page__")return;
- const targetNode=target?getAt(target):null;
- if(targetNode&&(targetNode===node||nodeKey(target).startsWith(nodeKey(source)+".")))return;
- if(place==="inside"&&targetNode&&!["group","repeat"].includes(targetNode.type))place="after";
- sourceArr.splice(sourceIndex,1);
- let destArr,destIndex;
- if(!targetNode||place==="root"){destArr=doc.items||(doc.items=[]);destIndex=destArr.length;}
- else if(place==="inside"){targetNode.children||(targetNode.children=[]);destArr=targetNode.children;destIndex=destArr.length;}
- else{
-  const targetPath=findNodePath(targetNode);
-  if(!targetPath)return;
-  destArr=getAt(targetPath.slice(0,-1));destIndex=targetPath.at(-1)+(place==="after"?1:0);
+ const node=getAt(source);if(!node||source[0]==="__page__")return;
+ const oldBounds=transformGeometry(node,source);
+ const newPath=moveNode(doc,source,target,place);
+ if(!newPath)return;
+ // Reparenting changes the reference coordinate system. Keep the visible
+ // position when both source and destination have a measurable box.
+ const newBounds=transformGeometry(node,newPath);
+ if(oldBounds&&newBounds){
+  const dx=oldBounds.x-newBounds.x,dy=oldBounds.y-newBounds.y;
+  if(Number.isFinite(dx)&&Number.isFinite(dy)&&(Math.abs(dx)>0.001||Math.abs(dy)>0.001)&&draggableTypes.has(node.type))moveBy(node,dx,dy,parentBoxForPath(newPath));
  }
- if(!Array.isArray(destArr))return;
- destArr.splice(Math.max(0,Math.min(destIndex,destArr.length)),0,node);
- selectedPath=findNodePath(node);selectedPaths=selectedPath?[selectedPath.slice()]:[];
+ selectedPath=newPath;selectedPaths=[newPath.slice()];
  commit(()=>{});setInspectorTab("properties");toast(place==="inside"?"Moved into container":place==="root"?"Moved to Page":"Layer order updated");
 }
 function select(path){
@@ -263,20 +294,21 @@ function renderMultiPropertyInspector(root){
  root.replaceChildren();root.className="multi-property-inspector";
  const lead=document.createElement("p");lead.className="section-description";lead.textContent="Editing "+selectedPaths.length+" selected elements. Only properties supported by every selected element are shown; changes apply to all of them.";root.appendChild(lead);
  const nodes=selectedPaths.map(path=>getAt(path)).filter(Boolean);if(nodes.length!==selectedPaths.length)return;
- const common=new Set(["stroke","fill","strokeWidth","opacity","rotate"]);
- const keys=Object.keys(nodes[0]).filter(key=>nodes.every(node=>Object.hasOwn(node,key))&&key!=="type"&&key!=="children");
- keys.forEach(key=>{if(nodes.every(node=>node[key]===undefined))common.delete(key);else common.add(key);});
- const allowed=new Set(["stroke","fill","strokeWidth","opacity","rotate","font","size","weight","italic","align","baseline","dash","clip","inset","axis","period","count","fit","index","stagger","extend","text","x","y","w","h","rx","cx","cy","r","ry","points","d","viewBox","aspect","angle","offset","select","x1","y1","x2","y2"]);
- const fields=[...common].filter(key=>allowed.has(key));
+ // Mixed-type edits are allowed, but only for existing shared attributes.
+ const fields=sharedEditableProperties(nodes);
  if(!fields.length){const empty=document.createElement("p");empty.className="param-empty";empty.textContent="The selected elements have no editable properties in common.";root.appendChild(empty);return;}
  const labels={stroke:"Stroke",fill:"Fill",strokeWidth:"Stroke width",opacity:"Opacity (%)",rotate:"Rotation (°)",font:"Font",size:"Text size",weight:"Weight",italic:"Italic",align:"Alignment",baseline:"Baseline",dash:"Dash pattern",clip:"Clip",inset:"Inset",axis:"Axis",period:"Period",count:"Count",fit:"Fit",index:"Index alias",stagger:"Stagger",extend:"Extend",text:"Text",x:"X",y:"Y",w:"Width",h:"Height",rx:"Corner radius",cx:"Center X",cy:"Center Y",r:"Radius",ry:"Radius Y",points:"Points",d:"SVG path data",viewBox:"ViewBox",aspect:"Aspect ratio",angle:"Angle",offset:"Offset",select:"Text index",x1:"X1",y1:"Y1",x2:"X2",y2:"Y2"};
- fields.sort((a,b)=>["stroke","fill","strokeWidth","opacity","rotate","x","y","w","h"].indexOf(a)-["stroke","fill","strokeWidth","opacity","rotate","x","y","w","h"].indexOf(b));
+ const priority=["stroke","fill","strokeWidth","opacity","rotate","x","y","w","h"];
+ fields.sort((a,b)=>{
+  const ai=priority.indexOf(a),bi=priority.indexOf(b);
+  return (ai<0?priority.length:ai)-(bi<0?priority.length:bi)||a.localeCompare(b);
+ });
  for(const key of fields){
   const lab=document.createElement("label");lab.className="field";lab.append(document.createTextNode(labels[key]||key));let input;
   const vals=nodes.map(node=>node[key]);const same=vals.every(v=>JSON.stringify(v)===JSON.stringify(vals[0]));
   if(key==="italic"||key==="clip"||key==="extend"){input=document.createElement("input");input.type="checkbox";input.checked=same&&!!vals[0];}
   else if(["axis","fit","weight","font","align","baseline","aspect"].includes(key)){input=document.createElement("select");const opts={axis:["x","y","xy","none"],fit:["repeat","space","round","center"],weight:["normal","bold"],font:["sans","serif","mono"],align:["start","middle","end"],baseline:["alphabetic","middle","top"],aspect:["contain","stretch"]}[key];const blank=document.createElement("option");blank.value="";blank.textContent=same?String(vals[0]??""):"Multiple values";input.appendChild(blank);opts.forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=v;input.appendChild(o);});input.value=same?String(vals[0]??""):"";}
-  else {input=document.createElement("input");input.type=key==="opacity"?"range":"text";if(key==="opacity"){input.min="0";input.max="100";input.step="1";input.value=same?Math.round(Number(vals[0]??1)*100):50;}else input.value=same?(Array.isArray(vals[0])?JSON.stringify(vals[0]):String(vals[0]??"")):"";input.placeholder=same?"":"Multiple values";if(["stroke","fill"].includes(key))input.setAttribute("list","variableSuggestions");}
+  else {input=document.createElement("input");input.type=key==="opacity"?"range":"text";if(key==="opacity"){input.min="0";input.max="100";input.step="1";input.value=same?Math.round(Number(vals[0]??1)*100):50;}else input.value=same?(Array.isArray(vals[0])?JSON.stringify(vals[0]):String(vals[0]??"")):"";input.placeholder=same?"":"Multiple values";if(["stroke","fill"].includes(key))input.setAttribute("list","colorVariableSuggestions");}
   if(key==="opacity")input.addEventListener("input",()=>{const v=Number(input.value)/100;for(const path of selectedPaths){const target=getAt(path);if(target)target.opacity=Math.max(0,Math.min(1,v));}renderCanvas();});
   input.dataset.property=key;
   input.addEventListener("change",()=>{let value=input.value;if(["italic","clip","extend"].includes(key))value=input.checked;else if(key==="opacity")value=Number(value)/100;else if(value.trim()===""){value=undefined;}else if(["inset","period","count","fit","index","points","viewBox","dash"].includes(key)&&value.trim().startsWith("[")){try{value=JSON.parse(value);}catch{toast("Invalid list for "+key);return;}}else if(["clip","extend","italic"].includes(key))value=input.checked;
@@ -325,7 +357,19 @@ function renderAdvanced(n){
  addField("Rotation (degrees)","rotate");
  addField("Tracejado [stroke, espaço]","dash",{wide:true,json:Array.isArray(n.dash)});
 }
-function commit(fn){try{fn();validate(doc);const next=JSON.stringify(doc);if(!historyRestoring&&history.record(next))updateHistoryButtons();setDirty(true);syncJson();render();setStatus("Changes applied");}catch(e){toast(e.message);}}
+function commit(fn){
+ try{
+  fn();validate(doc);
+  const next=JSON.stringify(doc);
+  if(!historyRestoring&&history.record(next))updateHistoryButtons();
+  setDirty(true);syncJson();render();setStatus("Changes applied");
+ }catch(e){
+  // Most visual actions mutate before commit(() => {}). Restore the last valid
+  // document rather than leaving an unexportable in-memory tree after failure.
+  doc=JSON.parse(history.current);selectedPath=null;selectedPaths=[];
+  initializePreviewValues();syncJson();render();toast(e.message);
+ }
+}
 function updateHistoryButtons(){const u=$("undoBtn"),r=$("redoBtn");if(u)u.disabled=!history.canUndo;if(r)r.disabled=!history.canRedo;}
 function resetHistory(){history.reset(JSON.stringify(doc));updateHistoryButtons();}
 function restoreHistory(direction,label){const state=direction==="undo"?history.undo(JSON.stringify(doc)):history.redo(JSON.stringify(doc));if(state===null)return;historyRestoring=true;try{doc=JSON.parse(state);selectedPath=null;selectedPaths=[];setDirty(true);initializePreviewValues();syncJson();render();setInspectorTab("properties");setStatus(label);updateHistoryButtons();}finally{historyRestoring=false;}}
@@ -840,16 +884,12 @@ function pasteSelection(){
  commit(()=>{});setInspectorTab("properties");toast(copies.length+" element"+(copies.length===1?"":"s")+" pasted.");
 }
 function moveSelectedLayer(direction){
- const paths=normalizeSelectedPaths(selectedPaths).filter(path=>path?.[0]!=="__page__");if(!paths.length)return;
- if(paths.some(path=>!sameParent(path,paths[0]))){toast("Move layers within one group at a time. Drag can move them between groups.");return;}
- const array=getAt(paths[0].slice(0,-1));if(!Array.isArray(array))return;
- const selectedNodes=paths.map(path=>getAt(path)).filter(Boolean),selectedSet=new Set(selectedNodes);let moved=false;
- if(direction==="up"){
-  for(let i=0;i<array.length;i++){if(!selectedSet.has(array[i])||i===0||selectedSet.has(array[i-1]))continue;[array[i-1],array[i]]=[array[i],array[i-1]];moved=true;}
- }else{
-  for(let i=array.length-1;i>=0;i--){if(!selectedSet.has(array[i])||i===array.length-1||selectedSet.has(array[i+1]))continue;[array[i],array[i+1]]=[array[i+1],array[i]];moved=true;}
- }
- if(!moved)return;selectedPaths=selectedNodes.map(node=>findNodePath(node)).filter(Boolean);selectedPath=selectedPaths.at(-1)||null;commit(()=>{});
+ const paths=normalizeSelectedPaths(selectedPaths).filter(path=>path?.[0]!=="__page__");
+ if(!paths.length)return;
+ const moved=nudgeSiblingNodes(doc,paths,direction);
+ if(moved===null){toast("Select layers in the same group to reorder them. Drag layers between groups.");return;}
+ if(!moved.length)return;
+ selectedPaths=moved;selectedPath=moved.at(-1);commit(()=>{});
 }
 function renderQuickProperties(){
  const root=$("quickProperties");if(!root)return;root.replaceChildren();
