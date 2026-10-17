@@ -186,3 +186,9 @@ Para textos, há contorno de seleção e uma alça de rotação; o tamanho do te
 - **Transformação:** X, Y, largura e altura usam campos numéricos precisos e rótulos que podem ser arrastados horizontalmente (*scrubby fields*). Opacidade usa slider. Rotação oferece um dial circular (Shift para ajuste de 0,1°), atalhos de 0°/45°/90°/180° e campo numérico que aceita ângulos exatos. Valores de comprimento e expressões do XTemplate continuam disponíveis nos campos avançados.
 
 Esses recursos não precisam de dependências adicionais em runtime e funcionam tanto na versão web portátil quanto no empacotamento desktop Tauri, após uma nova compilação.
+
+### Sugestões e formatos de valores
+
+Ao focar um campo compatível em **Element**, surge uma lista de variáveis com nome, tipo, rótulo e valor padrão, usando as cores do tema. Digitar filtra as opções; setas ↑/↓ navegam, **Enter** insere e **Esc** fecha. Para expressões, o editor substitui somente o identificador sob o cursor (por exemplo, `W * spa` → `W * spacing`), sem apagar os outros termos. Campos de Stroke/Fill sugerem apenas tokens de cor (`ink`, `accent`, `none`) e variáveis do tipo `color`.
+
+Os campos exibem pequenas indicações sobre o formato aceito, como `mm`, porcentagem, HEX ou expressão. O seletor **Type** das variáveis também explica com exemplos o significado de `length`, `color`, `number` e `integer`.

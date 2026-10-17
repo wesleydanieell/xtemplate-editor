@@ -260,6 +260,24 @@ try{
   assert.equal(inspectorLayout.actionsPosition,'static','inspector actions must not cover inputs');
  }
  await workspacePage.setViewport({width:1440,height:900});
+ // Variable autocomplete is browser-independent and respects field types.
+ await workspacePage.click('#elementStroke');
+ const suggestedColors=await workspacePage.$$eval('#variableCompletion [role="option"] strong',els=>els.map(el=>el.textContent));
+ assert.deepEqual(suggestedColors.slice(0,3),['ink','accent','none']);
+ await workspacePage.keyboard.press('ArrowDown');
+ await workspacePage.keyboard.press('Enter');
+ assert.equal(await workspacePage.$eval('#elementStroke',el=>el.value),'accent');
+ const strokeFormat=await workspacePage.$eval('#elementStrokeWidth',el=>({title:el.title,hint:el.closest('label').querySelector('.value-field-hint')?.textContent}));
+ assert.match(strokeFormat.title,/mm/);
+ assert.match(strokeFormat.hint,/Line thickness/);
+ await workspacePage.click('[data-inspector="params"]');
+ await workspacePage.click('#addParam');
+ await workspacePage.select('#newParamType','color');
+ assert.match(await workspacePage.$eval('#newParamTypeHint',el=>el.textContent),/HEX/);
+ await workspacePage.select('#newParamType','integer');
+ assert.match(await workspacePage.$eval('#newParamTypeHint',el=>el.textContent),/Whole/);
+ await workspacePage.click('#cancelAddParam');
+ await workspacePage.click('[data-inspector="properties"]');
  // Editor colors and themes should not introduce new fields in exported template JSON.
  const docJson=JSON.parse(await workspacePage.$eval('#jsonEditor',el=>el.value));
  assert(!Object.hasOwn(docJson,'theme')&&!Object.hasOwn(docJson,'previewColors'));
