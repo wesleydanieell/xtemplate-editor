@@ -11,7 +11,8 @@
     "desktop:assets": "python3 scripts/build-desktop-assets.py",
     "desktop:dev": "npm run desktop:assets && tauri dev",
     "desktop:build": "npm run desktop:assets && tauri build --bundles appimage",
-    "test:browser": "node scripts/browser-smoke.mjs"
+    "test:browser": "node scripts/browser-smoke.mjs",
+    "desktop:build:windows": "python scripts/build-desktop-assets.py && tauri build --bundles nsis,msi --config src-tauri/tauri.windows.conf.json"
   },
   "engines": {
     "node": ">=18"

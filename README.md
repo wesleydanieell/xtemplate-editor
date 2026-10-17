@@ -31,6 +31,24 @@ A partir da **v0.1.0-alpha.2**, o projeto também oferece um aplicativo Linux de
 
 A plataforma Linux exige bibliotecas gráficas compatíveis com WebKitGTK 4.1 e GTK3. AppImage não garante execução em toda distribuição; para melhor compatibilidade, o binário oficial é compilado no Ubuntu 22.04. Caso o AppImage não inicie, ainda é possível usar o pacote ZIP web e o servidor Python local.
 
+### Windows (.exe e .msi) — compilação automatizada
+
+O editor também pode ser empacotado como aplicativo Windows via **Tauri 2 / Microsoft WebView2**. O workflow **Windows installers** compila dois formatos no runner `windows-latest` do GitHub Actions:
+
+- **NSIS (`.exe`)** — instalador recomendado para a maioria dos usuários.
+- **WiX (`.msi`)** — alternativa Windows Installer, útil para administração e distribuição corporativa.
+
+Para testar um PR, abra **Actions → Windows installers** e baixe o artefato **XTemplate-Studio-Windows-installers** quando o job terminar com sucesso. A release oficial anexará ambos os instaladores apenas **nas próximas tags criadas depois da integração deste workflow**; a `v0.1.0-alpha.3` não muda.
+
+Para compilar localmente no Windows, instale Rust com toolchain MSVC, Node.js 22, Python 3 e os requisitos de desenvolvimento Tauri 2 / Visual Studio C++ Build Tools e Windows SDK. Execute:
+
+```powershell
+npm ci
+npm run desktop:build:windows
+```
+
+Os instaladores serão gerados em `src-tauri/target/release/bundle/nsis/` e `src-tauri/target/release/bundle/msi/`. O pacote Windows usa o identificador técnico `0.1.0-3`, equivalente ao `alpha.3`, porque o WiX/MSI aceita apenas sufixos pré-release numéricos; o código e a versão pública do projeto permanecem `v0.1.0-alpha.3`. O comando Linux `npm run desktop:build` permanece independente. O WebView2 Runtime é usado pelo Tauri para exibir a interface; a instalação padrão do Tauri gerencia sua disponibilidade quando necessário. Os instaladores não são assinados digitalmente por enquanto: o Windows SmartScreen pode mostrar um aviso de editor desconhecido.
+
 ### Compilar o AppImage
 
 Em uma máquina Linux de desenvolvimento, instale Rust, Node.js 18+, Python 3 e as dependências [recomendadas pelo Tauri](https://v2.tauri.app/start/prerequisites/) (especialmente WebKitGTK 4.1, GTK3 e `patchelf`). Depois execute:
