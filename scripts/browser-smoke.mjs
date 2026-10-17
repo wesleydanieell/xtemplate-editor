@@ -108,13 +108,36 @@ try{
  await workspacePage.setViewport({width:1440,height:900});
  workspacePage.on('pageerror',error=>errors.push(error.message));
  await workspacePage.goto(`http://127.0.0.1:${port}/`,{waitUntil:'networkidle0'});
+ const themeColors={};
+ for(const theme of ['dusk','graphite','midnight']){
+  await workspacePage.$eval('#themeSelect',(el,value)=>{
+   el.value=value;el.dispatchEvent(new Event('change',{bubbles:true}));
+  },theme);
+  themeColors[theme]=await workspacePage.evaluate(()=>{
+   const bg=selector=>getComputedStyle(document.querySelector(selector)).backgroundColor;
+   return {modal:bg('.modal-card'),menu:bg('#fileMenu'),variable:bg('.param-card'),
+    code:bg('#jsonEditor'),status:bg('.statusbar'),settings:bg('#themeSelect'),
+    export:bg('.top-export')};
+  });
+ }
+ for(const selector of Object.keys(themeColors.dusk)){
+  assert.equal(new Set(['dusk','graphite','midnight'].map(t=>themeColors[t][selector])).size,3,
+   `${selector} should adapt to all three themes, got ${JSON.stringify(themeColors)}`);
+ }
  await workspacePage.click('[data-menu="settingsMenu"]');
  await workspacePage.select('#themeSelect','midnight');
  assert.equal(await workspacePage.$eval('html',el=>el.dataset.theme),'midnight');
  await workspacePage.reload({waitUntil:'networkidle0'});
  assert.equal(await workspacePage.$eval('html',el=>el.dataset.theme),'midnight','theme must persist');
+ // Clicking Page must inspect its metadata in Element without a modal.
+ await workspacePage.click('.tree-page');
+ assert.equal(await workspacePage.$eval('#filePropertiesModal',el=>el.classList.contains('hidden')),true);
+ assert.equal(await workspacePage.$eval('#documentPanel',el=>el.parentElement.id),'propertiesPanel');
+ assert.equal(await workspacePage.$eval('.right-tab.active',el=>el.dataset.inspector),'properties');
+ assert.equal(await workspacePage.$eval('#selectedType',el=>el.textContent),'PAGE');
  await workspacePage.click('[data-menu="fileMenu"]');
  await workspacePage.click('#fileInfoBtn');
+ assert.equal(await workspacePage.$eval('#documentPanel',el=>el.parentElement.classList.contains('file-properties-card')),true);
  assert.equal(await workspacePage.$eval('#filePropertiesModal',el=>el.classList.contains('hidden')),false);
  assert(await workspacePage.$('#documentPanel #metaName'),'metadata must be in the modal');
  await workspacePage.$eval('#inkColor',input=>{
@@ -124,12 +147,14 @@ try{
  await workspacePage.select('#filePageSize','a5');
  assert.equal(await workspacePage.$eval('#paperSize',input=>input.value),'a5');
  await workspacePage.click('#filePropertiesModal [data-close-modal="filePropertiesModal"]');
+ assert.equal(await workspacePage.$eval('#documentPanel',el=>el.parentElement.id),'propertiesPanel');
  await workspacePage.$eval('#quickAccentColor',input=>{
   input.value='#abcdef';input.dispatchEvent(new Event('input',{bubbles:true}));
  });
  assert.equal(await workspacePage.$eval('#accentColor',input=>input.value),'#abcdef');
  await workspacePage.click('[data-menu="insertMenu"]');
  await workspacePage.click('#insertMenu [data-menu-action="insert-rect"]');
+ assert.equal(await workspacePage.$eval('#documentPanel',el=>el.parentElement.classList.contains('file-properties-card')),true);
  const nesting=await workspacePage.evaluate(()=>({
   page:parseFloat(getComputedStyle(document.querySelector('.tree-page')).paddingLeft),
   child:parseFloat(getComputedStyle(document.querySelector('[data-path="items.1"]')).paddingLeft),

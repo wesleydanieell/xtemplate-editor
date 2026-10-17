@@ -596,3 +596,176 @@
 .rotation-wheel:active{cursor:grabbing}
 .rotation-wheel-pointer{position:absolute;width:3px;height:13px;border-radius:3px;background:var(--accent2);left:calc(50% - 1.5px);top:4px;transform-origin:1.5px 15.5px;transform:rotate(var(--rotation-angle,0deg));pointer-events:none}
 .rotation-controls #transformRotate{flex:1;min-width:45px;width:100%}
+
+
+/* Semantic surface tokens shared across the complete interface.  Components
+   use these rather than keeping the original Dusk colors in custom themes. */
+:root[data-theme="dusk"]{
+ --ui-base:#111318;--ui-surface:#20232b;--ui-surface-raised:#292e39;
+ --ui-surface-alt:#252832;--ui-hover:#303746;--ui-selected:#2d3b5b;
+ --ui-selected-text:#e4eaff;--ui-border:#414754;--ui-divider:#343945;
+ --ui-input:#252832;--ui-input-border:#414754;--ui-text:#e5e8ef;
+ --ui-muted:#aab4c6;--ui-soft:#8794a8;--ui-heading:#c8d2e3;
+ --ui-action:#476bd3;--ui-action-border:#6881e7;--ui-action-hover:#5479e6;
+ --ui-badge-bg:#2c3650;--ui-badge-fg:#a9bdff;
+ --ui-status-bg:#252c3d;--ui-code-bg:#17191f;--ui-code-gutter:#15171c;
+ --ui-wheel-bg:#263243;--ui-wheel-ring:#526177;--ui-wheel-trace:#2f3d50;
+ --ui-shadow:#0008;--ui-focus:#9bb4ff;
+}
+:root[data-theme="graphite"]{
+ --ui-base:#16181c;--ui-surface:#282b31;--ui-surface-raised:#34363d;
+ --ui-surface-alt:#292c33;--ui-hover:#444750;--ui-selected:#484238;
+ --ui-selected-text:#fff3df;--ui-border:#555962;--ui-divider:#414650;
+ --ui-input:#292c33;--ui-input-border:#555962;--ui-text:#eeede9;
+ --ui-muted:#c2bdaf;--ui-soft:#9fa49f;--ui-heading:#e0dbcd;
+ --ui-action:#806e55;--ui-action-border:#ae9573;--ui-action-hover:#967f62;
+ --ui-badge-bg:#494238;--ui-badge-fg:#e8cda9;
+ --ui-status-bg:#2d302f;--ui-code-bg:#202329;--ui-code-gutter:#1b1e23;
+ --ui-wheel-bg:#3d3933;--ui-wheel-ring:#a99677;--ui-wheel-trace:#665c50;
+ --ui-shadow:#0009;--ui-focus:#d7c7ae;
+}
+:root[data-theme="midnight"]{
+ --ui-base:#08131a;--ui-surface:#192c37;--ui-surface-raised:#25404d;
+ --ui-surface-alt:#1d3441;--ui-hover:#2b5060;--ui-selected:#205066;
+ --ui-selected-text:#d8faff;--ui-border:#3d6577;--ui-divider:#294251;
+ --ui-input:#1d3441;--ui-input-border:#416474;--ui-text:#dfedf2;
+ --ui-muted:#a9c6d1;--ui-soft:#8eb0bf;--ui-heading:#cae8ed;
+ --ui-action:#226d7b;--ui-action-border:#3b9aab;--ui-action-hover:#298b9b;
+ --ui-badge-bg:#23505d;--ui-badge-fg:#a0eaf1;
+ --ui-status-bg:#193440;--ui-code-bg:#101f29;--ui-code-gutter:#0d1922;
+ --ui-wheel-bg:#213e49;--ui-wheel-ring:#5bb3c1;--ui-wheel-trace:#325c69;
+ --ui-shadow:#000a;--ui-focus:#81d5dc;
+}
+
+/* Navigation, menus and toolbars */
+:root[data-theme] .app-menu,
+:root[data-theme] .app-menu.file-menu,
+:root[data-theme] .context-menu,
+:root[data-theme] .context-submenu,
+:root[data-theme] .add-menu,
+:root[data-theme] .modal-card,
+:root[data-theme] .command-palette,
+:root[data-theme] .toast{background:var(--ui-surface);border-color:var(--ui-border);color:var(--ui-text)}
+:root[data-theme] .app-menu-trigger:hover,
+:root[data-theme] .app-menu-trigger[aria-expanded="true"],
+:root[data-theme] .app-menu>button:hover,
+:root[data-theme] .app-menu.file-menu>button:hover,
+:root[data-theme] .app-menu-submenu>summary:hover,
+:root[data-theme] .context-menu button:hover,
+:root[data-theme] .context-submenu button:hover,
+:root[data-theme] .dock-actions button:hover,
+:root[data-theme] .tool-button:hover,
+:root[data-theme] .icon-button:hover,
+:root[data-theme] .quiet:hover,
+:root[data-theme] .right-tab:hover,
+:root[data-theme] .tree-item:hover,
+:root[data-theme] .template-card:hover,
+:root[data-theme] .rotation-presets button:hover{background:var(--ui-hover);color:var(--ui-text)}
+:root[data-theme] .app-menu-trigger,
+:root[data-theme] .app-menu>button,
+:root[data-theme] .app-menu.file-menu>button,
+:root[data-theme] .context-menu button,
+:root[data-theme] .context-submenu button,
+:root[data-theme] .app-menu-submenu>summary{color:var(--ui-text)}
+:root[data-theme] .app-menu-separator,
+:root[data-theme] .context-separator,
+:root[data-theme] .modal-actions,
+:root[data-theme] .pane-title,
+:root[data-theme] .inspector-heading,
+:root[data-theme] .modal-card>.modal-actions{border-color:var(--ui-divider)}
+:root[data-theme] .top-export,
+:root[data-theme] .primary,
+:root[data-theme] .modal-card .primary{background:var(--ui-action);border-color:var(--ui-action-border);color:#fff}
+:root[data-theme] .top-export:hover,
+:root[data-theme] .primary:hover{background:var(--ui-action-hover)}
+:root[data-theme] .app-menu kbd,
+:root[data-theme] kbd{background:var(--ui-surface-alt);border-color:var(--ui-border);color:var(--ui-muted)}
+
+/* Inputs in ALL locations, including Settings, dialogs and variable cards. */
+:root[data-theme] input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+:root[data-theme] select,
+:root[data-theme] textarea{background:var(--ui-input);border-color:var(--ui-input-border);color:var(--ui-text)}
+:root[data-theme] input::placeholder,
+:root[data-theme] textarea::placeholder{color:var(--ui-soft);opacity:.8}
+:root[data-theme] input[type="range"],
+:root[data-theme] input[type="checkbox"]{accent-color:var(--accent2)}
+:root[data-theme] .field,
+:root[data-theme] .field label,
+:root[data-theme] .modal-card .field,
+:root[data-theme] .param-grid label{color:var(--ui-muted)}
+:root[data-theme] .modal-description,
+:root[data-theme] .inspector-tip,
+:root[data-theme] .section-description,
+:root[data-theme] .param-empty,
+:root[data-theme] .tree-meta,
+:root[data-theme] .quick-property,
+:root[data-theme] .preview-colors-quick label,
+:root[data-theme] .preview-colors-title{color:var(--ui-soft)}
+:root[data-theme] .modal-card h2,
+:root[data-theme] .empty-selection b,
+:root[data-theme] .inspector-heading,
+:root[data-theme] .dock-heading,
+:root[data-theme] .pane-title{color:var(--ui-heading)}
+:root[data-theme] .modal-eyebrow,
+:root[data-theme] .quick-properties-label,
+:root[data-theme] .param-card-head code{color:var(--accent)}
+:root[data-theme] .modal-close,
+:root[data-theme] .quiet:not(.top-export),
+:root[data-theme] .rotation-presets button,
+:root[data-theme] .add-menu button,
+:root[data-theme] .toolbar-group button{background:var(--ui-surface-alt);border-color:var(--ui-border);color:var(--ui-text)}
+:root[data-theme] .modal-close:hover{background:var(--ui-hover)}
+:root[data-theme] .file-properties-card>.modal-actions{border-color:var(--ui-divider)}
+
+/* Structure, panels, variables and details */
+:root[data-theme] .tree-item.active,
+:root[data-theme] .template-card.active,
+:root[data-theme] .doc-tab.active{background:var(--ui-selected);color:var(--ui-selected-text);border-color:var(--ui-border)}
+:root[data-theme] .tree-symbol,
+:root[data-theme] .file-glyph,
+:root[data-theme] .context-icon{color:var(--accent)}
+:root[data-theme] .tree-index,
+:root[data-theme] .tree-disclosure,
+:root[data-theme] .outline-subtitle{color:var(--ui-soft)}
+:root[data-theme] .param-card,
+:root[data-theme] .inspector-details,
+:root[data-theme] .transform-panel,
+:root[data-theme] .alignment-tools,
+:root[data-theme] .export-summary,
+:root[data-theme] .export-summary-row{background:var(--ui-surface-alt);border-color:var(--ui-border)}
+:root[data-theme] .param-card-head,
+:root[data-theme] .advanced-inspector,
+:root[data-theme] .export-summary-row{border-color:var(--ui-divider)}
+:root[data-theme] .type-badge{background:var(--ui-badge-bg);color:var(--ui-badge-fg)}
+:root[data-theme] .template-card b{color:var(--ui-text)}
+:root[data-theme] .tree-page{border-left-color:var(--accent);color:var(--ui-text)}
+:root[data-theme] .tree-rename{background:var(--ui-input);border-color:var(--accent);color:var(--ui-text)}
+:root[data-theme] .context-icon{background:var(--ui-surface-raised)}
+:root[data-theme] .right-tab.active{color:var(--ui-selected-text);background:var(--ui-selected);border-bottom-color:var(--accent)}
+
+/* Status + source editor */
+:root[data-theme] .statusbar{background:var(--ui-status-bg);border-color:var(--ui-border);color:var(--ui-text)}
+:root[data-theme] .statusbar span:nth-child(2),
+:root[data-theme] .canvas-footer,
+:root[data-theme] .json-status{color:var(--ui-muted)}
+:root[data-theme] .canvas-footer{background:var(--ui-surface-alt);border-color:var(--ui-divider)}
+:root[data-theme] .json-pane .pane-title,
+:root[data-theme] .line-numbers{background:var(--ui-code-gutter);color:var(--ui-soft)}
+:root[data-theme] .json-editor-wrap textarea{background:var(--ui-code-bg);color:var(--ui-text)}
+:root[data-theme] #splitToggle.active{background:var(--ui-selected);color:var(--ui-selected-text);border-color:var(--accent)}
+
+/* Small specialized controls */
+:root[data-theme] .rotation-wheel{border-color:var(--ui-wheel-ring);background:radial-gradient(circle at 50% 50%,var(--ui-wheel-bg) 0 29%,transparent 30%),conic-gradient(from 0deg,var(--ui-wheel-ring) 0 1deg,var(--ui-wheel-trace) 1deg 359deg,var(--ui-wheel-ring) 359deg);box-shadow:inset 0 0 0 3px var(--ui-surface-alt)}
+:root[data-theme] .rotation-wheel:hover{border-color:var(--accent)}
+:root[data-theme] .rotation-presets button{background:var(--ui-surface-alt);border-color:var(--ui-border);color:var(--ui-muted)}
+:root[data-theme] .preview-colors-quick{border-color:var(--ui-divider)}
+:root[data-theme] .preview-colors-quick input[type="color"]{border-color:var(--ui-border)}
+
+/* Page metadata is inspected in Element; File menu uses the identical form in a dialog. */
+#propertiesPanel>.page-properties-fields{display:grid;grid-template-columns:minmax(0,1fr);gap:0;padding:0;margin:8px 0 0;overflow:visible;max-height:none}
+#propertiesPanel>.page-properties-fields>*{grid-column:1/-1}
+#propertiesPanel>.page-properties-fields .field{margin:8px 0}
+#propertiesPanel>.page-properties-fields .field input,#propertiesPanel>.page-properties-fields .field textarea,#propertiesPanel>.page-properties-fields .field select{width:100%;min-width:0}
+#propertiesPanel>.page-properties-fields .color-field{display:flex;align-items:center;gap:7px}
+#propertiesPanel>.page-properties-fields .inspector-heading{margin:14px 0 9px}
+#propertiesPanel>.page-properties-fields .inspector-tip{font-size:10px;line-height:1.5}
