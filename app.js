@@ -8,6 +8,7 @@ import { calculateSnap, calculateObjectSnap } from "./src/features/snapping.js";
 import { rotationFromPointer, normalizeDialAngle } from "./src/features/rotation-wheel.js";
 import { variableChoices, completeExpression } from "./src/features/variable-completion.js";
 import { valueHint, variableTypeHint } from "./src/features/value-hints.js";
+import { LAYER_COLORS, readLayerColors, validLayerColor } from "./src/features/layer-colors.js";
 import { screenToDocumentPoint } from "./src/features/pointer-geometry.js";
 import { repeatPositions } from "./src/features/repeat-layout.js";
 import { resizePreviewTransform, rotationPreviewTransform, resizedBounds } from "./src/features/resize-preview.js";
@@ -33,6 +34,39 @@ const history=createHistory(JSON.stringify(doc));let historyRestoring=false;
 let pageSize=[210,297],zoomMode="fit",previewValues={},lastValidJson="",expanded=true,clipSerial=0;
 const collapsedTree=new Set();
 let treeDragSource=null,treeSelectionAnchor=null;
+let layerColors={};
+function layerColorStorageKey(){return 'xtemplate-layer-colors:'+String(doc.id||doc.name||'untitled').slice(0,120);}
+function loadLayerColors(){
+ try{layerColors=readLayerColors(JSON.parse(localStorage.getItem(layerColorStorageKey())||'{}'));}
+ catch{layerColors={};}
+}
+function saveLayerColors(){try{localStorage.setItem(layerColorStorageKey(),JSON.stringify(layerColors));}catch{}}
+function setLayerColor(path,color){
+ const key=nodeKey(path),valid=validLayerColor(color);
+ if(valid)layerColors[key]=valid;else delete layerColors[key];
+ saveLayerColors();renderTree();
+}
+function resetLayerColors(){layerColors={};}
+function snapshotLayerMarkers(){
+ const entries=[];
+ function visit(nodes,prefix){
+  (nodes||[]).forEach((node,index)=>{
+   const path=prefix.concat(index),color=layerColors[nodeKey(path)];
+   if(color)entries.push([node,color]);
+   if(['group','repeat'].includes(node.type))visit(node.children,path.concat('children'));
+  });
+ }
+ visit(doc.items,['items']);return entries;
+}
+function restoreLayerMarkers(entries){
+ layerColors={};
+ for(const [node,color] of entries){
+  const path=findNodePath(node);
+  if(path)layerColors[nodeKey(path)]=color;
+ }
+ saveLayerColors();
+}
+
 const paper=$("paper"),wrap=$("paperWrap"),jsonEditor=$("jsonEditor");
 function toast(msg){const e=$("toast");e.textContent=msg;e.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>e.classList.remove("show"),2300);$("statusMessage").textContent=msg;}
 function setDirty(v=true){dirty=v;$("dirtyMark").classList.toggle("hidden",!v);$("dirtyMark").title=v?"Unsaved changes":"Saved";}
@@ -241,6 +275,38 @@ renderSmartGuideOverlay();}
 function render(){renderCanvas();
 $("pageDimensions").textContent=pageSize[0]+" × "+pageSize[1]+" mm";if($("filePageSize"))$("filePageSize").value=$("paperSize").value;$("docName").textContent=doc.name||"Untitled";$("nodeStatus").textContent=countNodes(doc.items||[])+" nodes";if(document.activeElement!==$("metaName"))$("metaName").value=doc.name||"";if(document.activeElement!==$("metaId"))$("metaId").value=doc.id||"";if(document.activeElement!==$("metaDescription"))$("metaDescription").value=doc.description||"";if(document.activeElement!==$("metaAuthor"))$("metaAuthor").value=doc.author||"";if(document.activeElement!==$("metaLicense"))$("metaLicense").value=doc.license||"";if(document.activeElement!==$("metaVersion"))$("metaVersion").value=doc.version||"";if(document.activeElement!==$("metaTags"))$("metaTags").value=(doc.tags||[]).join(", ");renderTree();renderInspector();renderParams();renderAllColorChoices();refreshVariableSuggestions();renderQuickProperties();fitPaper();}
 function countNodes(items){return items.reduce((sum,n)=>sum+1+((n.type==="group"||n.type==="repeat")?countNodes(n.children||[]):0),0);}
+const layerColorPicker=document.createElement("div");
+layerColorPicker.className="layer-color-picker hidden";
+layerColorPicker.setAttribute("role","group");layerColorPicker.setAttribute("aria-label","Layer organization color");
+document.body.appendChild(layerColorPicker);
+let activeColorLayer=null;
+function closeLayerColorPicker(){layerColorPicker.classList.add("hidden");layerColorPicker.replaceChildren();activeColorLayer=null;}
+function openLayerColorPicker(path,anchor){
+ closeLayerColorPicker();activeColorLayer=path.slice();
+ const title=document.createElement("div");title.className="layer-color-heading";title.textContent="LAYER COLOR";
+ const palette=document.createElement("div");palette.className="layer-color-swatches";
+ for(const color of LAYER_COLORS){
+  const swatch=document.createElement("button");swatch.type="button";swatch.className="layer-color-swatch";
+  swatch.style.setProperty("--swatch-color",color);swatch.title=color;swatch.setAttribute("aria-label","Set color "+color);
+  swatch.addEventListener("click",()=>{setLayerColor(path,color);closeLayerColorPicker();});
+  palette.appendChild(swatch);
+ }
+ const footer=document.createElement("div");footer.className="layer-color-footer";
+ const custom=document.createElement("input");custom.type="color";custom.value=layerColors[nodeKey(path)]||LAYER_COLORS[0];custom.setAttribute("aria-label","Custom layer color");
+ custom.addEventListener("input",()=>{setLayerColor(path,custom.value);closeLayerColorPicker();});
+ const clear=document.createElement("button");clear.type="button";clear.textContent="Clear color";
+ clear.addEventListener("click",()=>{setLayerColor(path,null);closeLayerColorPicker();});
+ footer.append(custom,clear);layerColorPicker.append(title,palette,footer);
+ const rect=anchor.getBoundingClientRect();
+ layerColorPicker.classList.remove("hidden");
+ const width=layerColorPicker.offsetWidth,height=layerColorPicker.offsetHeight;
+ layerColorPicker.style.left=Math.min(window.innerWidth-width-8,Math.max(8,rect.right+6))+"px";
+ layerColorPicker.style.top=Math.min(window.innerHeight-height-8,Math.max(8,rect.top))+"px";
+}
+document.addEventListener("pointerdown",e=>{
+ if(!layerColorPicker.classList.contains("hidden")&&!layerColorPicker.contains(e.target)&&!e.target.closest('.tree-color-control'))closeLayerColorPicker();
+},true);
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeLayerColorPicker();});
 function renderTree(){
  const tree=$("tree");tree.replaceChildren();
  const branchTypes=new Set(["group","repeat"]);
@@ -312,7 +378,25 @@ function renderTree(){
   b.title=(n.name||baseName+" "+typeOrdinal)+(info.length?" — "+info.join(" · "):"");
   textWrap.append(label,meta);
   const idx=document.createElement("span");idx.className="tree-index";idx.textContent=String(path.at(-1)+1);idx.title="Sibling position "+(path.at(-1)+1);
-  b.append(disclosure,icon,textWrap,idx);
+  const colorControl=document.createElement("span");
+  colorControl.className="tree-color-control"+(layerColors[key]?" is-colored":"");
+  colorControl.setAttribute("role","button");colorControl.setAttribute("tabindex","0");
+  colorControl.setAttribute("aria-label","Set organization color for "+label.textContent);
+  colorControl.title="Color tag (editor only)";
+  colorControl.style.setProperty("--layer-mark",layerColors[key]||"var(--ui-soft,#8594a9)");
+  colorControl.textContent="●";
+  const showColorPicker=e=>{
+   e.preventDefault();e.stopPropagation();
+   openLayerColorPicker(path,colorControl);
+  };
+  colorControl.addEventListener("click",showColorPicker);
+  colorControl.addEventListener("pointerdown",e=>e.stopPropagation());
+  colorControl.addEventListener("keydown",e=>{
+   e.stopPropagation();if(e.key==="Enter"||e.key===" ")showColorPicker(e);
+  });
+  b.append(disclosure,icon,textWrap,colorControl,idx);
+  b.style.setProperty("--layer-mark",layerColors[key]||"transparent");
+  b.classList.toggle("tree-is-colored",Boolean(layerColors[key]));
   b.addEventListener("click",e=>{if(canExpand&&e.target.closest(".tree-disclosure")){if(collapsedTree.has(key))collapsedTree.delete(key);else collapsedTree.add(key);renderTree();return;}selectFromTree(path,e);});
   tree.appendChild(b);
   if(canExpand&&!collapsedTree.has(key))children.forEach((c,i)=>add(c,path.concat(["children",i]),depth+1));
@@ -334,6 +418,7 @@ function findNodePath(target){let found=null;function visit(items,parentPath){fo
 function moveTreeNode(source,target,place="after"){
  const node=getAt(source);if(!node||source[0]==="__page__")return;
  const oldBounds=transformGeometry(node,source);
+ const colorMarkers=snapshotLayerMarkers();
  const newPath=moveNode(doc,source,target,place);
  if(!newPath)return;
  // Reparenting changes the reference coordinate system. Keep the visible
@@ -343,6 +428,7 @@ function moveTreeNode(source,target,place="after"){
   const dx=oldBounds.x-newBounds.x,dy=oldBounds.y-newBounds.y;
   if(Number.isFinite(dx)&&Number.isFinite(dy)&&(Math.abs(dx)>0.001||Math.abs(dy)>0.001)&&draggableTypes.has(node.type))moveBy(node,dx,dy,parentBoxForPath(newPath));
  }
+ restoreLayerMarkers(colorMarkers);
  selectedPath=newPath;selectedPaths=[newPath.slice()];
  commit(()=>{});setInspectorTab("properties");toast(place==="inside"?"Moved into container":place==="root"?"Moved to Page":"Layer order updated");
 }
@@ -366,8 +452,10 @@ function selectFromTree(path,e){
 }
 function getSiblingSelection(){return getTreeSiblingSelection(doc,selectedPaths);}
 function groupSelection(){
+ const markers=snapshotLayerMarkers();
  const result=groupSiblingNodes(doc,selectedPaths);
  if(!result){toast("Selecione ao menos dois elementos irmãos para agrupar.");return;}
+ restoreLayerMarkers(markers);
  selectedPath=result.path;selectedPaths=result.paths;commit(()=>{});setInspectorTab("properties");toast("Elementos agrupados.");
 }
 function getValue(n,k){if(n[k]===undefined)return"";return typeof n[k]==="object"?JSON.stringify(n[k]):String(n[k]);}
@@ -853,8 +941,8 @@ paper.addEventListener("pointerup",e=>{
 });
 paper.addEventListener("pointercancel",e=>cancelCanvasGesture(e));
 paper.addEventListener("lostpointercapture",e=>cancelCanvasGesture(e));
-$("openBtn").addEventListener("click",()=>$("fileInput").click());$("fileInput").addEventListener("change",async e=>{const f=e.target.files?.[0];if(!f)return;if(dirty&&!confirm("There are unsaved changes. Open another file anyway?")){e.target.value="";return;}try{if(f.size>1048576)throw Error("File exceeds 1 MiB.");const parsed=JSON.parse(await f.text());validate(parsed);doc=parsed;selectedPath=null;selectedPaths=[];setDirty(false);resetHistory();previewValues={};initializePreviewValues();syncJson();render();document.querySelectorAll(".template-card").forEach(b=>b.classList.remove("active"));toast("Template loaded.");setStatus("File opened: "+f.name);}catch(err){toast("Could not open: "+err.message);}e.target.value="";});
-document.querySelectorAll(".template-card").forEach(b=>b.addEventListener("click",()=>{const key=b.dataset.template;if(dirty&&!confirm("Descartar alterações não exportadas e abrir este modelo?"))return;doc=clone(samples[key]);selectedPath=null;selectedPaths=[];resetHistory();previewValues={};initializePreviewValues();setDirty(false);syncJson();render();document.querySelectorAll(".template-card").forEach(x=>x.classList.toggle("active",x===b));}));
+$("openBtn").addEventListener("click",()=>$("fileInput").click());$("fileInput").addEventListener("change",async e=>{const f=e.target.files?.[0];if(!f)return;if(dirty&&!confirm("There are unsaved changes. Open another file anyway?")){e.target.value="";return;}try{if(f.size>1048576)throw Error("File exceeds 1 MiB.");const parsed=JSON.parse(await f.text());validate(parsed);doc=parsed;selectedPath=null;selectedPaths=[];setDirty(false);loadLayerColors();resetHistory();previewValues={};initializePreviewValues();syncJson();render();document.querySelectorAll(".template-card").forEach(b=>b.classList.remove("active"));toast("Template loaded.");setStatus("File opened: "+f.name);}catch(err){toast("Could not open: "+err.message);}e.target.value="";});
+document.querySelectorAll(".template-card").forEach(b=>b.addEventListener("click",()=>{const key=b.dataset.template;if(dirty&&!confirm("Descartar alterações não exportadas e abrir este modelo?"))return;doc=clone(samples[key]);selectedPath=null;selectedPaths=[];loadLayerColors();resetHistory();previewValues={};initializePreviewValues();setDirty(false);syncJson();render();document.querySelectorAll(".template-card").forEach(x=>x.classList.toggle("active",x===b));}));
 $("paperSize").addEventListener("change",e=>{pageSize=SIZES[e.target.value]||SIZES.a4;wrap.style.aspectRatio=pageSize[0]+"/"+pageSize[1];render();});
 $("filePageSize").addEventListener("change",e=>{
  $("paperSize").value=e.target.value;
@@ -1142,9 +1230,11 @@ function pasteSelection(){
 function moveSelectedLayer(direction){
  const paths=normalizeSelectedPaths(selectedPaths).filter(path=>path?.[0]!=="__page__");
  if(!paths.length)return;
+ const markers=snapshotLayerMarkers();
  const moved=nudgeSiblingNodes(doc,paths,direction);
  if(moved===null){toast("Select layers in the same group to reorder them. Drag layers between groups.");return;}
  if(!moved.length)return;
+ restoreLayerMarkers(markers);
  selectedPaths=moved;selectedPath=moved.at(-1);commit(()=>{});
 }
 function renderQuickProperties(){
@@ -1279,7 +1369,7 @@ $("newTemplateForm").addEventListener("submit",e=>{
  const size=$("newTemplatePaper").value||"a4";doc={xtemplate:1,id,name,description:$("newTemplateDescription").value.trim(),author:$("newTemplateAuthor").value.trim(),license:$("newTemplateLicense")?.value.trim()||"MIT",version:$("newTemplateVersion")?.value.trim()||undefined,tags:($("newTemplateTags")?.value||"").split(",").map(v=>v.trim()).filter(Boolean),params:{},items:[]};
  for(const key of ["author","version"])if(!doc[key])delete doc[key];if(!doc.description)delete doc.description;
  pageSize=SIZES[size]||SIZES.a4;$("paperSize").value=size;wrap.style.aspectRatio=pageSize[0]+"/"+pageSize[1];$("inkColor").value=$("quickInkColor").value=$("newTemplateInk").value;$("accentColor").value=$("quickAccentColor").value=$("newTemplateAccent").value;
- selectedPath=["__page__"];selectedPaths=[selectedPath.slice()];previewValues={};resetHistory();initializePreviewValues();setDirty(true);syncJson();render();setInspectorTab("properties");closeModal("newTemplateModal");toast("New template created.");
+ selectedPath=["__page__"];selectedPaths=[selectedPath.slice()];previewValues={};resetLayerColors();saveLayerColors();resetHistory();initializePreviewValues();setDirty(true);syncJson();render();setInspectorTab("properties");closeModal("newTemplateModal");toast("New template created.");
 });
 function prepareExport(){
  try{const current=JSON.parse(jsonEditor.value);validate(current);doc=current;}catch(error){setValidation("error","JSON inválido");toast("Correct the JSON errors before exporting: "+error.message);return;}
@@ -1357,7 +1447,7 @@ document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;hideContextMe
 async function loadOfficialExample(file,source){
  if(!file)return;
  if(dirty&&!confirm("Descartar alterações não exportadas e abrir este exemplo?")){if(source)source.value="";return;}
- try{const res=await fetch("./examples/"+encodeURIComponent(file));if(!res.ok)throw Error("Example not found.");const parsed=JSON.parse(await res.text());validate(parsed);doc=parsed;selectedPath=null;selectedPaths=[];collapsedTree.clear();resetHistory();previewValues={};initializePreviewValues();setDirty(false);syncJson();render();document.querySelectorAll(".template-card").forEach(b=>b.classList.remove("active"));toast("Template loaded.");setStatus("Template: "+file);}
+ try{const res=await fetch("./examples/"+encodeURIComponent(file));if(!res.ok)throw Error("Example not found.");const parsed=JSON.parse(await res.text());validate(parsed);doc=parsed;selectedPath=null;selectedPaths=[];collapsedTree.clear();loadLayerColors();resetHistory();previewValues={};initializePreviewValues();setDirty(false);syncJson();render();document.querySelectorAll(".template-card").forEach(b=>b.classList.remove("active"));toast("Template loaded.");setStatus("Template: "+file);}
  catch(err){toast("Could not open template: "+err.message);}
  if(source)source.value="";
 }
@@ -1588,5 +1678,5 @@ window.addEventListener("keydown",e=>{
  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();e.stopPropagation();if(commandPalette.classList.contains("hidden"))openCommandPalette();else closeCommandPalette();return;}
  if(!commandPalette.classList.contains("hidden")&&e.key==="Escape"){closeCommandPalette();}
 },true);
-initializePreviewValues();syncJson();render();setInspectorTab("properties");setLeftTab("layers");resetHistory();
+loadLayerColors();initializePreviewValues();syncJson();render();setInspectorTab("properties");setLeftTab("layers");resetHistory();
 })();

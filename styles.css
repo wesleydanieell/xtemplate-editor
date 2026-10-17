@@ -899,3 +899,20 @@
 .variable-completion-details strong{font-size:12px;line-height:1.5;letter-spacing:.025em}
 .variable-completion-details small{font-size:11px;line-height:1.6;letter-spacing:.025em;font-weight:450}
 .variable-completion-item code{font-size:10px;line-height:1.5;letter-spacing:.02em}
+
+/* Editor-only layer labeling and tagging in Structure. */
+.tree-item .tree-color-control{display:inline-flex;align-items:center;justify-content:center;flex:0 0 19px;width:19px;height:19px;margin:0 3px;border-radius:5px;color:var(--layer-mark);background:transparent;font-size:14px;line-height:1;cursor:pointer;opacity:.62}
+.tree-item:hover .tree-color-control,.tree-item.active .tree-color-control,.tree-item .tree-color-control.is-colored{opacity:1}
+.tree-item .tree-color-control:hover,.tree-item .tree-color-control:focus-visible{background:var(--ui-hover);outline:1px solid var(--ui-border);outline-offset:0}
+.layer-color-picker{position:fixed;z-index:2100;min-width:194px;padding:9px;border:1px solid var(--ui-border);border-radius:9px;background:var(--ui-surface);color:var(--ui-text);box-shadow:0 12px 32px var(--ui-shadow)}
+.layer-color-heading{font-size:10px;letter-spacing:.09em;font-weight:750;color:var(--ui-muted);padding:3px 3px 10px}
+.layer-color-swatches{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.layer-color-swatch{appearance:none;width:21px;height:21px;min-width:0;border:2px solid transparent;border-radius:6px;background:var(--swatch-color);cursor:pointer}
+.layer-color-swatch:hover,.layer-color-swatch:focus-visible{outline:2px solid var(--ui-focus);outline-offset:1px}
+.layer-color-footer{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-top:11px;padding-top:9px;border-top:1px solid var(--ui-divider)}
+.layer-color-footer input[type="color"]{width:30px;height:26px;padding:2px;border:1px solid var(--ui-border);border-radius:6px;background:transparent;cursor:pointer}
+.layer-color-footer button{font-size:10px;padding:6px 8px;border:1px solid var(--ui-border);border-radius:5px;background:var(--ui-surface-alt);color:var(--ui-muted)}
+.layer-color-footer button:hover{background:var(--ui-hover);color:var(--ui-text)}
+
+.tree-item.tree-is-colored{border-left:3px solid var(--layer-mark);padding-right:1px}
+.tree-item.tree-is-colored .tree-symbol{color:var(--layer-mark)}
