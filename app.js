@@ -918,7 +918,12 @@ paper.addEventListener("pointermove",e=>{
  replaceAt(drag.path,drag.origin);const n=getAt(drag.path);if(!n)return;
  const base=drag.origin,g=drag.modelBounds||drag.bounds,type=base.type,fmt=v=>Number(v.toFixed(2))+"mm",box=drag.parentBox;
  if(drag.handle==="rotate"){
-  const angle=Math.atan2(point.y-(g.y+g.h/2),point.x-(g.x+g.w/2))*180/Math.PI;n.rotate=Math.round((Number(base.rotate)||0)+angle-drag.startAngle);
+  // The pointer belongs to the *clicked SVG instance*, not the first repeat
+  // cell. Measure both angles around its on-screen center; the template model
+  // stores only their difference, which each copy applies around its own center.
+  const pivot=drag.bounds;
+  const angle=Math.atan2(point.y-(pivot.y+pivot.h/2),point.x-(pivot.x+pivot.w/2))*180/Math.PI;
+  n.rotate=Math.round((Number(base.rotate)||0)+angle-drag.startAngle);
  }else{
   let left=g.x,right=g.x+g.w,top=g.y,bottom=g.y+g.h,h=drag.handle;
   if(h.includes("w"))left=Math.min(right-1,left+dx);if(h.includes("e"))right=Math.max(left+1,right+dx);if(h.includes("n"))top=Math.min(bottom-1,top+dy);if(h.includes("s"))bottom=Math.max(top+1,bottom+dy);

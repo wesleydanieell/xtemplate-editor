@@ -554,6 +554,42 @@ try{
  const afterHorizontal=JSON.parse(await compatibilityPage.$eval('#jsonEditor',el=>el.value));
  assert(Math.abs(parseFloat(afterHorizontal.items[1].y)-40)<0.25,
   `repeat hline should snap y=40: ${afterHorizontal.items[1].y}`);
+ // Rotation is 2D around the clicked copy's own center, not the first
+ // repeat cell's center (which produces a wild orbit / fake 3D effect).
+ const rotateDoc={xtemplate:1,id:'test.repeat.rotate',name:'Repeat rotation',params:{},items:[
+  {type:'repeat',axis:'y',period:'30mm',count:3,children:[
+   {type:'rect',x:'48mm',y:'3mm',w:'24mm',h:'10mm',stroke:'ink',fill:'none'},
+  ]},
+ ]};
+ await compatibilityPage.$eval('#fileInput',(input,raw)=>{
+  const transfer=new DataTransfer();transfer.items.add(new File([raw],'rotation.xtemplate',{type:'application/json'}));
+  input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(rotateDoc));
+ await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Repeat rotation');
+ const copyPath='g[data-path="items.0.children.0"]';
+ assert.equal((await compatibilityPage.$$(copyPath)).length,3);
+ const copyPosition=await compatibilityPage.$$eval(copyPath+' .svg-hitbox',nodes=>{
+  const r=nodes[2].getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};
+ });
+ await compatibilityPage.mouse.click(copyPosition.x,copyPosition.y);
+ const rotationGeometry=await compatibilityPage.$$eval(copyPath,nodes=>{
+  const item=nodes[2],center=item.querySelector('.svg-hitbox').getBoundingClientRect(),h=item.querySelector('[data-handle="rotate"]').getBoundingClientRect();
+  return{cx:center.left+center.width/2,cy:center.top+center.height/2,hx:h.left+h.width/2,hy:h.top+h.height/2};
+ });
+ const radius=Math.hypot(rotationGeometry.hx-rotationGeometry.cx,rotationGeometry.hy-rotationGeometry.cy);
+ await compatibilityPage.mouse.move(rotationGeometry.hx,rotationGeometry.hy);
+ await compatibilityPage.mouse.down();
+ await compatibilityPage.mouse.move(rotationGeometry.cx+radius,rotationGeometry.cy,{steps:14});
+ await compatibilityPage.mouse.up();
+ const rotationResult=JSON.parse(await compatibilityPage.$eval('#jsonEditor',el=>el.value));
+ assert(Math.abs(Number(rotationResult.items[0].children[0].rotate)-90)<6,
+  `turning third repeat copy 90° clockwise should rotate on Z, got ${rotationResult.items[0].children[0].rotate}`);
+ const rotationTransforms=await compatibilityPage.$$eval(copyPath,nodes=>nodes.map(el=>el.getAttribute('transform')));
+ assert(rotationTransforms.every(t=>t?.startsWith('rotate(')),`all repeat copies must share in-plane SVG rotation: ${rotationTransforms}`);
+ const centers=rotationTransforms.map(t=>t.match(/rotate\([^ ]+ ([^ ]+) ([^)]+)\)/)?.slice(1).map(Number));
+ assert(centers.every(c=>c?.every(Number.isFinite)),`repeat copies need valid per-instance rotation centers: ${rotationTransforms}`);
+ assert(Math.abs(centers[2][1]-centers[0][1]-60)<0.01,
+  `repeat copy pivots must differ by two row periods: ${JSON.stringify(centers)}`);
  await compatibilityPage.close();
  assert.deepEqual(errors,[],'no errors for sparse multi-edit or repeated snapping');
  console.log('PASS: sparse property compatibility, repeated geometry guides and Settings toggle');
