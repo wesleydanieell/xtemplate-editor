@@ -25,3 +25,53 @@ export function calculateSnap(bounds, targetsX, targetsY, toleranceX, toleranceY
     guides: { x: x?.guide ?? null, y: y?.guide ?? null },
   };
 }
+
+/**
+ * Snapping to other visible objects. Target descriptors carry their actual
+ * geometric span, letting the UI show a short alignment guide between objects
+ * rather than an unexplained full-page line.
+ * Page targets use `kind: "page"` and keep a full-page guide.
+ */
+export function calculateObjectSnap(bounds, targetRects, page, toleranceX, toleranceY = toleranceX) {
+  const coordinate = (rect, axis) => axis === "x"
+    ? [rect.x, rect.x + rect.w / 2, rect.x + rect.w]
+    : [rect.y, rect.y + rect.h / 2, rect.y + rect.h];
+  const guides = { x: null, y: null }, segments = { x: null, y: null };
+  let dx = 0, dy = 0;
+  for (const axis of ["x", "y"]) {
+    const candidates = [...(targetRects || []), { x: 0, y: 0, w: page.w, h: page.h, kind: "page" }];
+    const edges = coordinate(bounds, axis);
+    const threshold = axis === "x" ? toleranceX : toleranceY;
+    let nearest = null;
+    for (const target of candidates) {
+      if (![target.x, target.y, target.w, target.h].every(Number.isFinite)) continue;
+      for (const reference of coordinate(target, axis)) {
+        for (const moving of edges) {
+          const shift = reference - moving;
+          if (Math.abs(shift) > threshold) continue;
+          const priority = target.kind === "page" ? 1 : 0;
+          // Prefer the closest match, and an object match when two are equally near.
+          if (!nearest || Math.abs(shift) < Math.abs(nearest.shift) - 1e-8 ||
+            (Math.abs(Math.abs(shift) - Math.abs(nearest.shift)) < 1e-8 && priority < nearest.priority)) {
+            nearest = { shift, reference, target, priority };
+          }
+        }
+      }
+    }
+    if (!nearest) continue;
+    const { shift, reference, target } = nearest;
+    guides[axis] = reference;
+    if (axis === "x") {
+      dx = shift;
+      segments.x = target.kind === "page"
+        ? { x: reference, y1: 0, y2: page.h, kind: "page" }
+        : { x: reference, y1: Math.max(0, Math.min(bounds.y, target.y)), y2: Math.min(page.h, Math.max(bounds.y + bounds.h, target.y + target.h)), kind: "object" };
+    } else {
+      dy = shift;
+      segments.y = target.kind === "page"
+        ? { y: reference, x1: 0, x2: page.w, kind: "page" }
+        : { y: reference, x1: Math.max(0, Math.min(bounds.x, target.x)), x2: Math.min(page.w, Math.max(bounds.x + bounds.w, target.x + target.w)), kind: "object" };
+    }
+  }
+  return { dx, dy, guides, segments };
+}

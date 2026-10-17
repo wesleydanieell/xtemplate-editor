@@ -518,3 +518,8 @@
 
 /* Never rely on the SVG default (opaque black) when drawing a marquee. */
 #paper .marquee-selection{fill:rgba(100,133,245,.15);stroke:#6485f5;stroke-width:.55;stroke-dasharray:2 1;pointer-events:none;vector-effect:non-scaling-stroke}
+
+/* Smart object guides: persistent contrast on the white page with compact anchor points. */
+#paper .smart-guide{stroke:#ed2770;stroke-width:1.15;stroke-dasharray:3 1.5;vector-effect:non-scaling-stroke;pointer-events:none;opacity:1}
+#paper .smart-guide.object-guide{stroke:#d91b67;stroke-width:1.25;stroke-dasharray:2 1;filter:drop-shadow(0 0 1px #ffffff)}
+#paper .smart-guide-point{fill:#d91b67;stroke:#ffffff;stroke-width:.4;vector-effect:non-scaling-stroke;pointer-events:none}
