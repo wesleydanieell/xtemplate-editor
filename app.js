@@ -364,6 +364,7 @@ function renderTree(){
    edit.addEventListener("blur",()=>finish(true));
    edit.focus();edit.select();
   }
+  b.addEventListener("structure-rename",renameLayer);
   label.addEventListener("dblclick",e=>{e.preventDefault();e.stopPropagation();renameLayer();});
   b.addEventListener("keydown",e=>{if(e.key==="F2"){e.preventDefault();renameLayer();}});
   const meta=document.createElement("span");meta.className="tree-meta";
@@ -1412,6 +1413,11 @@ function prepareContextMenu(e,targetPath=null,blank=false,point=null){
  if(targetPath){if(!selectedPaths.some(p=>nodeKey(p)===nodeKey(targetPath)))select(targetPath);$("contextHeading").textContent="ELEMENT · INSERT / EDIT";}
  else if(blank){selectedPath=null;selectedPaths=[];renderTree();renderInspector();$("contextHeading").textContent="STRUCTURE · NEW ELEMENT";}
  const menu=$("contextMenu"),canEdit=!!selectedPath&&selectedPath[0]!=="__page__";
+ const structureItem=!!e.target.closest('#tree .tree-item');
+ for(const action of ['rename','layer-color']){
+  const button=menu.querySelector(`[data-action="${action}"]`);
+  if(button){button.classList.toggle('hidden',!structureItem);button.disabled=!canEdit||!structureItem;}
+ }
  menu.querySelectorAll('[data-action="duplicate"],[data-action="delete"],[data-action="up"],[data-action="down"],[data-action="copy"],[data-action="cut"]').forEach(b=>{b.disabled=!canEdit;});menu.querySelector('[data-action="paste"]').disabled=!clipboardNodes.length;menu.querySelector('[data-action="group"]').disabled=selectedPaths.length<2;
  showContextMenu(e.clientX,e.clientY);
 }
@@ -1435,7 +1441,19 @@ $("contextMenu").addEventListener("click",e=>{
  if(button.dataset.add){
   const type=button.dataset.add,point=contextPoint?{...contextPoint}:null;hideContextMenu();$("addMenu")?.classList.add("hidden");addNodeAtContext(type,point);return;
  }
- const action=button.dataset.action;if(!action||button.disabled)return;hideContextMenu();
+ const action=button.dataset.action;if(!action||button.disabled)return;
+ const layerPath=selectedPath?.slice();
+ hideContextMenu();
+ if(action==="rename"){
+  const row=$("tree").querySelector(`.tree-item[data-path="${nodeKey(layerPath)}"]`);
+  row?.dispatchEvent(new Event("structure-rename"));return;
+ }
+ if(action==="layer-color"){
+  const row=$("tree").querySelector(`.tree-item[data-path="${nodeKey(layerPath)}"]`);
+  const anchor=row?.querySelector('.tree-color-control');
+  if(anchor)openLayerColorPicker(layerPath,anchor);
+  return;
+ }
  if(action==="group"){groupSelection();return;}
  if(action==="duplicate")$("duplicateElement").click();
  if(action==="delete")$("deleteElement").click();

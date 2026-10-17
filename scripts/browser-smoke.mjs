@@ -294,8 +294,21 @@ try{
  await workspacePage.click('.layer-color-swatch');
  const markerColor=await workspacePage.$eval(`.tree-item[data-path="${layerPath}"] .tree-color-control`,el=>getComputedStyle(el).color);
  assert.equal(markerColor,'rgb(232, 121, 121)');
+ // The same organization controls are available from right-click on a layer.
+ await workspacePage.click(`.tree-item[data-path="${layerPath}"]`,{button:'right'});
+ assert.equal(await workspacePage.$eval('#contextMenu [data-action="rename"]',el=>el.classList.contains('hidden')),false);
+ await workspacePage.click('#contextMenu [data-action="rename"]');
+ await workspacePage.$eval('.tree-rename',el=>{
+  el.value='Right-click renamed';el.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+ });
+ assert.equal(await workspacePage.$eval(`.tree-item[data-path="${layerPath}"] .tree-label`,el=>el.textContent),'Right-click renamed');
+ await workspacePage.click(`.tree-item[data-path="${layerPath}"]`,{button:'right'});
+ await workspacePage.click('#contextMenu [data-action="layer-color"]');
+ assert.equal(await workspacePage.$eval('.layer-color-picker',el=>el.classList.contains('hidden')),false);
+ await workspacePage.click('.layer-color-footer button');
+ assert.equal(await workspacePage.$eval(`.tree-item[data-path="${layerPath}"]`,el=>el.classList.contains('tree-is-colored')),false);
  const exportedDoc=JSON.parse(await workspacePage.$eval('#jsonEditor',el=>el.value));
- assert.equal(exportedDoc.items[1].name,'Colored border');
+ assert.equal(exportedDoc.items[1].name,'Right-click renamed');
  assert.equal(Object.hasOwn(exportedDoc.items[1],'layerColor'),false);
  assert.equal(Object.hasOwn(exportedDoc.items[1],'colorTag'),false);
  await workspacePage.close();
