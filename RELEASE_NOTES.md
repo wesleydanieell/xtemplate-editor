@@ -1,24 +1,20 @@
-# XTemplate Studio — primeira alpha
+# XTemplate Studio — v0.1.0-alpha.2
 
-Primeira versão pública experimental do editor visual de arquivos `.xtemplate` para o XNotes Android.
+Segunda versão alpha: o editor visual de `.xtemplate` agora também é distribuído como **aplicativo Linux AppImage**.
 
-## Funcionalidades
+## Novidades
 
-- Criação, importação, edição visual e exportação de `.xtemplate`.
-- Preview SVG de páginas A4, A5 e Letter e biblioteca de exemplos.
-- Edição de objetos, árvore de camadas, seleção múltipla, agrupamento, duplicação, alinhamento e distribuição.
-- Movimentação, redimensionamento, atalhos, pan e zoom, guias inteligentes e histórico de desfazer/refazer.
-- Propriedades, variáveis configuráveis e editor JSON avançado.
-- Interface local e offline (depois de iniciar o servidor local), sem bibliotecas externas de runtime.
+- AppImage Linux x86_64 com Tauri 2, sem necessidade de instalar Python nem iniciar servidor HTTP.
+- Janela de aplicativo independente, com ícone e recursos web incorporados offline.
+- Fluxo de builds automatizado no GitHub Actions usando Ubuntu 22.04; o ZIP web continua disponível.
+- Mesmas ferramentas de edição visual, importação/exportação de `.xtemplate`, árvores de elementos, parâmetros e editor JSON da alpha anterior.
 
-## Como executar
+## Como usar
 
-Baixe o arquivo **XTemplate-Studio-v0.1.0-alpha.1.zip**, extraia e execute `./start.sh` no Linux (é necessário Python 3). Acesse `http://127.0.0.1:8765/`. Para outros sistemas, use `python3 -m http.server 8765 --bind 127.0.0.1` dentro da pasta extraída.
+**Linux (AppImage):** baixe o `.AppImage`, execute `chmod +x nome-do-arquivo.AppImage` e abra. Se houver incompatibilidade com as bibliotecas gráficas da distribuição, utilize o ZIP web.
 
-## Avisos da alpha
+**Pacote web:** baixe o ZIP, extraia e execute `./start.sh` no Linux (Python 3) ou use um servidor HTTP local em outras plataformas.
 
-A compatibilidade de importação/exportação é baseada no leitor XTemplate do XNotes, porém a pré-visualização no navegador **não replica exatamente** o renderizador Android. Verifique no XNotes especialmente layouts complexos, expressões avançadas, texto e hachuras.
+## Limitações da alpha
 
-O trabalho não é salvo automaticamente em nuvem ou arquivo local: exporte seu `.xtemplate` regularmente. Não há instalador nativo nesta versão.
-
-Problemas e sugestões: use a seção **Issues** deste repositório.
+A pré-visualização SVG é uma aproximação do renderizador Android; valide no XNotes os arquivos exportados, sobretudo templates complexos, fontes, hachuras e expressões avançadas. O editor ainda exige exportação explícita dos arquivos para salvar seu trabalho. AppImage foi construído para Linux x86_64 e depende da compatibilidade de WebKitGTK e GTK3 no sistema.

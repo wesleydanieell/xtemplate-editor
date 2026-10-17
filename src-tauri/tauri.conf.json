@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "XTemplate Studio",
+  "version": "0.1.0-alpha.2",
+  "identifier": "dev.wesleydanieell.xtemplate-studio",
+  "build": {
+    "beforeBuildCommand": "python3 scripts/build-desktop-assets.py",
+    "beforeDevCommand": "python3 scripts/build-desktop-assets.py",
+    "frontendDist": "../dist-web"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "XTemplate Studio — Alpha",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 640,
+        "backgroundColor": "#1c2029"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["appimage"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png"],
+    "category": "Productivity",
+    "shortDescription": "Offline visual XTemplate editor"
+  }
+}

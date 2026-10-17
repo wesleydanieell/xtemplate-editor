@@ -21,6 +21,27 @@ No Windows e no macOS, a aplicação web pode ser servida localmente com Python 
 - O editor não oferece sincronização em nuvem nem salvamento automático persistente: **exporte o arquivo antes de sair ou abrir outro modelo**.
 - Não há instalador nativo para Windows, macOS ou Android. A distribuição é um arquivo ZIP portátil.
 
+## Aplicativo Linux (AppImage) — alpha.2
+
+A partir da **v0.1.0-alpha.2**, o projeto também oferece um aplicativo Linux desktop usando **Tauri 2** e WebKitGTK. Ele incorpora a mesma interface web e os templates locais; o AppImage não precisa de Python nem de servidor HTTP para abrir o editor. O ZIP web permanece disponível.
+
+1. Na seção **Releases**, baixe o arquivo `.AppImage` para Linux x86_64.
+2. Torne o arquivo executável (`chmod +x ./XTemplate*.AppImage`) e abra-o com um clique duplo ou pelo terminal.
+3. No AppImage, use os mesmos comandos **Open** e **Export** para arquivos `.xtemplate`.
+
+A plataforma Linux exige bibliotecas gráficas compatíveis com WebKitGTK 4.1 e GTK3. AppImage não garante execução em toda distribuição; para melhor compatibilidade, o binário oficial é compilado no Ubuntu 22.04. Caso o AppImage não inicie, ainda é possível usar o pacote ZIP web e o servidor Python local.
+
+### Compilar o AppImage
+
+Em uma máquina Linux de desenvolvimento, instale Rust, Node.js 18+, Python 3 e as dependências [recomendadas pelo Tauri](https://v2.tauri.app/start/prerequisites/) (especialmente WebKitGTK 4.1, GTK3 e `patchelf`). Depois execute:
+
+```bash
+npm ci
+npm run desktop:build
+```
+
+O resultado fica em `src-tauri/target/release/bundle/appimage/`. O workflow **Linux AppImage** compila e testa automaticamente em pull requests e atualizações da branch principal; a publicação por tag anexa o AppImage à prerelease existente.
+
 ## Guia de autoria `.xtemplate`
 
 Read [the XTemplate format guide](docs/GUIA-XTEMPLATE.md) to understand elements, expressions, colors, fills, variables, and how to test compatibility with XNotes Android.

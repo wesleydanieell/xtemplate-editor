@@ -3,3 +3,6 @@ node_modules/
 *.log
 
 dist/
+
+dist-web/
+src-tauri/target/
