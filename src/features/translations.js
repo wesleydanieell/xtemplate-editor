@@ -1,5 +1,20 @@
 /** English/Portuguese UI strings kept separate from DOM/event handling. */
 export const pairs = [
+  ["METADATA", "METADADOS"],
+  ["Page selected", "Página selecionada"],
+  ["Page is the parent of all layers. File properties are available from File → Document properties.", "A página é o elemento pai de todas as camadas. As propriedades do arquivo ficam em Arquivo → Propriedades do documento."],
+  ["Manage the template metadata here. Preview colors and page size are editor-only settings, not additional fields in the exported file.", "Gerencie os metadados do modelo aqui. As cores de prévia e o tamanho da página são ajustes do editor, não campos adicionais exportados."],
+  ["Choose a layer in Structure or click an element on the page to inspect it.", "Escolha uma camada na estrutura ou clique em um elemento na página para inspecioná-lo."],
+
+  ["Graphite", "Grafite"],
+  ["Dusk blue", "Azul crepúsculo"],
+  ["Midnight", "Meia-noite"],
+  ["File properties", "Propriedades do arquivo"],
+  ["DOCUMENT SETTINGS", "CONFIGURAÇÕES DO DOCUMENTO"],
+  ["Preview", "Prévia"],
+  ["Done", "Concluído"],
+  ["Rotation °", "Rotação °"],
+
 ["Edit","Editar"],["View","Exibir"],["Insert","Inserir"],["Settings","Configurações"],
 ["New template ","Novo modelo "],["Open… ","Abrir… "],["Export template… ","Exportar modelo… "],
 ["Document properties…","Propriedades do documento…"],["Undo ","Desfazer "],["Redo ","Refazer "],

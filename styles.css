@@ -523,3 +523,396 @@
 #paper .smart-guide{stroke:#ed2770;stroke-width:1.15;stroke-dasharray:3 1.5;vector-effect:non-scaling-stroke;pointer-events:none;opacity:1}
 #paper .smart-guide.object-guide{stroke:#d91b67;stroke-width:1.25;stroke-dasharray:2 1;filter:drop-shadow(0 0 1px #ffffff)}
 #paper .smart-guide-point{fill:#d91b67;stroke:#ffffff;stroke-width:.4;vector-effect:non-scaling-stroke;pointer-events:none}
+
+/* Workspace refinements: document settings live in a focused modal. */
+.file-properties-card{width:min(690px,100%);max-height:min(92vh,850px)}
+.file-properties-fields{display:grid;grid-template-columns:1fr 1fr;column-gap:16px;align-items:start}
+.file-properties-fields>.inspector-heading,.file-properties-fields>.section-description,.file-properties-fields>.inspector-tip,.file-properties-fields>.field:has(textarea){grid-column:1/-1}
+.file-properties-fields .field{margin:9px 0;min-width:0}
+.file-properties-fields .field input,.file-properties-fields .field textarea{width:100%;min-width:0}
+.file-properties-fields .color-heading{margin-top:15px}
+.file-properties-fields .color-field{display:flex;align-items:center;flex-direction:row;gap:14px}
+.file-properties-fields input[type=color]{width:56px;height:32px;flex:0 0 56px}
+.preview-colors-quick{display:flex;align-items:center;gap:9px;flex:0 0 auto;padding:0 10px 0 0;border-right:1px solid #3b414d}
+.preview-colors-title{color:#9ea8ba;font-size:9px;text-transform:uppercase;letter-spacing:.08em;font-weight:750}
+.preview-colors-quick label{display:flex;align-items:center;gap:4px;cursor:pointer;color:#c0c9d7;font-size:10px}
+.preview-colors-quick input[type=color]{width:23px;height:23px;min-width:23px;padding:2px;border:1px solid #616c80;border-radius:6px;background:transparent;cursor:pointer}
+.tree-page{margin:5px 0 2px;min-height:34px;background:#28303e;border:1px solid #48536a;border-left:3px solid #8da5e6;font-weight:740;border-radius:5px}
+.tree-page .tree-label{font-size:12px}
+.tree-page~.tree-item:not(.tree-page){position:relative}
+.tree-page~.tree-item:not(.tree-page)::selection{background:transparent}
+.rotation-controls{display:flex;align-items:center;gap:7px}
+.rotation-controls #transformRotate{flex:0 0 65px;width:65px}
+.rotation-controls #rotationDial{flex:1;min-width:50px;accent-color:var(--accent2);cursor:ew-resize;padding:0;border:0;background:transparent}
+.rotation-presets{display:flex;gap:4px;margin-top:5px}
+.rotation-presets button{flex:1;min-width:0;border:1px solid #485062;background:#282e3b;color:#c6cfdd;font-size:10px;padding:5px 2px;border-radius:5px}
+.rotation-presets button:hover{border-color:var(--accent);color:#fff}
+/* App-wide palettes: theme choices retain the same hierarchy and contrast. */
+:root[data-theme="graphite"]{--panel:#202226;--panel2:#26292f;--line:#3a3e46;--muted:#a4adbc;--accent:#d7c7ae;--accent2:#bba17b;--text:#eeede9}
+:root[data-theme="graphite"] body{background:#16181c;color:#eeede9}
+:root[data-theme="graphite"] .topbar,:root[data-theme="graphite"] .document-tabs,:root[data-theme="graphite"] .right-tabs,:root[data-theme="graphite"] .workspace-toolbar{background:#262930;border-color:#414650}
+:root[data-theme="graphite"] .workspace,:root[data-theme="graphite"] .json-pane{background:#1a1c21}
+:root[data-theme="graphite"] .canvas-area{background-color:#1b1d22;background-image:radial-gradient(#41444b .8px,transparent .8px)}
+:root[data-theme="graphite"] .left-panel,:root[data-theme="graphite"] .right-panel{background:#202226;border-color:#40454f}
+:root[data-theme="graphite"] .tree-item.active,:root[data-theme="graphite"] .doc-tab.active{background:#444038;color:#fff3df}
+:root[data-theme="graphite"] .tree-page{background:#353738;border-color:#64635c;border-left-color:#d7c7ae}
+:root[data-theme="graphite"] .brand-mark{background:linear-gradient(145deg,#d4c19f,#a99572)}
+:root[data-theme="graphite"] .primary,:root[data-theme="graphite"] .top-export{background:#806e55;border-color:#ae9573;color:#fff}
+:root[data-theme="graphite"] .right-tab.active{background:#383633;color:#f5e9d4;border-color:#d7c7ae}
+:root[data-theme="graphite"] .modal-card,:root[data-theme="graphite"] .app-menu{background:#282b31;border-color:#595c65}
+:root[data-theme="graphite"] .inspector-content input,:root[data-theme="graphite"] .inspector-content select,:root[data-theme="graphite"] .inspector-content textarea,:root[data-theme="graphite"] .file-properties-fields input,:root[data-theme="graphite"] .file-properties-fields textarea{background:#292c33;border-color:#4b505b}
+:root[data-theme="dusk"]{--panel:#1b1d24;--panel2:#20232b;--line:#30333d;--muted:#9298a7;--accent:#9bb4ff;--accent2:#6485f5;--text:#e5e8ef}
+:root[data-theme="midnight"]{--panel:#111d27;--panel2:#172631;--line:#2b4452;--muted:#8ea5b7;--accent:#81d5dc;--accent2:#36acb8;--text:#dfedf2}
+:root[data-theme="midnight"] body{background:#08131a;color:#dfedf2}
+:root[data-theme="midnight"] .topbar,:root[data-theme="midnight"] .document-tabs,:root[data-theme="midnight"] .right-tabs,:root[data-theme="midnight"] .workspace-toolbar{background:#12232e;border-color:#274354}
+:root[data-theme="midnight"] .workspace,:root[data-theme="midnight"] .json-pane{background:#0c1820}
+:root[data-theme="midnight"] .canvas-area{background-color:#0a1620;background-image:radial-gradient(#264553 .8px,transparent .8px)}
+:root[data-theme="midnight"] .left-panel,:root[data-theme="midnight"] .right-panel{background:#111d27;border-color:#294251}
+:root[data-theme="midnight"] .tree-item.active{background:#234757;color:#d8faff}
+:root[data-theme="midnight"] .tree-page{background:#213845;border-color:#3e6a7a;border-left-color:#81d5dc}
+:root[data-theme="midnight"] .brand-mark{background:linear-gradient(145deg,#75d7dc,#3197a9)}
+:root[data-theme="midnight"] .primary,:root[data-theme="midnight"] .top-export{background:#226d7b;border-color:#3b9aab;color:white}
+:root[data-theme="midnight"] .right-tab.active{background:#1e3d4b;color:#c8f9fb;border-color:#81d5dc}
+:root[data-theme="midnight"] .modal-card,:root[data-theme="midnight"] .app-menu{background:#192c37;border-color:#3d6577}
+:root[data-theme="midnight"] .inspector-content input,:root[data-theme="midnight"] .inspector-content select,:root[data-theme="midnight"] .inspector-content textarea,:root[data-theme="midnight"] .file-properties-fields input,:root[data-theme="midnight"] .file-properties-fields textarea{background:#1d3441;border-color:#3b5868}
+@media(max-width:1100px){.preview-colors-title{display:none}.preview-colors-quick{gap:5px;padding-right:4px}.preview-colors-quick label span{display:none}}
+@media(max-width:790px){.file-properties-fields{grid-template-columns:1fr}.file-properties-fields>*{grid-column:1/-1}.preview-colors-quick label span{display:inline}}
+
+/* Quick swatches belong in the canvas heading, not the page/zoom toolbar. */
+.preview-pane>.pane-title>.preview-colors-quick{margin-left:auto;border-right:0;border-left:1px solid #424b59;padding:0 0 0 12px;gap:10px;height:100%}
+.preview-pane>.pane-title>.preview-colors-quick .preview-colors-title{font-size:9px}
+.preview-pane>.pane-title>.preview-colors-quick input[type=color]{width:22px;height:22px}
+@media(max-width:1120px){.preview-pane>.pane-title>.muted{display:none}.preview-pane>.pane-title>.preview-colors-quick .preview-colors-title{display:inline}}
+
+/* Keep the Done action visible while a long metadata form scrolls. */
+.file-properties-card{display:flex;flex-direction:column;overflow:hidden;max-height:min(90vh,850px)}
+.file-properties-card>.modal-title-row,.file-properties-card>.modal-description,.file-properties-card>.modal-actions{flex:none}
+.file-properties-card>.file-properties-fields{flex:1;min-height:0;overflow-y:auto;padding-right:9px;margin-right:-9px;scrollbar-gutter:stable}
+.file-properties-card>.modal-actions{padding-top:14px;margin-top:14px;border-top:1px solid #414858;background:inherit}
+
+/* Compact circular rotation control; numeric input remains the precise source. */
+.rotation-wheel{position:relative;display:grid;place-items:center;flex:0 0 39px;width:39px;height:39px;padding:0;border:2px solid #526177;border-radius:50%;background:radial-gradient(circle at 50% 50%,#263243 0 29%,transparent 30%),conic-gradient(from 0deg,#8c9eaf 0 1deg,#2f3d50 1deg 359deg,#8c9eaf 359deg);cursor:grab;touch-action:none;box-shadow:inset 0 0 0 3px #222c3a}
+.rotation-wheel:hover,.rotation-wheel:focus-visible{border-color:var(--accent)}
+.rotation-wheel:active{cursor:grabbing}
+.rotation-wheel-pointer{position:absolute;width:3px;height:13px;border-radius:3px;background:var(--accent2);left:calc(50% - 1.5px);top:4px;transform-origin:1.5px 15.5px;transform:rotate(var(--rotation-angle,0deg));pointer-events:none}
+.rotation-controls #transformRotate{flex:1;min-width:45px;width:100%}
+
+
+/* Semantic surface tokens shared across the complete interface.  Components
+   use these rather than keeping the original Dusk colors in custom themes. */
+:root[data-theme="dusk"]{
+ --ui-base:#111318;--ui-surface:#20232b;--ui-surface-raised:#292e39;
+ --ui-surface-alt:#252832;--ui-hover:#303746;--ui-selected:#2d3b5b;
+ --ui-selected-text:#e4eaff;--ui-border:#414754;--ui-divider:#343945;
+ --ui-input:#252832;--ui-input-border:#414754;--ui-text:#e5e8ef;
+ --ui-muted:#aab4c6;--ui-soft:#8794a8;--ui-heading:#c8d2e3;
+ --ui-action:#476bd3;--ui-action-border:#6881e7;--ui-action-hover:#5479e6;
+ --ui-badge-bg:#2c3650;--ui-badge-fg:#a9bdff;
+ --ui-status-bg:#252c3d;--ui-code-bg:#17191f;--ui-code-gutter:#15171c;
+ --ui-wheel-bg:#263243;--ui-wheel-ring:#526177;--ui-wheel-trace:#2f3d50;
+ --ui-shadow:#0008;--ui-focus:#9bb4ff;
+}
+:root[data-theme="graphite"]{
+ --ui-base:#16181c;--ui-surface:#282b31;--ui-surface-raised:#34363d;
+ --ui-surface-alt:#292c33;--ui-hover:#444750;--ui-selected:#484238;
+ --ui-selected-text:#fff3df;--ui-border:#555962;--ui-divider:#414650;
+ --ui-input:#292c33;--ui-input-border:#555962;--ui-text:#eeede9;
+ --ui-muted:#c2bdaf;--ui-soft:#9fa49f;--ui-heading:#e0dbcd;
+ --ui-action:#806e55;--ui-action-border:#ae9573;--ui-action-hover:#967f62;
+ --ui-badge-bg:#494238;--ui-badge-fg:#e8cda9;
+ --ui-status-bg:#2d302f;--ui-code-bg:#202329;--ui-code-gutter:#1b1e23;
+ --ui-wheel-bg:#3d3933;--ui-wheel-ring:#a99677;--ui-wheel-trace:#665c50;
+ --ui-shadow:#0009;--ui-focus:#d7c7ae;
+}
+:root[data-theme="midnight"]{
+ --ui-base:#08131a;--ui-surface:#192c37;--ui-surface-raised:#25404d;
+ --ui-surface-alt:#1d3441;--ui-hover:#2b5060;--ui-selected:#205066;
+ --ui-selected-text:#d8faff;--ui-border:#3d6577;--ui-divider:#294251;
+ --ui-input:#1d3441;--ui-input-border:#416474;--ui-text:#dfedf2;
+ --ui-muted:#a9c6d1;--ui-soft:#8eb0bf;--ui-heading:#cae8ed;
+ --ui-action:#226d7b;--ui-action-border:#3b9aab;--ui-action-hover:#298b9b;
+ --ui-badge-bg:#23505d;--ui-badge-fg:#a0eaf1;
+ --ui-status-bg:#193440;--ui-code-bg:#101f29;--ui-code-gutter:#0d1922;
+ --ui-wheel-bg:#213e49;--ui-wheel-ring:#5bb3c1;--ui-wheel-trace:#325c69;
+ --ui-shadow:#000a;--ui-focus:#81d5dc;
+}
+
+/* Navigation, menus and toolbars */
+:root[data-theme] .app-menu,
+:root[data-theme] .app-menu.file-menu,
+:root[data-theme] .context-menu,
+:root[data-theme] .context-submenu,
+:root[data-theme] .add-menu,
+:root[data-theme] .modal-card,
+:root[data-theme] .command-palette,
+:root[data-theme] .toast{background:var(--ui-surface);border-color:var(--ui-border);color:var(--ui-text)}
+:root[data-theme] .app-menu-trigger:hover,
+:root[data-theme] .app-menu-trigger[aria-expanded="true"],
+:root[data-theme] .app-menu>button:hover,
+:root[data-theme] .app-menu.file-menu>button:hover,
+:root[data-theme] .app-menu-submenu>summary:hover,
+:root[data-theme] .context-menu button:hover,
+:root[data-theme] .context-submenu button:hover,
+:root[data-theme] .dock-actions button:hover,
+:root[data-theme] .tool-button:hover,
+:root[data-theme] .icon-button:hover,
+:root[data-theme] .quiet:hover,
+:root[data-theme] .right-tab:hover,
+:root[data-theme] .tree-item:hover,
+:root[data-theme] .template-card:hover,
+:root[data-theme] .rotation-presets button:hover{background:var(--ui-hover);color:var(--ui-text)}
+:root[data-theme] .app-menu-trigger,
+:root[data-theme] .app-menu>button,
+:root[data-theme] .app-menu.file-menu>button,
+:root[data-theme] .context-menu button,
+:root[data-theme] .context-submenu button,
+:root[data-theme] .app-menu-submenu>summary{color:var(--ui-text)}
+:root[data-theme] .app-menu-separator,
+:root[data-theme] .context-separator,
+:root[data-theme] .modal-actions,
+:root[data-theme] .pane-title,
+:root[data-theme] .inspector-heading,
+:root[data-theme] .modal-card>.modal-actions{border-color:var(--ui-divider)}
+:root[data-theme] .top-export,
+:root[data-theme] .primary,
+:root[data-theme] .modal-card .primary{background:var(--ui-action);border-color:var(--ui-action-border);color:#fff}
+:root[data-theme] .top-export:hover,
+:root[data-theme] .primary:hover{background:var(--ui-action-hover)}
+:root[data-theme] .app-menu kbd,
+:root[data-theme] kbd{background:var(--ui-surface-alt);border-color:var(--ui-border);color:var(--ui-muted)}
+
+/* Inputs in ALL locations, including Settings, dialogs and variable cards. */
+:root[data-theme] input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+:root[data-theme] select,
+:root[data-theme] textarea{background:var(--ui-input);border-color:var(--ui-input-border);color:var(--ui-text)}
+:root[data-theme] input::placeholder,
+:root[data-theme] textarea::placeholder{color:var(--ui-soft);opacity:.8}
+:root[data-theme] input[type="range"],
+:root[data-theme] input[type="checkbox"]{accent-color:var(--accent2)}
+:root[data-theme] .field,
+:root[data-theme] .field label,
+:root[data-theme] .modal-card .field,
+:root[data-theme] .param-grid label{color:var(--ui-muted)}
+:root[data-theme] .modal-description,
+:root[data-theme] .inspector-tip,
+:root[data-theme] .section-description,
+:root[data-theme] .param-empty,
+:root[data-theme] .tree-meta,
+:root[data-theme] .quick-property,
+:root[data-theme] .preview-colors-quick label,
+:root[data-theme] .preview-colors-title{color:var(--ui-soft)}
+:root[data-theme] .modal-card h2,
+:root[data-theme] .empty-selection b,
+:root[data-theme] .inspector-heading,
+:root[data-theme] .dock-heading,
+:root[data-theme] .pane-title{color:var(--ui-heading)}
+:root[data-theme] .modal-eyebrow,
+:root[data-theme] .quick-properties-label,
+:root[data-theme] .param-card-head code{color:var(--accent)}
+:root[data-theme] .modal-close,
+:root[data-theme] .quiet:not(.top-export),
+:root[data-theme] .rotation-presets button,
+:root[data-theme] .add-menu button,
+:root[data-theme] .toolbar-group button{background:var(--ui-surface-alt);border-color:var(--ui-border);color:var(--ui-text)}
+:root[data-theme] .modal-close:hover{background:var(--ui-hover)}
+:root[data-theme] .file-properties-card>.modal-actions{border-color:var(--ui-divider)}
+
+/* Structure, panels, variables and details */
+:root[data-theme] .tree-item.active,
+:root[data-theme] .template-card.active,
+:root[data-theme] .doc-tab.active{background:var(--ui-selected);color:var(--ui-selected-text);border-color:var(--ui-border)}
+:root[data-theme] .tree-symbol,
+:root[data-theme] .file-glyph,
+:root[data-theme] .context-icon{color:var(--accent)}
+:root[data-theme] .tree-index,
+:root[data-theme] .tree-disclosure,
+:root[data-theme] .outline-subtitle{color:var(--ui-soft)}
+:root[data-theme] .param-card,
+:root[data-theme] .inspector-details,
+:root[data-theme] .transform-panel,
+:root[data-theme] .alignment-tools,
+:root[data-theme] .export-summary,
+:root[data-theme] .export-summary-row{background:var(--ui-surface-alt);border-color:var(--ui-border)}
+:root[data-theme] .param-card-head,
+:root[data-theme] .advanced-inspector,
+:root[data-theme] .export-summary-row{border-color:var(--ui-divider)}
+:root[data-theme] .type-badge{background:var(--ui-badge-bg);color:var(--ui-badge-fg)}
+:root[data-theme] .template-card b{color:var(--ui-text)}
+:root[data-theme] .tree-page{border-left-color:var(--accent);color:var(--ui-text)}
+:root[data-theme] .tree-rename{background:var(--ui-input);border-color:var(--accent);color:var(--ui-text)}
+:root[data-theme] .context-icon{background:var(--ui-surface-raised)}
+:root[data-theme] .right-tab.active{color:var(--ui-selected-text);background:var(--ui-selected);border-bottom-color:var(--accent)}
+
+/* Status + source editor */
+:root[data-theme] .statusbar{background:var(--ui-status-bg);border-color:var(--ui-border);color:var(--ui-text)}
+:root[data-theme] .statusbar span:nth-child(2),
+:root[data-theme] .canvas-footer,
+:root[data-theme] .json-status{color:var(--ui-muted)}
+:root[data-theme] .canvas-footer{background:var(--ui-surface-alt);border-color:var(--ui-divider)}
+:root[data-theme] .json-pane .pane-title,
+:root[data-theme] .line-numbers{background:var(--ui-code-gutter);color:var(--ui-soft)}
+:root[data-theme] .json-editor-wrap textarea{background:var(--ui-code-bg);color:var(--ui-text)}
+:root[data-theme] #splitToggle.active{background:var(--ui-selected);color:var(--ui-selected-text);border-color:var(--accent)}
+
+/* Small specialized controls */
+:root[data-theme] .rotation-wheel{border-color:var(--ui-wheel-ring);background:radial-gradient(circle at 50% 50%,var(--ui-wheel-bg) 0 29%,transparent 30%),conic-gradient(from 0deg,var(--ui-wheel-ring) 0 1deg,var(--ui-wheel-trace) 1deg 359deg,var(--ui-wheel-ring) 359deg);box-shadow:inset 0 0 0 3px var(--ui-surface-alt)}
+:root[data-theme] .rotation-wheel:hover{border-color:var(--accent)}
+:root[data-theme] .rotation-presets button{background:var(--ui-surface-alt);border-color:var(--ui-border);color:var(--ui-muted)}
+:root[data-theme] .preview-colors-quick{border-color:var(--ui-divider)}
+:root[data-theme] .preview-colors-quick input[type="color"]{border-color:var(--ui-border)}
+
+/* Page metadata is inspected in Element; File menu uses the identical form in a dialog. */
+#propertiesPanel>.page-properties-fields{display:grid;grid-template-columns:minmax(0,1fr);gap:0;padding:0;margin:8px 0 0;overflow:visible;max-height:none}
+#propertiesPanel>.page-properties-fields>*{grid-column:1/-1}
+#propertiesPanel>.page-properties-fields .field{margin:8px 0}
+#propertiesPanel>.page-properties-fields .field input,#propertiesPanel>.page-properties-fields .field textarea,#propertiesPanel>.page-properties-fields .field select{width:100%;min-width:0}
+#propertiesPanel>.page-properties-fields .color-field{display:flex;align-items:center;gap:7px}
+#propertiesPanel>.page-properties-fields .inspector-heading{margin:14px 0 9px}
+#propertiesPanel>.page-properties-fields .inspector-tip{font-size:10px;line-height:1.5}
+
+/* Canvas tool rail: use exactly the same semantic palette as the workspace.
+   The previous fixed blue active gradient escaped Graphite/Midnight themes. */
+:root[data-theme] .canvas-tools{
+ background:var(--ui-surface);
+ border-color:var(--ui-border);
+ box-shadow:0 5px 18px var(--ui-shadow);
+}
+:root[data-theme] .canvas-tools .canvas-tool{
+ color:var(--ui-muted);
+ background:transparent;
+ border-color:transparent;
+}
+:root[data-theme] .canvas-tools .canvas-tool[data-tool="rect"],
+:root[data-theme] .canvas-tools .canvas-tool[data-tool="ellipse"],
+:root[data-theme] .canvas-tools .canvas-tool[data-tool="line"],
+:root[data-theme] .canvas-tools .canvas-tool[data-tool="ruled"],
+:root[data-theme] .canvas-tools .canvas-tool[data-tool="grid"]{color:var(--ui-muted)}
+:root[data-theme] .canvas-tools .canvas-tool:hover{
+ color:var(--ui-text);
+ background:var(--ui-hover);
+ border-color:var(--ui-border);
+}
+:root[data-theme] .canvas-tools .canvas-tool.active,
+:root[data-theme] .canvas-tools .canvas-tool[aria-pressed="true"]{
+ color:var(--ui-selected-text);
+ background:var(--ui-selected);
+ border-color:var(--accent);
+ box-shadow:inset 0 0 0 1px var(--ui-border),0 2px 7px var(--ui-shadow);
+}
+:root[data-theme] .canvas-tools .canvas-tool kbd{
+ color:var(--ui-soft);
+ background:var(--ui-surface);
+}
+:root[data-theme] .canvas-tools .canvas-tool.active kbd,
+:root[data-theme] .canvas-tools .canvas-tool[aria-pressed="true"] kbd{
+ color:var(--ui-selected-text);
+ background:transparent;
+}
+:root[data-theme] .canvas-tools .tool-separator,
+:root[data-theme] .canvas-tools>span{background:var(--ui-divider)}
+:root[data-theme] .canvas-tools .canvas-tool:focus-visible{
+ outline-color:var(--ui-focus);
+}
+
+/* Element inspector: readable, predictable layout in narrow sidebars.
+   Rotation contains a dial, numeric field and presets and must not share
+   a cramped half-column with the opacity slider. */
+#propertiesPanel{scrollbar-gutter:stable;overflow-x:hidden}
+#elementInspector{min-width:0}
+#elementInspector .transform-panel{min-width:0;padding:10px;margin:7px 0 14px}
+#elementInspector .transform-panel>.field-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:7px 8px;align-items:start}
+#elementInspector .transform-panel>.field-row>.field{min-width:0;width:100%;margin:4px 0 0}
+#elementInspector .transform-panel>.field-row:has(.rotation-controls){grid-template-columns:minmax(0,1fr)}
+#elementInspector .rotation-controls{width:100%;min-width:0;display:grid;grid-template-columns:minmax(0,1fr) 39px;align-items:center;gap:10px}
+#elementInspector .rotation-controls input[type="number"]{width:100%;min-width:0}
+#elementInspector .rotation-presets{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:7px}
+#elementInspector .rotation-presets button{width:100%;min-width:0;white-space:nowrap;padding:6px 2px;font-size:10px}
+#elementInspector .opacity-slider-field{min-width:0;width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px}
+#elementInspector .opacity-slider-field input[type="range"]{grid-column:1/-1;min-width:0;width:100%;margin:1px 0 4px}
+#elementInspector .opacity-slider-field .range-value{justify-self:end;min-width:32px}
+#elementInspector .alignment-tools{margin:9px 0 12px;padding:8px}
+#elementInspector .alignment-grid{gap:5px}
+#elementInspector .alignment-grid button{min-width:0}
+#elementInspector>.field,#elementInspector>.field-row{margin-top:10px;margin-bottom:10px}
+#elementInspector .advanced-inspector{margin-top:17px;padding-top:12px}
+#elementInspector .advanced-inspector .field-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#elementInspector .advanced-inspector .field-row>.field{min-width:0;margin:5px 0}
+#elementInspector .inspector-actions{position:static;bottom:auto;background:transparent;margin:18px 0 8px;padding:12px 0;border-top:1px solid var(--ui-divider)}
+#elementInspector .inspector-actions button{min-width:0}
+#elementInspector .transform-panel .inspector-tip{margin:10px 0 2px}
+
+/* Inspector container insets. Keep headings, controls and notes away from
+   the borders regardless of selected node type or active theme. */
+#propertiesPanel{--inspector-inset:12px;--inspector-stack-gap:12px}
+#elementInspector .transform-panel,
+#propertiesPanel .selection-arrange{padding:var(--inspector-inset);}
+#elementInspector .alignment-tools{padding:10px;margin:10px 0 13px}
+#propertiesPanel .selection-arrange>.transform-title{margin-bottom:10px}
+#propertiesPanel .selection-arrange>.inspector-tip{margin:10px 0 2px}
+#propertiesPanel .inspector-details[open]>.details-body{padding:10px 12px 12px}
+#propertiesPanel .inspector-details>summary{padding:10px 12px}
+#elementInspector .advanced-inspector{padding:14px 2px 5px}
+#elementInspector .advanced-inspector>.advanced-heading{margin:10px 0 9px}
+#elementInspector .advanced-inspector>.field,
+#elementInspector .advanced-inspector>.field-row{margin-top:8px;margin-bottom:12px}
+#elementInspector .transform-panel>.inspector-tip{margin:12px 1px 1px;line-height:1.5}
+#paramsPanel .param-card{padding:12px;margin:10px 0}
+#paramsPanel .param-card-head{margin-bottom:11px}
+#paramsPanel .param-grid{gap:10px}
+#propertiesPanel .multi-property-inspector{padding:0 2px 14px}
+#propertiesPanel .multi-property-inspector>.field{margin:12px 0}
+
+/* Nested inspector fields and variable names must have their own breathing room. */
+#elementInspector .inspector-details>.details-body{padding:12px 11px 14px}
+#elementInspector .inspector-details .details-body>.field{margin:2px 0 13px}
+#elementInspector .inspector-details .details-body>.field-row{margin:6px 0 14px;gap:9px}
+#elementInspector .inspector-details .details-body>.field-row>.field{margin:0;min-width:0}
+#elementInspector .inspector-details .details-body>label.field:last-child{margin-bottom:3px}
+#paramsPanel .param-card>summary.param-card-head{display:flex;align-items:center;gap:10px;padding:2px 0 11px;margin:0 0 12px;min-width:0;border-bottom:1px solid var(--ui-divider)}
+#paramsPanel .param-title-wrap{display:flex;flex:1;min-width:0;flex-direction:column;gap:5px;overflow-wrap:anywhere}
+#paramsPanel .param-title-wrap code{display:block;max-width:100%;overflow-wrap:anywhere;line-height:1.3}
+#paramsPanel .param-title-wrap small{display:block;color:var(--ui-soft);line-height:1.5;overflow-wrap:anywhere}
+#paramsPanel .param-card-head>button{flex:0 0 24px;align-self:flex-start}
+#paramsPanel .param-usage{margin-top:14px;padding-top:12px;border-top:1px solid var(--ui-divider)}
+
+/* Accessible editor-native variable autocomplete (replaces browser datalists). */
+.variable-completion{position:fixed;z-index:1900;box-sizing:border-box;max-height:min(320px,55vh);overflow-y:auto;padding:5px;border:1px solid var(--ui-border,#454c59);border-radius:9px;background:var(--ui-surface,#262c38);color:var(--ui-text,#e9edf5);box-shadow:0 12px 34px var(--ui-shadow,#000a);scrollbar-gutter:stable}
+.variable-completion-heading{padding:7px 9px 9px;color:var(--ui-soft,#9caabb);font-size:9px;letter-spacing:.1em;font-weight:800;border-bottom:1px solid var(--ui-divider,#3a4250);margin-bottom:5px}
+.variable-completion-item{appearance:none;display:grid;grid-template-columns:30px minmax(0,1fr) auto;align-items:center;gap:9px;width:100%;min-height:42px;text-align:left;padding:6px 9px;color:var(--ui-text,#e9edf5);background:transparent;border:1px solid transparent;border-radius:6px}
+.variable-completion-item:hover,.variable-completion-item.active{background:var(--ui-selected,#33435a);border-color:var(--ui-border,#4e647d)}
+.variable-completion-marker{display:grid;place-items:center;width:27px;height:27px;border-radius:6px;font-size:13px;font-weight:750;color:var(--ui-badge-fg,#b7c9ff);background:var(--ui-badge-bg,#354160)}
+.variable-completion-details{display:flex;flex-direction:column;gap:4px;min-width:0}
+.variable-completion-details strong{font:650 11px ui-monospace,SFMono-Regular,Consolas,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.variable-completion-details small{font-size:10px;font-weight:400;color:var(--ui-soft,#a0adbd);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.variable-completion-item code{font:10px ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--ui-muted,#b4bccc);max-width:94px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.variable-completion-item:focus-visible{outline:2px solid var(--ui-focus,#99b5ff);outline-offset:-2px}
+
+/* Concise value-format hints; secondary to the editable field. */
+.value-field-hint,.value-type-hint{display:block;max-width:100%;margin-top:5px;font-size:10px;font-weight:400;line-height:1.5;color:var(--ui-soft,#a2adbe);overflow-wrap:anywhere}
+#elementInspector .field>.value-field-hint,#multiPropertyInspector .field>.value-field-hint{margin-top:6px}
+#newParamTypeHint{margin-top:8px;padding:9px 10px;border-left:2px solid var(--accent2);background:var(--ui-surface-alt,#293140);border-radius:0 5px 5px 0}
+#paramsPanel .value-type-hint{padding-top:2px}
+
+/* Comfortable typographic rhythm inside variable suggestion rows. */
+.variable-completion-item{gap:11px;min-height:47px;padding:8px 10px}
+.variable-completion-details{gap:6px;line-height:1.45}
+.variable-completion-details strong{font-size:12px;line-height:1.5;letter-spacing:.025em}
+.variable-completion-details small{font-size:11px;line-height:1.6;letter-spacing:.025em;font-weight:450}
+.variable-completion-item code{font-size:10px;line-height:1.5;letter-spacing:.02em}
+
+/* Editor-only layer labeling and tagging in Structure. */
+.tree-item .tree-color-control{display:inline-flex;align-items:center;justify-content:center;flex:0 0 19px;width:19px;height:19px;margin:0 3px;border-radius:5px;color:var(--layer-mark);background:transparent;font-size:14px;line-height:1;cursor:pointer;opacity:.62}
+.tree-item:hover .tree-color-control,.tree-item.active .tree-color-control,.tree-item .tree-color-control.is-colored{opacity:1}
+.tree-item .tree-color-control:hover,.tree-item .tree-color-control:focus-visible{background:var(--ui-hover);outline:1px solid var(--ui-border);outline-offset:0}
+.layer-color-picker{position:fixed;z-index:2100;min-width:194px;padding:9px;border:1px solid var(--ui-border);border-radius:9px;background:var(--ui-surface);color:var(--ui-text);box-shadow:0 12px 32px var(--ui-shadow)}
+.layer-color-heading{font-size:10px;letter-spacing:.09em;font-weight:750;color:var(--ui-muted);padding:3px 3px 10px}
+.layer-color-swatches{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.layer-color-swatch{appearance:none;width:21px;height:21px;min-width:0;border:2px solid transparent;border-radius:6px;background:var(--swatch-color);cursor:pointer}
+.layer-color-swatch:hover,.layer-color-swatch:focus-visible{outline:2px solid var(--ui-focus);outline-offset:1px}
+.layer-color-footer{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-top:11px;padding-top:9px;border-top:1px solid var(--ui-divider)}
+.layer-color-footer input[type="color"]{width:30px;height:26px;padding:2px;border:1px solid var(--ui-border);border-radius:6px;background:transparent;cursor:pointer}
+.layer-color-footer button{font-size:10px;padding:6px 8px;border:1px solid var(--ui-border);border-radius:5px;background:var(--ui-surface-alt);color:var(--ui-muted)}
+.layer-color-footer button:hover{background:var(--ui-hover);color:var(--ui-text)}
+
+.tree-item.tree-is-colored{border-left:3px solid var(--layer-mark);padding-right:1px}
+.tree-item.tree-is-colored .tree-symbol{color:var(--layer-mark)}

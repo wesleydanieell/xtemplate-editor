@@ -102,5 +102,222 @@ try{
   'selected text should provide a rotation handle');
  await guidesPage.close();
  assert.deepEqual(errors,[],'no browser errors after object snapping and text selection');
+ // Editor UI regression: document modal, nested Page hierarchy, color sync,
+ // theme persistence and quick rotation while preserving precise numeric input.
+ const workspacePage=await browser.newPage();
+ await workspacePage.setViewport({width:1440,height:900});
+ workspacePage.on('pageerror',error=>errors.push(error.message));
+ await workspacePage.goto(`http://127.0.0.1:${port}/`,{waitUntil:'networkidle0'});
+ const themeColors={};
+ for(const theme of ['dusk','graphite','midnight']){
+  await workspacePage.$eval('#themeSelect',(el,value)=>{
+   el.value=value;el.dispatchEvent(new Event('change',{bubbles:true}));
+  },theme);
+  await new Promise(resolve=>setTimeout(resolve,200));
+  themeColors[theme]=await workspacePage.evaluate(()=>{
+   const bg=selector=>getComputedStyle(document.querySelector(selector)).backgroundColor;
+   const css=selector=>getComputedStyle(document.querySelector(selector));
+   return {modal:bg('.modal-card'),menu:bg('#fileMenu'),variable:bg('.param-card'),
+    code:bg('#jsonEditor'),status:bg('.statusbar'),settings:bg('#themeSelect'),
+    export:bg('.top-export'),toolRail:bg('.canvas-tools'),
+    toolActive:bg('.canvas-tools .canvas-tool.active'),
+    toolActiveBorder:css('.canvas-tools .canvas-tool.active').borderTopColor,
+    toolHoverColor:css('.canvas-tools .canvas-tool[data-tool="rect"]').color,
+    toolShortcut:css('.canvas-tools .canvas-tool[data-tool="rect"] kbd').color,
+    toolDivider:bg('.canvas-tools .tool-separator')};
+  });
+ }
+ for(const selector of Object.keys(themeColors.dusk)){
+  assert.equal(new Set(['dusk','graphite','midnight'].map(t=>themeColors[t][selector])).size,3,
+   `${selector} should adapt to all three themes, got ${JSON.stringify(themeColors)}`);
+ }
+ await workspacePage.click('[data-menu="settingsMenu"]');
+ await workspacePage.select('#themeSelect','midnight');
+ assert.equal(await workspacePage.$eval('html',el=>el.dataset.theme),'midnight');
+ await workspacePage.reload({waitUntil:'networkidle0'});
+ assert.equal(await workspacePage.$eval('html',el=>el.dataset.theme),'midnight','theme must persist');
+ // Clicking Page must inspect its metadata in Element without a modal.
+ await workspacePage.click('.tree-page');
+ assert.equal(await workspacePage.$eval('#filePropertiesModal',el=>el.classList.contains('hidden')),true);
+ assert.equal(await workspacePage.$eval('#documentPanel',el=>el.parentElement.id),'propertiesPanel');
+ assert.equal(await workspacePage.$eval('.right-tab.active',el=>el.dataset.inspector),'properties');
+ assert.equal(await workspacePage.$eval('#selectedType',el=>el.textContent),'PAGE');
+ await workspacePage.click('[data-menu="fileMenu"]');
+ await workspacePage.click('#fileInfoBtn');
+ assert.equal(await workspacePage.$eval('#documentPanel',el=>el.parentElement.classList.contains('file-properties-card')),true);
+ assert.equal(await workspacePage.$eval('#filePropertiesModal',el=>el.classList.contains('hidden')),false);
+ assert(await workspacePage.$('#documentPanel #metaName'),'metadata must be in the modal');
+ await workspacePage.$eval('#inkColor',input=>{
+  input.value='#123456';input.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ assert.equal(await workspacePage.$eval('#quickInkColor',input=>input.value),'#123456');
+ await workspacePage.select('#filePageSize','a5');
+ assert.equal(await workspacePage.$eval('#paperSize',input=>input.value),'a5');
+ await workspacePage.click('#filePropertiesModal [data-close-modal="filePropertiesModal"]');
+ assert.equal(await workspacePage.$eval('#documentPanel',el=>el.parentElement.id),'propertiesPanel');
+ await workspacePage.$eval('#quickAccentColor',input=>{
+  input.value='#abcdef';input.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ assert.equal(await workspacePage.$eval('#accentColor',input=>input.value),'#abcdef');
+ await workspacePage.click('[data-menu="insertMenu"]');
+ await workspacePage.click('#insertMenu [data-menu-action="insert-rect"]');
+ assert.equal(await workspacePage.$eval('#documentPanel',el=>el.parentElement.classList.contains('file-properties-card')),true);
+ const nesting=await workspacePage.evaluate(()=>({
+  page:parseFloat(getComputedStyle(document.querySelector('.tree-page')).paddingLeft),
+  child:parseFloat(getComputedStyle(document.querySelector('[data-path="items.1"]')).paddingLeft),
+ }));
+ assert(nesting.child>=nesting.page+15,'root layers must be visually nested under Page');
+ await workspacePage.click('[data-rotation-preset="90"]');
+ assert.equal(Number(await workspacePage.$eval('#transformRotate',el=>el.value)),90);
+ const wheel=await workspacePage.$eval('#rotationWheel',el=>el.getBoundingClientRect().toJSON());
+ const cx=wheel.x+wheel.width/2,cy=wheel.y+wheel.height/2;
+ await workspacePage.mouse.move(cx,cy);await workspacePage.mouse.down();
+ await workspacePage.mouse.move(cx+wheel.width*.35,cy,{steps:4});await workspacePage.mouse.up();
+ assert.equal(Number(await workspacePage.$eval('#transformRotate',el=>el.value)),90);
+ // Exact values remain possible even after coarse pointer adjustment.
+ await workspacePage.$eval('#transformRotate',input=>{
+  input.value='-35.5';input.dispatchEvent(new Event('change',{bubbles:true}));
+ });
+ assert.equal(Number(await workspacePage.$eval('#transformRotate',el=>el.value)),-35.5);
+ // Containers should have deliberate interior spacing, even in compact widths.
+ const insets=await workspacePage.evaluate(()=>{
+  const px=selector=>{
+   const el=document.querySelector(selector),style=getComputedStyle(el);
+   return {left:parseFloat(style.paddingLeft),right:parseFloat(style.paddingRight),
+    top:parseFloat(style.paddingTop),bottom:parseFloat(style.paddingBottom)};
+  };
+  return {transform:px('#elementInspector .transform-panel'),
+    alignment:px('#elementInspector .alignment-tools'),
+    variable:px('#paramsPanel .param-card')};
+ });
+ for(const [name,value] of Object.entries(insets)){
+  assert(value.left>=8&&value.right>=8&&value.top>=8&&value.bottom>=8,
+   `${name} is missing internal padding: ${JSON.stringify(value)}`);
+ }
+ // Variable headings must separate their code name, description and delete action.
+ await workspacePage.click('[data-inspector="params"]');
+ const variableLayout=await workspacePage.evaluate(()=>{
+  const card=document.querySelector('#paramsPanel .param-card');
+  const heading=card.querySelector('.param-title-wrap');
+  const children=[...heading.children].map(el=>el.getBoundingClientRect().toJSON());
+  const name=heading.getBoundingClientRect();
+  const button=card.querySelector('.param-card-head>button').getBoundingClientRect();
+  return {spacing:children[1].top-children[0].bottom,
+   overlap:button.left<name.right-1,padding:getComputedStyle(card).paddingTop};
+ });
+ assert(variableLayout.spacing>=4&&!variableLayout.overlap,
+  `Variable headings must not collide: ${JSON.stringify(variableLayout)}`);
+ await workspacePage.click('[data-inspector="properties"]');
+ // Nested property cards must not place inputs against their edges.
+ const nestedSpace=await workspacePage.evaluate(()=>{
+  const body=document.querySelector('#elementInspector .inspector-details .details-body');
+  const style=getComputedStyle(body);
+  return {top:parseFloat(style.paddingTop),left:parseFloat(style.paddingLeft),right:parseFloat(style.paddingRight)};
+ });
+ assert(nestedSpace.top>=10&&nestedSpace.left>=10&&nestedSpace.right>=10,
+  `Element type and stroke width need proper insets: ${JSON.stringify(nestedSpace)}`);
+ // Zoom from Fit must increase/decrease the actual page width, not assume Fit=100%.
+ await workspacePage.$eval('#zoom',el=>{el.value='fit';el.dispatchEvent(new Event('change',{bubbles:true}));});
+ const pageWidth=()=>workspacePage.$eval('#paperWrap',el=>el.getBoundingClientRect().width);
+ const fitWidth=await pageWidth();
+ await workspacePage.click('[data-menu="viewMenu"]');
+ await workspacePage.click('#viewMenu [data-menu-action="zoom-in"]');
+ const larger=await pageWidth();
+ assert(larger>fitWidth+0.5,`View Zoom in should grow page: ${fitWidth} → ${larger}`);
+ await workspacePage.click('[data-menu="viewMenu"]');
+ await workspacePage.click('#viewMenu [data-menu-action="zoom-out"]');
+ const smaller=await pageWidth();
+ assert(smaller<larger-0.5,`View Zoom out should shrink page: ${larger} → ${smaller}`);
+ // Mouse click should not leave Zoom+ focused and accidentally activated
+ // again by Space; keyboard navigation should still support Space on buttons.
+ await workspacePage.click('#zoomIn');
+ assert.notEqual(await workspacePage.evaluate(()=>document.activeElement?.id),'zoomIn',
+  'mouse-activated Zoom in must release focus');
+ const afterMouseZoom=await pageWidth();
+ await workspacePage.keyboard.press('Space');
+ const afterSpace=await pageWidth();
+ assert(Math.abs(afterSpace-afterMouseZoom)<0.1,
+  `Space after clicking Zoom in should not trigger zoom: ${afterMouseZoom} → ${afterSpace}`);
+ await workspacePage.$eval('#zoomIn',el=>el.focus());
+ await workspacePage.keyboard.press('Space');
+ const afterKeyboard=await pageWidth();
+ assert(afterKeyboard>afterSpace+0.5,
+  `Space on intentionally keyboard-focused Zoom in should still work: ${afterSpace} → ${afterKeyboard}`);
+ // Inspector layout: rotation presets and the opacity slider must not
+ // overlap or escape narrow sidebars, and actions must not hide fields.
+ for(const width of [1440,1024,900]){
+  await workspacePage.setViewport({width,height:850});
+  const inspectorLayout=await workspacePage.evaluate(()=>{
+   const panel=document.querySelector('#propertiesPanel');
+   const elements=[...panel.querySelectorAll('.transform-panel .field-row,.rotation-controls,.rotation-presets,.opacity-slider-field,.inspector-actions')].filter(el=>el.getClientRects().length);
+   const pane=panel.getBoundingClientRect();
+   return {pane:{left:pane.left,right:pane.right},rows:elements.map(el=>{
+    const r=el.getBoundingClientRect();return{cls:el.className,left:r.left,right:r.right,overflow:el.scrollWidth>el.clientWidth+2};
+   }),actionsPosition:getComputedStyle(panel.querySelector('.inspector-actions')).position};
+  });
+  assert(inspectorLayout.rows.every(row=>!row.overflow&&row.left>=inspectorLayout.pane.left-1&&row.right<=inspectorLayout.pane.right+1),
+   `Element controls must fit at ${width}px: ${JSON.stringify(inspectorLayout)}`);
+  assert.equal(inspectorLayout.actionsPosition,'static','inspector actions must not cover inputs');
+ }
+ await workspacePage.setViewport({width:1440,height:900});
+ // Variable autocomplete is browser-independent and respects field types.
+ await workspacePage.click('#elementStroke');
+ const suggestedColors=await workspacePage.$$eval('#variableCompletion [role="option"] strong',els=>els.map(el=>el.textContent));
+ assert.deepEqual(suggestedColors.slice(0,3),['ink','accent','none']);
+ await workspacePage.keyboard.press('ArrowDown');
+ await workspacePage.keyboard.press('Enter');
+ assert.equal(await workspacePage.$eval('#elementStroke',el=>el.value),'accent');
+ const strokeFormat=await workspacePage.$eval('#elementStrokeWidth',el=>({title:el.title,hint:el.closest('label').querySelector('.value-field-hint')?.textContent}));
+ assert.match(strokeFormat.title,/mm/);
+ assert.match(strokeFormat.hint,/Line thickness/);
+ await workspacePage.click('[data-inspector="params"]');
+ await workspacePage.click('#addParam');
+ await workspacePage.select('#newParamType','color');
+ assert.match(await workspacePage.$eval('#newParamTypeHint',el=>el.textContent),/HEX/);
+ await workspacePage.select('#newParamType','integer');
+ assert.match(await workspacePage.$eval('#newParamTypeHint',el=>el.textContent),/Whole/);
+ await workspacePage.click('#cancelAddParam');
+ await workspacePage.click('[data-inspector="properties"]');
+ // Editor colors and themes should not introduce new fields in exported template JSON.
+ const docJson=JSON.parse(await workspacePage.$eval('#jsonEditor',el=>el.value));
+ assert(!Object.hasOwn(docJson,'theme')&&!Object.hasOwn(docJson,'previewColors'));
+ assert.deepEqual(errors,[]);
+ // Layer naming is part of the template, organization color is NOT.
+ const layerPath='items.1';
+ await workspacePage.$eval(`.tree-item[data-path="${layerPath}"] .tree-label`,el=>el.dispatchEvent(new MouseEvent('dblclick',{bubbles:true})));
+ await workspacePage.$eval('.tree-rename',el=>{
+  el.value='Colored border';el.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+ });
+ assert.equal(await workspacePage.$eval(`.tree-item[data-path="${layerPath}"] .tree-label`,el=>el.textContent),'Colored border');
+ await workspacePage.click(`.tree-item[data-path="${layerPath}"] .tree-color-control`);
+ assert.equal(await workspacePage.$eval('.layer-color-picker',el=>el.classList.contains('hidden')),false);
+ await workspacePage.click('.layer-color-swatch');
+ const markerColor=await workspacePage.$eval(`.tree-item[data-path="${layerPath}"] .tree-color-control`,el=>getComputedStyle(el).color);
+ assert.equal(markerColor,'rgb(232, 121, 121)');
+ // The same organization controls are available from right-click on a layer.
+ // Right-click on a DIFFERENT unselected layer must show these actions too.
+ await workspacePage.click('.tree-page');
+ await workspacePage.click(`.tree-item[data-path="${layerPath}"]`,{button:'right'});
+ assert.equal(await workspacePage.$eval('#contextMenu [data-action="rename"]',el=>el.classList.contains('hidden')),false);
+ assert.equal(await workspacePage.$eval('#contextMenu [data-action="layer-color"]',el=>el.classList.contains('hidden')),false);
+ await workspacePage.keyboard.press('Escape');
+ await workspacePage.click(`.tree-item[data-path="${layerPath}"]`,{button:'right'});
+ assert.equal(await workspacePage.$eval('#contextMenu [data-action="rename"]',el=>el.classList.contains('hidden')),false);
+ await workspacePage.click('#contextMenu [data-action="rename"]');
+ await workspacePage.$eval('.tree-rename',el=>{
+  el.value='Right-click renamed';el.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+ });
+ assert.equal(await workspacePage.$eval(`.tree-item[data-path="${layerPath}"] .tree-label`,el=>el.textContent),'Right-click renamed');
+ await workspacePage.click(`.tree-item[data-path="${layerPath}"]`,{button:'right'});
+ await workspacePage.click('#contextMenu [data-action="layer-color"]');
+ assert.equal(await workspacePage.$eval('.layer-color-picker',el=>el.classList.contains('hidden')),false);
+ await workspacePage.click('.layer-color-footer button');
+ assert.equal(await workspacePage.$eval(`.tree-item[data-path="${layerPath}"]`,el=>el.classList.contains('tree-is-colored')),false);
+ const exportedDoc=JSON.parse(await workspacePage.$eval('#jsonEditor',el=>el.value));
+ assert.equal(exportedDoc.items[1].name,'Right-click renamed');
+ assert.equal(Object.hasOwn(exportedDoc.items[1],'layerColor'),false);
+ assert.equal(Object.hasOwn(exportedDoc.items[1],'colorTag'),false);
+ await workspacePage.close();
+ console.log('PASS: document modal, quick colors, Page hierarchy, themes and rotation controls');
  console.log('PASS: SVG selection, transform handles, live drag, marquee and object-to-object smart guides');
 }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}
