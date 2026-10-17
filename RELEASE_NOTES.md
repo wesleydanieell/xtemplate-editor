@@ -1,25 +1,21 @@
-# XTemplate Studio — v0.1.0-alpha.3
+# XTemplate Studio — v0.1.0-alpha.4
 
-Terceira versão alpha do editor offline para `.xtemplate`, incluindo os PRs #1–#5.
+Quarta versão alpha, agora com **instaladores nativos para Windows**, além do Linux AppImage e pacote web portátil.
 
 ## Novidades
 
-- Estrutura e camadas: seleção mista (Ctrl/Shift), reorganização segura entre grupos, renomeação por F2, etiquetas de cor por camada e ações de organização no clique direito.
-- Canvas: seleção e alças estáveis, arraste com prévia ao vivo, guias magnéticas para centros/bordas da página e outros elementos, incluindo elementos de grupos.
-- Interface desktop: menus File, Edit, View, Insert e Settings; propriedades do arquivo em uma janela separada e no painel Element ao selecionar Page; cores de prévia rápidas.
-- Três temas — Graphite, Dusk Blue e Midnight — com preferências locais; espaçamentos e contraste revisados.
-- Transformações: roda e predefinições de rotação com entrada exata; sugestões de variáveis personalizadas, dicas de formatos e exemplos para tipos de parâmetros.
-- Correções de zoom View, foco indevido de botões, seleção por área, formulário de variáveis e layout responsivo.
-- Segurança, documentação e integração contínua aprimoradas, com testes automatizados de interação real em Chrome/Brave.
+- **Windows 64 bits:** instalador NSIS (`.exe`) e WiX/MSI (`.msi`), baseados em Tauri 2 e Microsoft WebView2.
+- **Zoom estável:** View → Zoom in / Zoom out preserva o centro visual da página, inclusive na transição da escala Fit.
+- **Structure:** seleção simultânea com Ctrl/Shift entre níveis diferentes da árvore, incluindo grupos e descendentes; propriedades compatíveis podem ser editadas em lote.
+- **Cores de organização em lote:** a paleta e Clear color atuam sobre todas as camadas selecionadas, inclusive pelo menu de contexto. Não alteram Stroke/Fill nem o arquivo `.xtemplate`.
+- **Automação:** fluxos de CI atualizados e testes para Linux, Windows e interface web.
 
-## Download e uso
+## Download e utilização
 
-**Linux x86_64:** baixe o AppImage, execute `chmod +x nome-do-arquivo.AppImage` e inicie o arquivo. O AppImage usa Tauri 2 / WebKitGTK e não necessita de servidor local.
+- **Windows x64:** prefira o instalador `.exe` (NSIS); o `.msi` é uma alternativa do Windows Installer. Requer Microsoft WebView2. Os instaladores ainda **não são assinados digitalmente**, portanto o SmartScreen pode exibir um aviso.
+- **Linux x86_64:** baixe o `.AppImage` e torne-o executável com `chmod +x nome-do-arquivo.AppImage`.
+- **Web portátil:** baixe o `.zip`, extraia e execute `./start.sh` em Linux com Python 3 ou sirva por HTTP estático.
 
-**ZIP web portátil:** baixe, extraia e execute `./start.sh` no Linux (Python 3) ou abra a aplicação a partir de outro servidor HTTP estático.
+## Limitações conhecidas
 
-## Observações
-
-As cores de organização da Structure são **locais ao editor** e não estão embutidas no `.xtemplate`; o nome da camada permanece no JSON exportado. Cores de prévia e tamanho de página também são opções de visualização, não novos campos do arquivo.
-
-O SVG do editor é uma pré-visualização aproximada; confira no XNotes os arquivos exportados, especialmente templates complexos, fontes e expressões avançadas. O trabalho precisa ser exportado para ser salvo como `.xtemplate`.
+As etiquetas de cor na Structure são salvas somente no armazenamento local do editor; exportar `.xtemplate` não transfere essas etiquetas. Sempre confira no XNotes a renderização de templates complexos, fontes e expressões avançadas. Os documentos precisam ser exportados explicitamente para salvar um `.xtemplate`.
