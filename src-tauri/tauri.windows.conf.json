@@ -15,5 +15,6 @@
   "build": {
     "beforeBuildCommand": "python scripts/build-desktop-assets.py",
     "beforeDevCommand": "python scripts/build-desktop-assets.py"
-  }
+  },
+  "version": "0.1.0-3"
 }

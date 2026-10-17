@@ -47,7 +47,7 @@ npm ci
 npm run desktop:build:windows
 ```
 
-Os instaladores serão gerados em `src-tauri/target/release/bundle/nsis/` e `src-tauri/target/release/bundle/msi/`. O comando Linux `npm run desktop:build` permanece independente. O WebView2 Runtime é usado pelo Tauri para exibir a interface; a instalação padrão do Tauri gerencia sua disponibilidade quando necessário. Os instaladores não são assinados digitalmente por enquanto: o Windows SmartScreen pode mostrar um aviso de editor desconhecido.
+Os instaladores serão gerados em `src-tauri/target/release/bundle/nsis/` e `src-tauri/target/release/bundle/msi/`. O pacote Windows usa o identificador técnico `0.1.0-3`, equivalente ao `alpha.3`, porque o WiX/MSI aceita apenas sufixos pré-release numéricos; o código e a versão pública do projeto permanecem `v0.1.0-alpha.3`. O comando Linux `npm run desktop:build` permanece independente. O WebView2 Runtime é usado pelo Tauri para exibir a interface; a instalação padrão do Tauri gerencia sua disponibilidade quando necessário. Os instaladores não são assinados digitalmente por enquanto: o Windows SmartScreen pode mostrar um aviso de editor desconhecido.
 
 ### Compilar o AppImage
 
