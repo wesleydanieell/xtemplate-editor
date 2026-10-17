@@ -220,14 +220,38 @@ try{
  await workspacePage.$eval('#zoom',el=>{el.value='fit';el.dispatchEvent(new Event('change',{bubbles:true}));});
  const pageWidth=()=>workspacePage.$eval('#paperWrap',el=>el.getBoundingClientRect().width);
  const fitWidth=await pageWidth();
+ const paperCenter=()=>workspacePage.$eval('#paperWrap',el=>{
+  const r=el.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2};
+ });
+ const assertCentered=async(before,label)=>{
+  const after=await paperCenter();
+  assert(Math.abs(after.x-before.x)<2&&Math.abs(after.y-before.y)<2,
+   `${label} shifted the page center: ${JSON.stringify(before)} → ${JSON.stringify(after)}`);
+ };
+ const initialCenter=await paperCenter();
  await workspacePage.click('[data-menu="viewMenu"]');
  await workspacePage.click('#viewMenu [data-menu-action="zoom-in"]');
  const larger=await pageWidth();
+ await assertCentered(initialCenter,'View → Zoom in');
  assert(larger>fitWidth+0.5,`View Zoom in should grow page: ${fitWidth} → ${larger}`);
  await workspacePage.click('[data-menu="viewMenu"]');
  await workspacePage.click('#viewMenu [data-menu-action="zoom-out"]');
  const smaller=await pageWidth();
+ await assertCentered(initialCenter,'View → Zoom out');
  assert(smaller<larger-0.5,`View Zoom out should shrink page: ${larger} → ${smaller}`);
+ // Cross the Fit→zoomed-in CSS alignment threshold in both directions.
+ // This is the regression: formerly one step jumped to the left, the next
+ // returned right because .canvas-area switches flex justification.
+ for(let i=0;i<5;i++){
+  await workspacePage.click('[data-menu="viewMenu"]');
+  await workspacePage.click('#viewMenu [data-menu-action="zoom-in"]');
+  await assertCentered(initialCenter,`repeated zoom in #${i+1}`);
+ }
+ for(let i=0;i<5;i++){
+  await workspacePage.click('[data-menu="viewMenu"]');
+  await workspacePage.click('#viewMenu [data-menu-action="zoom-out"]');
+  await assertCentered(initialCenter,`repeated zoom out #${i+1}`);
+ }
  // Mouse click should not leave Zoom+ focused and accidentally activated
  // again by Space; keyboard navigation should still support Space on buttons.
  await workspacePage.click('#zoomIn');
@@ -318,6 +342,82 @@ try{
  assert.equal(Object.hasOwn(exportedDoc.items[1],'layerColor'),false);
  assert.equal(Object.hasOwn(exportedDoc.items[1],'colorTag'),false);
  await workspacePage.close();
+ // Mixed hierarchy selection: group + child + an unrelated root element.
+ // Only intersecting explicit attributes may be batch-edited; parent + child
+ // may be inspected together but destructive commands must not process twice.
+ const nestingPage=await browser.newPage();
+ await nestingPage.setViewport({width:1440,height:900});
+ nestingPage.on('pageerror',e=>errors.push(e.message));
+ await nestingPage.goto(`http://127.0.0.1:${port}/`,{waitUntil:'networkidle0'});
+ const nestedDocument={xtemplate:1,id:'test.mixed.hierarchy',name:'Hierarchy regression',params:{},items:[
+  {type:'group',name:'Parent',stroke:'ink',opacity:0.5,children:[
+   {type:'rect',name:'Child',x:'10mm',y:'10mm',w:'35mm',h:'30mm',stroke:'accent',opacity:0.8},
+   {type:'group',name:'Subgroup',children:[
+    {type:'rect',name:'Grandchild',x:'3mm',y:'3mm',w:'14mm',h:'12mm',stroke:'ink',opacity:0.9},
+   ]},
+  ]},
+  {type:'rect',name:'Other root',x:'60mm',y:'60mm',w:'24mm',h:'20mm',stroke:'ink',opacity:0.7},
+ ]};
+ await nestingPage.$eval('#fileInput',(input,raw)=>{
+  const transfer=new DataTransfer();transfer.items.add(new File([raw],'hierarchy.xtemplate',{type:'application/json'}));
+  input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(nestedDocument));
+ await nestingPage.waitForSelector('.tree-item[data-path="items.0.children.1.children.0"]');
+ await nestingPage.click('.tree-item[data-path="items.0"]');
+ await nestingPage.keyboard.down('Control');
+ await nestingPage.click('.tree-item[data-path="items.0.children.0"]');
+ await nestingPage.click('.tree-item[data-path="items.0.children.1.children.0"]');
+ await nestingPage.click('.tree-item[data-path="items.1"]');
+ await nestingPage.keyboard.up('Control');
+ const hierarchySelection=await nestingPage.evaluate(()=>({
+  selected:[...document.querySelectorAll('#tree .tree-item.active[data-path]')].map(x=>x.dataset.path),
+  count:document.querySelector('#selectedType').textContent,
+  properties:[...document.querySelectorAll('#multiPropertyInspector input[data-property]')].map(x=>x.dataset.property),
+ }));
+ assert.deepEqual(hierarchySelection.selected,['items.0','items.0.children.0','items.0.children.1.children.0','items.1']);
+ assert.match(hierarchySelection.count,/4 ELEMENTS/);
+ assert(hierarchySelection.properties.includes('stroke')&&hierarchySelection.properties.includes('opacity'));
+ assert(!hierarchySelection.properties.includes('x'),'X must be hidden unless all selected items have it');
+ await nestingPage.$eval('#multiPropertyInspector input[data-property="stroke"]',input=>{
+  input.value='accent';input.dispatchEvent(new Event('change',{bubbles:true}));
+ });
+ const updated=JSON.parse(await nestingPage.$eval('#jsonEditor',input=>input.value));
+ assert([updated.items[0],updated.items[0].children[0],updated.items[0].children[1].children[0],updated.items[1]].every(n=>n.stroke==='accent'),
+  'batch edit must reach each selected element across nested levels');
+ assert.equal(updated.items[0].children.length,2,'batch edit must preserve hierarchy');
+ const taggedPaths=['items.0','items.0.children.0','items.0.children.1.children.0','items.1'];
+ const tagState=async()=>nestingPage.$$eval('#tree .tree-item.active[data-path]',rows=>rows.map(el=>({
+  path:el.dataset.path,marked:el.classList.contains('tree-is-colored'),
+  color:getComputedStyle(el.querySelector('.tree-color-control')).color,
+ })));
+ // The dot on an already selected layer must apply the tag to all levels.
+ await nestingPage.click('.tree-item[data-path="items.0.children.0"] .tree-color-control');
+ assert.match(await nestingPage.$eval('.layer-color-heading',el=>el.textContent),/4 SELECTED/);
+ await nestingPage.click('.layer-color-swatch');
+ const colored=await tagState();
+ assert.deepEqual(colored.map(x=>x.path),taggedPaths);
+ assert(colored.every(x=>x.marked&&x.color==='rgb(232, 121, 121)'),
+  'batch color must apply to every selected layer regardless of nesting');
+ // Right-click a selected item should retain the group selection and clear all.
+ await nestingPage.click('.tree-item[data-path="items.1"]',{button:'right'});
+ await nestingPage.click('#contextMenu [data-action="layer-color"]');
+ assert.match(await nestingPage.$eval('.layer-color-heading',el=>el.textContent),/4 SELECTED/);
+ await nestingPage.click('.layer-color-footer button');
+ assert((await tagState()).every(x=>!x.marked),'clear color must affect every selected layer');
+ // Clicking the dot on an unselected layer must NOT recolor the selected group.
+ await nestingPage.keyboard.down('Control');
+ await nestingPage.click('.tree-item[data-path="items.1"]');
+ await nestingPage.keyboard.up('Control');
+ await nestingPage.click('.tree-item[data-path="items.1"] .tree-color-control');
+ assert.match(await nestingPage.$eval('.layer-color-heading',el=>el.textContent),/LAYER COLOR/);
+ await nestingPage.click('.layer-color-swatch');
+ assert.equal(await nestingPage.$eval('.tree-item[data-path="items.1"]',el=>el.classList.contains('tree-is-colored')),true);
+ assert.equal(await nestingPage.$eval('.tree-item[data-path="items.0.children.0"]',el=>el.classList.contains('tree-is-colored')),false);
+ const exportWithColors=JSON.parse(await nestingPage.$eval('#jsonEditor',el=>el.value));
+ assert(!JSON.stringify(exportWithColors).includes('layerColor'),'editor-only color must not leak into export');
+ await nestingPage.close();
+ assert.deepEqual(errors,[],'nested UI selection must not throw');
+ console.log('PASS: hierarchical Ctrl-selection and compatible batch edits');
  console.log('PASS: document modal, quick colors, Page hierarchy, themes and rotation controls');
  console.log('PASS: SVG selection, transform handles, live drag, marquee and object-to-object smart guides');
 }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}

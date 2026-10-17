@@ -198,3 +198,13 @@ Os campos exibem pequenas indicações sobre o formato aceito, como `mm`, porcen
 - **Renomear:** dê um duplo clique no nome da camada ou selecione-a e pressione **F2**. Confirme com **Enter**, cancele com **Esc**. O nome do elemento faz parte do JSON `.xtemplate`.
 - **Cor de identificação:** clique no ponto colorido ao lado da camada para escolher uma das sete cores ou uma personalizada; **Clear color** remove a marca. A cor identifica a camada e seu ícone na árvore, sem alterar o preenchimento ou traço do desenho.
 - **Importante:** as cores de organização são **somente do editor**, salvas no armazenamento local do navegador para cada ID de documento e caminho da camada. Elas **não** são incluídas no `.xtemplate` exportado e portanto não são transferidas com o arquivo para outros navegadores/dispositivos. Em edições estruturais amplas ou reimportações, as identificações podem precisar ser reaplicadas.
+
+### Seleção entre níveis diferentes da Structure
+
+Use **Ctrl/Cmd + clique** para selecionar camadas de qualquer nível da árvore, incluindo grupo e descendente ao mesmo tempo. **Shift + clique** seleciona o intervalo visível na árvore, atravessando grupos e níveis de profundidade; **Ctrl/Cmd + Shift + clique** adiciona um intervalo à seleção existente. A aba **Element** só apresenta propriedades que **existem explicitamente em todos os nós selecionados**, e alterações feitas ali são aplicadas a todos eles. Propriedades incompatíveis ficam ocultas. Ações que reorganizam camadas exigem irmãos no mesmo grupo, enquanto exclusão e recorte ignoram descendentes cujo ancestral já será removido, para não processar duas vezes a mesma árvore. Ao selecionar vários níveis, use preferencialmente o painel Element para edição conjunta.
+
+O zoom por botões e pelo menu **View** passa a preservar o centro visual atual da página ao alternar escalas; o zoom com Alt + roda do mouse continua ancorado no ponteiro.
+
+### Cores de organização em lote
+
+Selecione duas ou mais camadas na **Structure** com **Ctrl/Cmd** ou **Shift**, inclusive entre grupos e níveis hierárquicos. Clique no **indicador de cor** de qualquer uma das camadas selecionadas, ou clique com o botão direito em uma delas e escolha **Organization color**: as sete opções, a cor personalizada e **Clear color** serão aplicadas **a todos os itens selecionados**. O seletor mostra quantas camadas serão afetadas. Se clicar no indicador de uma camada fora da seleção atual, somente essa camada receberá a cor. Etiquetas são locais ao navegador/editor e não afetam o Stroke, Fill ou o arquivo `.xtemplate` exportado.
