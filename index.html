@@ -1,16 +1,59 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>XTemplate Studio</title><link rel="stylesheet" href="./styles.css"></head>
+<head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>XTemplate Studio</title><link rel="icon" type="image/svg+xml" href="./favicon.svg"><link rel="stylesheet" href="./styles.css"></head>
 <body>
 <header class="topbar">
-  <div class="brand"><div class="brand-mark">X</div><div><strong>XTemplate Studio</strong><small>Visual template editor · XNotes Android</small></div></div>
+  <div class="menubar-left">
+    <div class="brand"><div class="brand-mark" aria-hidden="true">X</div><span class="app-name">XTemplate Studio</span></div>
+    <nav id="appMenubar" class="app-menubar" aria-label="Application menu" role="menubar">
+      <div class="app-menu-wrap"><button id="fileMenuToggle" class="app-menu-trigger" data-menu="fileMenu" type="button" role="menuitem" aria-haspopup="true" aria-expanded="false">File</button><div id="fileMenu" class="app-menu file-menu hidden" role="menu" aria-label="File">
+        <button id="newBtn" type="button" role="menuitem">New template <kbd>Ctrl+N</kbd></button>
+        <button id="openBtn" type="button" role="menuitem">Open… <kbd>Ctrl+O</kbd></button>
+        <button id="saveBtn" class="menu-export" type="button" role="menuitem">Export template… <kbd>Ctrl+S</kbd></button>
+        <div class="app-menu-separator"></div><button id="fileInfoBtn" type="button" role="menuitem">Document properties…</button>
+      </div></div>
+      <div class="app-menu-wrap"><button class="app-menu-trigger" data-menu="editMenu" type="button" role="menuitem" aria-haspopup="true" aria-expanded="false">Edit</button><div id="editMenu" class="app-menu hidden" role="menu" aria-label="Edit">
+        <button type="button" data-menu-action="undo" role="menuitem">Undo <kbd>Ctrl+Z</kbd></button>
+        <button type="button" data-menu-action="redo" role="menuitem">Redo <kbd>Ctrl+Shift+Z</kbd></button>
+        <div class="app-menu-separator"></div>
+        <button type="button" data-menu-action="copy" role="menuitem">Copy <kbd>Ctrl+C</kbd></button>
+        <button type="button" data-menu-action="cut" role="menuitem">Cut <kbd>Ctrl+X</kbd></button>
+        <button type="button" data-menu-action="paste" role="menuitem">Paste <kbd>Ctrl+V</kbd></button>
+        <div class="app-menu-separator"></div>
+        <button type="button" data-menu-action="duplicate" role="menuitem">Duplicate <kbd>Ctrl+D</kbd></button>
+        <button type="button" data-menu-action="group" role="menuitem">Group selection <kbd>Ctrl+G</kbd></button>
+        <button type="button" data-menu-action="delete" role="menuitem">Delete selection <kbd>Del</kbd></button>
+      </div></div>
+      <div class="app-menu-wrap"><button class="app-menu-trigger" data-menu="viewMenu" type="button" role="menuitem" aria-haspopup="true" aria-expanded="false">View</button><div id="viewMenu" class="app-menu hidden" role="menu" aria-label="View">
+        <button type="button" data-menu-action="split" role="menuitem">Toggle JSON editor <kbd>Ctrl+Enter</kbd></button>
+        <button type="button" data-menu-action="fit" role="menuitem">Fit page to window</button>
+        <button type="button" data-menu-action="zoom-in" role="menuitem">Zoom in</button>
+        <button type="button" data-menu-action="zoom-out" role="menuitem">Zoom out</button>
+        <div class="app-menu-separator"></div>
+        <button type="button" data-menu-action="properties" role="menuitem">Element properties</button>
+        <button type="button" data-menu-action="variables" role="menuitem">Template variables</button>
+      </div></div>
+      <div class="app-menu-wrap"><button class="app-menu-trigger" data-menu="insertMenu" type="button" role="menuitem" aria-haspopup="true" aria-expanded="false">Insert</button><div id="insertMenu" class="app-menu hidden" role="menu" aria-label="Insert">
+        <button type="button" data-menu-action="insert-element" role="menuitem">New element… <kbd>Insert</kbd></button>
+        <button type="button" data-menu-action="insert-rect" role="menuitem">Rectangle <kbd>R</kbd></button>
+        <button type="button" data-menu-action="insert-text" role="menuitem">Text <kbd>T</kbd></button>
+        <button type="button" data-menu-action="insert-group" role="menuitem">Group</button>
+        <button type="button" data-menu-action="insert-repeat" role="menuitem">Repeat</button>
+        <div class="app-menu-separator"></div>
+        <button type="button" data-menu-action="add-variable" role="menuitem">New variable…</button>
+        <details class="app-menu-submenu"><summary>Example templates <span aria-hidden="true">›</span></summary><div id="fileMenuExamples" class="app-menu-examples"></div></details>
+      </div></div>
+      <div class="app-menu-wrap"><button class="app-menu-trigger" data-menu="settingsMenu" type="button" role="menuitem" aria-haspopup="true" aria-expanded="false">Settings</button><div id="settingsMenu" class="app-menu hidden" role="menu" aria-label="Settings">
+        <label class="file-menu-language" for="languageSelect">Interface language<select id="languageSelect" aria-label="Language / Idioma"><option value="en">English</option><option value="pt-BR">Português (Brasil)</option></select></label>
+      </div></div>
+    </nav>
+  </div>
   <div class="top-actions">
-    <button id="undoBtn" class="icon-button history-button" title="Undo (Ctrl+Z)" aria-label="Undo" disabled>↶</button><button id="redoBtn" class="icon-button history-button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled>↷</button>
-    <div class="file-menu-wrap"><button id="fileMenuToggle" class="quiet file-menu-toggle" aria-haspopup="true" aria-expanded="false">File ▾</button><div id="fileMenu" class="file-menu hidden" role="menu">
-      <div class="file-menu-heading">TEMPLATE</div><button id="newBtn" role="menuitem">New template <kbd>Ctrl+N</kbd></button><button id="fileInfoBtn" role="menuitem">Template settings…</button><button id="openBtn" role="menuitem">Open template… <kbd>Ctrl+O</kbd></button><button id="saveBtn" class="menu-export" role="menuitem">Export template… <kbd>Ctrl+S</kbd></button>
-      <div class="file-menu-divider"></div><div class="file-menu-heading">EXAMPLES</div><div id="fileMenuExamples"></div>
-      <div class="file-menu-divider"></div><div class="file-menu-heading">SETTINGS</div><label class="file-menu-language" for="languageSelect">Language / Idioma<select id="languageSelect" aria-label="Language / Idioma"><option value="en">English</option><option value="pt-BR">Português (Brasil)</option></select></label>
-    </div></div><input id="fileInput" type="file" accept=".xtemplate,.json,application/json" hidden>
+    <button id="undoBtn" class="icon-button history-button" title="Undo (Ctrl+Z)" aria-label="Undo" disabled>↶</button>
+    <button id="redoBtn" class="icon-button history-button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled>↷</button>
+    <span class="top-divider" aria-hidden="true"></span>
+    <button type="button" class="quiet top-export" data-menu-action="export">Export <span aria-hidden="true">↗</span></button>
+    <input id="fileInput" type="file" accept=".xtemplate,.json,application/json" hidden>
   </div>
 </header>
 <main class="app">
