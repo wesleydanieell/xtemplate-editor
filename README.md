@@ -159,3 +159,14 @@ O projeto é público e recebe issues e pull requests. Veja [CONTRIBUTING.md](CO
 ### Menu de aplicativo (versão de desenvolvimento)
 
 A barra superior segue o padrão de aplicativos desktop com **File, Edit, View, Insert e Settings** à esquerda. O nome do documento pode ser editado na aba logo abaixo, e o botão **Export** fica sempre acessível à direita. As ações têm atalhos exibidos nos menus, os menus funcionam com teclado (setas laterais e Esc) e os modelos de exemplo aparecem em **Insert → Example templates**. O idioma fica somente em **Settings**.
+
+### Testes de interação no navegador
+
+Além de `npm test`, execute `npm run test:browser` para verificar os fluxos reais de seleção do SVG, controles de transformação, arraste e seleção por área. Esse teste utiliza `puppeteer-core`, com o navegador definido em `XTEMPLATE_BROWSER_PATH` (Chrome/Chromium/Brave executável). No Linux:
+
+```bash
+npm ci
+XTEMPLATE_BROWSER_PATH=/usr/bin/chromium npm run test:browser
+```
+
+O GitHub Actions executa esse teste com o Chrome instalado no runner. Testes de interação são importantes porque eventos do navegador podem falhar mesmo quando os testes unitários passam.
