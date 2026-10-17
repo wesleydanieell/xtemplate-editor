@@ -170,3 +170,9 @@ XTEMPLATE_BROWSER_PATH=/usr/bin/chromium npm run test:browser
 ```
 
 O GitHub Actions executa esse teste com o Chrome instalado no runner. Testes de interação são importantes porque eventos do navegador podem falhar mesmo quando os testes unitários passam.
+
+### Guias inteligentes e encaixe entre elementos
+
+Com a ferramenta **V (Select)**, arraste um elemento em direção às bordas ou centros de outros elementos, inclusive elementos dentro de grupos. O editor destaca pontos de referência e exibe uma **guia rosa curta ligando os objetos** quando encontra um alinhamento dentro da tolerância de aproximadamente 7 pixels de tela. Ao soltar, o elemento fica encaixado na coordenada da guia. Também há referências para bordas e centros da página, mostradas com guias que atravessam a página. As guias desaparecem após o arraste; elas servem apenas ao editor e **não** são exportadas para `.xtemplate`.
+
+Para textos, há contorno de seleção e uma alça de rotação; o tamanho do texto continua configurado pela propriedade **Size**. Nós `repeat` são editados no painel de propriedades; encaixe magnético automático não é aplicado ao arraste de ocorrências repetidas.
