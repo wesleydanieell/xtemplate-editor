@@ -377,7 +377,8 @@ try{
  assert.deepEqual(hierarchySelection.selected,['items.0','items.0.children.0','items.0.children.1.children.0','items.1']);
  assert.match(hierarchySelection.count,/4 ELEMENTS/);
  assert(hierarchySelection.properties.includes('stroke')&&hierarchySelection.properties.includes('opacity'));
- assert(!hierarchySelection.properties.includes('x'),'X must be hidden unless all selected items have it');
+ assert(hierarchySelection.properties.includes('x'),'optional X must be available on all selected groups/rectangles');
+ assert(!hierarchySelection.properties.includes('period'),'repeat-only fields must stay hidden');
  await nestingPage.$eval('#multiPropertyInspector input[data-property="stroke"]',input=>{
   input.value='accent';input.dispatchEvent(new Event('change',{bubbles:true}));
  });
@@ -417,6 +418,95 @@ try{
  assert(!JSON.stringify(exportWithColors).includes('layerColor'),'editor-only color must not leak into export');
  await nestingPage.close();
  assert.deepEqual(errors,[],'nested UI selection must not throw');
+ // Sparse same-type nodes must expose optional capabilities; user edits must
+ // not reset unrelated attributes or introduce unsupported properties.
+ const compatibilityPage=await browser.newPage();
+ compatibilityPage.on('dialog',dialog=>dialog.accept());
+ await compatibilityPage.setViewport({width:1440,height:900});
+ compatibilityPage.on('pageerror',e=>errors.push(e.message));
+ await compatibilityPage.goto(`http://127.0.0.1:${port}/`,{waitUntil:'networkidle0'});
+ const compatibleDoc={xtemplate:1,id:'test.batch.capabilities',name:'Compatible sparse nodes',params:{},items:[
+  {type:'repeat',axis:'y',period:'20mm',count:3,children:[{type:'vline',x:'90mm',y1:'0mm',y2:'15mm'}]},
+  {type:'hline',y:'110mm',stroke:'accent'},
+  {type:'hline',y:'120mm',x1:'12mm',strokeWidth:'0.4mm'},
+  {type:'rect',x:'110mm',y:'55mm',w:'18mm',h:'14mm',stroke:'ink',fill:'none'},
+ ]};
+ await compatibilityPage.$eval('#fileInput',(input,raw)=>{
+  const transfer=new DataTransfer();transfer.items.add(new File([raw],'sparse.xtemplate',{type:'application/json'}));
+  input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(compatibleDoc));
+ await compatibilityPage.waitForSelector('.tree-item[data-path="items.2"]');
+ await compatibilityPage.click('.tree-item[data-path="items.1"]');
+ await compatibilityPage.keyboard.down('Control');
+ await compatibilityPage.click('.tree-item[data-path="items.2"]');
+ await compatibilityPage.keyboard.up('Control');
+ const compatibleFields=await compatibilityPage.$$eval('#multiPropertyInspector [data-property]',nodes=>nodes.map(el=>el.dataset.property));
+ for(const key of ['x1','x2','y','stroke','strokeWidth'])assert(compatibleFields.includes(key),`optional shared hline property ${key} must be visible`);
+ assert(!compatibleFields.includes('period'),'repeat-only key must remain incompatible');
+ await compatibilityPage.$eval('#multiPropertyInspector input[data-property="x2"]',el=>{
+  el.value='70mm';el.dispatchEvent(new Event('change',{bubbles:true}));
+ });
+ const afterBatch=JSON.parse(await compatibilityPage.$eval('#jsonEditor',el=>el.value));
+ assert.equal(afterBatch.items[1].x2,'70mm');assert.equal(afterBatch.items[2].x2,'70mm');
+ assert.equal(afterBatch.items[1].stroke,'accent');assert.equal(afterBatch.items[2].strokeWidth,'0.4mm');
+ assert.equal(afterBatch.items[0].children[0].x,'90mm');
+ // Rendered SVG repeat instances must be snap targets, even though repeat
+ // itself has no model-space rectangle. Toggle persists and disables *snap*.
+ const repeatCopies=await compatibilityPage.$$('g[data-path="items.0.children.0"]');
+ assert.equal(repeatCopies.length,3,'three repeated vlines must render as separate targets');
+ const movingRect=await compatibilityPage.$eval('g[data-path="items.3"] .svg-hitbox',el=>{
+  const b=el.getBoundingClientRect();return{x:b.x+b.width/2,y:b.y+b.height/2};
+ });
+ const paperPixels=await compatibilityPage.$eval('#paper',el=>el.getBoundingClientRect().width);
+ const moveX=-19.4*paperPixels/210; // proposed x≈90.6, must magnetically snap to x=90
+ async function checkGuides(shouldShow){
+  await compatibilityPage.mouse.move(movingRect.x,movingRect.y);
+  await compatibilityPage.mouse.down();
+  await compatibilityPage.mouse.move(movingRect.x+moveX,movingRect.y,{steps:12});
+  const found=await compatibilityPage.$$eval('#paper .smart-guide.object-guide',nodes=>nodes.map(el=>({x1:Number(el.getAttribute('x1')),x2:Number(el.getAttribute('x2')),y1:Number(el.getAttribute('y1')),y2:Number(el.getAttribute('y2'))})));
+  if(shouldShow)assert(found.some(g=>Math.abs(g.x1-g.x2)<1e-6&&Math.abs(g.x1-90)<0.2),
+   `repeated vline must yield a true vertical x=90 magnetic guide: ${JSON.stringify(found)}`);
+  else assert.deepEqual(found,[],'disabled magnetic guides must not render');
+  await compatibilityPage.mouse.up();
+  const updated=JSON.parse(await compatibilityPage.$eval('#jsonEditor',el=>el.value));
+  const position=parseFloat(updated.items[3].x);
+  assert(Math.abs(position-(shouldShow?90:90.6))<0.16,
+   `magnetic ${shouldShow?'on':'off'}: expected committed x≈${shouldShow?90:90.6}mm, got ${position}mm`);
+ }
+ assert.equal(await compatibilityPage.$eval('#magneticGuidesToggle',el=>el.checked),true);
+ await checkGuides(true);
+ // Restore original geometry without resetting editor-only Settings.
+ await compatibilityPage.$eval('#fileInput',(input,raw)=>{
+  const transfer=new DataTransfer();transfer.items.add(new File([raw],'sparse.xtemplate',{type:'application/json'}));
+  input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(compatibleDoc));
+ await compatibilityPage.click('[data-menu="settingsMenu"]');
+ await compatibilityPage.click('#magneticGuidesToggle');
+ assert.equal(await compatibilityPage.$eval('#magneticGuidesToggle',el=>el.checked),false);
+ await checkGuides(false);
+ await compatibilityPage.reload({waitUntil:'networkidle0'});
+ assert.equal(await compatibilityPage.$eval('#magneticGuidesToggle',el=>el.checked),false,'guide setting persists locally');
+ await compatibilityPage.$eval('#magneticGuidesToggle',el=>{el.checked=true;el.dispatchEvent(new Event('change',{bubbles:true}));});
+ // Drag the *second* visible copy of a repeated line, not its first instance.
+ // Repeated instances share the node's template geometry; none should be
+ // excluded from guide calculations or trigger a detached-SVG exception.
+ await compatibilityPage.$eval('#fileInput',(input,raw)=>{
+  const transfer=new DataTransfer();transfer.items.add(new File([raw],'sparse.xtemplate',{type:'application/json'}));
+  input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(compatibleDoc));
+ await compatibilityPage.waitForSelector('g[data-path="items.0.children.0"] .svg-hitbox');
+ const secondInstance=await compatibilityPage.$$eval('g[data-path="items.0.children.0"] .svg-hitbox',items=>{
+  const rect=items[1].getBoundingClientRect();return{x:rect.left+rect.width/2,y:rect.top+rect.height/2};
+ });
+ await compatibilityPage.mouse.move(secondInstance.x,secondInstance.y);
+ await compatibilityPage.mouse.down();
+ await compatibilityPage.mouse.move(secondInstance.x+16,secondInstance.y,{steps:9});
+ await compatibilityPage.mouse.up();
+ const repeatedEdited=JSON.parse(await compatibilityPage.$eval('#jsonEditor',el=>el.value));
+ assert.notEqual(repeatedEdited.items[0].children[0].x,'90mm','dragging a repeated copy edits the shared template node');
+ await compatibilityPage.close();
+ assert.deepEqual(errors,[],'no errors for sparse multi-edit or repeated snapping');
+ console.log('PASS: sparse property compatibility, repeated geometry guides and Settings toggle');
  console.log('PASS: hierarchical Ctrl-selection and compatible batch edits');
  console.log('PASS: document modal, quick colors, Page hierarchy, themes and rotation controls');
  console.log('PASS: SVG selection, transform handles, live drag, marquee and object-to-object smart guides');

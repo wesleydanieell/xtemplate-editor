@@ -226,3 +226,11 @@ O zoom por botões e pelo menu **View** passa a preservar o centro visual atual 
 ### Cores de organização em lote
 
 Selecione duas ou mais camadas na **Structure** com **Ctrl/Cmd** ou **Shift**, inclusive entre grupos e níveis hierárquicos. Clique no **indicador de cor** de qualquer uma das camadas selecionadas, ou clique com o botão direito em uma delas e escolha **Organization color**: as sete opções, a cor personalizada e **Clear color** serão aplicadas **a todos os itens selecionados**. O seletor mostra quantas camadas serão afetadas. Se clicar no indicador de uma camada fora da seleção atual, somente essa camada receberá a cor. Etiquetas são locais ao navegador/editor e não afetam o Stroke, Fill ou o arquivo `.xtemplate` exportado.
+
+### Edição simultânea: compatibilidade por tipo
+
+Na aba **Structure**, selecione várias camadas com **Ctrl/Cmd** ou **Shift**. A aba **Element** permite editar em conjunto todas as propriedades que fazem sentido para **todos os tipos selecionados**, mesmo quando o atributo opcional não está explicitamente escrito em algum deles. Por exemplo, duas `hline` sempre podem editar `y`, `x1`, `x2`, `stroke` e `strokeWidth`, mesmo que uma delas omita `x1` e/ou `x2`. A apresentação considera os valores padrão do formato ou indica que um valor é herdado/não definido. Um atributo só é gravado nos elementos quando o campo é alterado; os demais atributos e a hierarquia são preservados. Campos incompatíveis com algum tipo da seleção continuam ocultos (por exemplo, `period` só existe em tipos que o suportam).
+
+### Guias magnéticas de alinhamento
+
+Em **Settings → Magnetic guides**, ative ou desative o encaixe ao mover objetos; a preferência permanece salva localmente no navegador. As guias usam a geometria **visível** (e não a área transparente usada para clique), incluindo linhas, curvas, grupos, elementos com rotação e cópias renderizadas por `repeat`. O alinhamento compara bordas e centros dos elementos com outros objetos e com a página, respeitando a proximidade de aproximadamente 7 pixels na tela. Quando desativadas, nem o encaixe nem as linhas-guia são produzidos. A configuração não é incluída no `.xtemplate` exportado.
