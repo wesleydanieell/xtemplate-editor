@@ -176,3 +176,35 @@ O GitHub Actions executa esse teste com o Chrome instalado no runner. Testes de 
 Com a ferramenta **V (Select)**, arraste um elemento em direção às bordas ou centros de outros elementos, inclusive elementos dentro de grupos. O editor destaca pontos de referência e exibe uma **guia rosa curta ligando os objetos** quando encontra um alinhamento dentro da tolerância de aproximadamente 7 pixels de tela. Ao soltar, o elemento fica encaixado na coordenada da guia. Também há referências para bordas e centros da página, mostradas com guias que atravessam a página. As guias desaparecem após o arraste; elas servem apenas ao editor e **não** são exportadas para `.xtemplate`.
 
 Para textos, há contorno de seleção e uma alça de rotação; o tamanho do texto continua configurado pela propriedade **Size**. Nós `repeat` são editados no painel de propriedades; encaixe magnético automático não é aplicado ao arraste de ocorrências repetidas.
+
+### Espaço de trabalho e aparência (desenvolvimento)
+
+- **File → Document properties…** abre uma janela para metadados, tamanho de página de prévia e cores de referência do editor. O botão **Done** permanece acessível enquanto os campos rolam. **Selecionar Page na Structure mostra esses mesmos campos na aba Element**, sem modal. Não existem cópias divergentes do formulário: ele é reaproveitado nos dois locais.
+- As cores de prévia **Ink** e **Accent** também aparecem junto ao cabeçalho do canvas. Os dois conjuntos de seletores são sincronizados. Cor de prévia e tamanho de página são ajustes locais do editor, não novos campos do `.xtemplate` exportado.
+- A **Page** é o nível raiz da árvore **Structure**. Os primeiros nós estão recuados como seus filhos, e cada grupo aumenta o recuo.
+- Em **Settings → Appearance**, selecione **Graphite**, **Dusk Blue** ou **Midnight**. A preferência fica no `localStorage` deste navegador e não modifica o template.
+- **Transformação:** X, Y, largura e altura usam campos numéricos precisos e rótulos que podem ser arrastados horizontalmente (*scrubby fields*). Opacidade usa slider. Rotação oferece um dial circular (Shift para ajuste de 0,1°), atalhos de 0°/45°/90°/180° e campo numérico que aceita ângulos exatos. Valores de comprimento e expressões do XTemplate continuam disponíveis nos campos avançados.
+
+Esses recursos não precisam de dependências adicionais em runtime e funcionam tanto na versão web portátil quanto no empacotamento desktop Tauri, após uma nova compilação.
+
+### Sugestões e formatos de valores
+
+Ao focar um campo compatível em **Element**, surge uma lista de variáveis com nome, tipo, rótulo e valor padrão, usando as cores do tema. Digitar filtra as opções; setas ↑/↓ navegam, **Enter** insere e **Esc** fecha. Para expressões, o editor substitui somente o identificador sob o cursor (por exemplo, `W * spa` → `W * spacing`), sem apagar os outros termos. Campos de Stroke/Fill sugerem apenas tokens de cor (`ink`, `accent`, `none`) e variáveis do tipo `color`.
+
+Os campos exibem pequenas indicações sobre o formato aceito, como `mm`, porcentagem, HEX ou expressão. O seletor **Type** das variáveis também explica com exemplos o significado de `length`, `color`, `number` e `integer`.
+
+### Organizar camadas por nome e cor na Structure
+
+- **Renomear:** dê um duplo clique no nome da camada ou selecione-a e pressione **F2**. Confirme com **Enter**, cancele com **Esc**. O nome do elemento faz parte do JSON `.xtemplate`.
+- **Cor de identificação:** clique no ponto colorido ao lado da camada para escolher uma das sete cores ou uma personalizada; **Clear color** remove a marca. A cor identifica a camada e seu ícone na árvore, sem alterar o preenchimento ou traço do desenho.
+- **Importante:** as cores de organização são **somente do editor**, salvas no armazenamento local do navegador para cada ID de documento e caminho da camada. Elas **não** são incluídas no `.xtemplate` exportado e portanto não são transferidas com o arquivo para outros navegadores/dispositivos. Em edições estruturais amplas ou reimportações, as identificações podem precisar ser reaplicadas.
+
+### Seleção entre níveis diferentes da Structure
+
+Use **Ctrl/Cmd + clique** para selecionar camadas de qualquer nível da árvore, incluindo grupo e descendente ao mesmo tempo. **Shift + clique** seleciona o intervalo visível na árvore, atravessando grupos e níveis de profundidade; **Ctrl/Cmd + Shift + clique** adiciona um intervalo à seleção existente. A aba **Element** só apresenta propriedades que **existem explicitamente em todos os nós selecionados**, e alterações feitas ali são aplicadas a todos eles. Propriedades incompatíveis ficam ocultas. Ações que reorganizam camadas exigem irmãos no mesmo grupo, enquanto exclusão e recorte ignoram descendentes cujo ancestral já será removido, para não processar duas vezes a mesma árvore. Ao selecionar vários níveis, use preferencialmente o painel Element para edição conjunta.
+
+O zoom por botões e pelo menu **View** passa a preservar o centro visual atual da página ao alternar escalas; o zoom com Alt + roda do mouse continua ancorado no ponteiro.
+
+### Cores de organização em lote
+
+Selecione duas ou mais camadas na **Structure** com **Ctrl/Cmd** ou **Shift**, inclusive entre grupos e níveis hierárquicos. Clique no **indicador de cor** de qualquer uma das camadas selecionadas, ou clique com o botão direito em uma delas e escolha **Organization color**: as sete opções, a cor personalizada e **Clear color** serão aplicadas **a todos os itens selecionados**. O seletor mostra quantas camadas serão afetadas. Se clicar no indicador de uma camada fora da seleção atual, somente essa camada receberá a cor. Etiquetas são locais ao navegador/editor e não afetam o Stroke, Fill ou o arquivo `.xtemplate` exportado.

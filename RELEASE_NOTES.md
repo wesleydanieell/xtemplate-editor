@@ -1,20 +1,25 @@
-# XTemplate Studio — v0.1.0-alpha.2
+# XTemplate Studio — v0.1.0-alpha.3
 
-Segunda versão alpha: o editor visual de `.xtemplate` agora também é distribuído como **aplicativo Linux AppImage**.
+Terceira versão alpha do editor offline para `.xtemplate`, incluindo os PRs #1–#5.
 
 ## Novidades
 
-- AppImage Linux x86_64 com Tauri 2, sem necessidade de instalar Python nem iniciar servidor HTTP.
-- Janela de aplicativo independente, com ícone e recursos web incorporados offline.
-- Fluxo de builds automatizado no GitHub Actions usando Ubuntu 22.04; o ZIP web continua disponível.
-- Mesmas ferramentas de edição visual, importação/exportação de `.xtemplate`, árvores de elementos, parâmetros e editor JSON da alpha anterior.
+- Estrutura e camadas: seleção mista (Ctrl/Shift), reorganização segura entre grupos, renomeação por F2, etiquetas de cor por camada e ações de organização no clique direito.
+- Canvas: seleção e alças estáveis, arraste com prévia ao vivo, guias magnéticas para centros/bordas da página e outros elementos, incluindo elementos de grupos.
+- Interface desktop: menus File, Edit, View, Insert e Settings; propriedades do arquivo em uma janela separada e no painel Element ao selecionar Page; cores de prévia rápidas.
+- Três temas — Graphite, Dusk Blue e Midnight — com preferências locais; espaçamentos e contraste revisados.
+- Transformações: roda e predefinições de rotação com entrada exata; sugestões de variáveis personalizadas, dicas de formatos e exemplos para tipos de parâmetros.
+- Correções de zoom View, foco indevido de botões, seleção por área, formulário de variáveis e layout responsivo.
+- Segurança, documentação e integração contínua aprimoradas, com testes automatizados de interação real em Chrome/Brave.
 
-## Como usar
+## Download e uso
 
-**Linux (AppImage):** baixe o `.AppImage`, execute `chmod +x nome-do-arquivo.AppImage` e abra. Se houver incompatibilidade com as bibliotecas gráficas da distribuição, utilize o ZIP web.
+**Linux x86_64:** baixe o AppImage, execute `chmod +x nome-do-arquivo.AppImage` e inicie o arquivo. O AppImage usa Tauri 2 / WebKitGTK e não necessita de servidor local.
 
-**Pacote web:** baixe o ZIP, extraia e execute `./start.sh` no Linux (Python 3) ou use um servidor HTTP local em outras plataformas.
+**ZIP web portátil:** baixe, extraia e execute `./start.sh` no Linux (Python 3) ou abra a aplicação a partir de outro servidor HTTP estático.
 
-## Limitações da alpha
+## Observações
 
-A pré-visualização SVG é uma aproximação do renderizador Android; valide no XNotes os arquivos exportados, sobretudo templates complexos, fontes, hachuras e expressões avançadas. O editor ainda exige exportação explícita dos arquivos para salvar seu trabalho. AppImage foi construído para Linux x86_64 e depende da compatibilidade de WebKitGTK e GTK3 no sistema.
+As cores de organização da Structure são **locais ao editor** e não estão embutidas no `.xtemplate`; o nome da camada permanece no JSON exportado. Cores de prévia e tamanho de página também são opções de visualização, não novos campos do arquivo.
+
+O SVG do editor é uma pré-visualização aproximada; confira no XNotes os arquivos exportados, especialmente templates complexos, fontes e expressões avançadas. O trabalho precisa ser exportado para ser salvo como `.xtemplate`.
