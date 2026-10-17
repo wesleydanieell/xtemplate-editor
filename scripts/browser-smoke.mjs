@@ -295,6 +295,12 @@ try{
  const markerColor=await workspacePage.$eval(`.tree-item[data-path="${layerPath}"] .tree-color-control`,el=>getComputedStyle(el).color);
  assert.equal(markerColor,'rgb(232, 121, 121)');
  // The same organization controls are available from right-click on a layer.
+ // Right-click on a DIFFERENT unselected layer must show these actions too.
+ await workspacePage.click('.tree-page');
+ await workspacePage.click(`.tree-item[data-path="${layerPath}"]`,{button:'right'});
+ assert.equal(await workspacePage.$eval('#contextMenu [data-action="rename"]',el=>el.classList.contains('hidden')),false);
+ assert.equal(await workspacePage.$eval('#contextMenu [data-action="layer-color"]',el=>el.classList.contains('hidden')),false);
+ await workspacePage.keyboard.press('Escape');
  await workspacePage.click(`.tree-item[data-path="${layerPath}"]`,{button:'right'});
  assert.equal(await workspacePage.$eval('#contextMenu [data-action="rename"]',el=>el.classList.contains('hidden')),false);
  await workspacePage.click('#contextMenu [data-action="rename"]');

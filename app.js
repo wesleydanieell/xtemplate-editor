@@ -1408,12 +1408,12 @@ function showContextMenu(x,y){
 function hideContextMenu(){
  const menu=$("contextMenu");menu.classList.remove("show-new-submenu","structure-add-only");menu.classList.add("hidden");menu.style.left="-10000px";menu.style.top="-10000px";contextPoint=null;
 }
-function prepareContextMenu(e,targetPath=null,blank=false,point=null){
+function prepareContextMenu(e,targetPath=null,blank=false,point=null,fromStructure=false){
  e.preventDefault();contextPoint=point;
  if(targetPath){if(!selectedPaths.some(p=>nodeKey(p)===nodeKey(targetPath)))select(targetPath);$("contextHeading").textContent="ELEMENT · INSERT / EDIT";}
  else if(blank){selectedPath=null;selectedPaths=[];renderTree();renderInspector();$("contextHeading").textContent="STRUCTURE · NEW ELEMENT";}
  const menu=$("contextMenu"),canEdit=!!selectedPath&&selectedPath[0]!=="__page__";
- const structureItem=!!e.target.closest('#tree .tree-item');
+ const structureItem=fromStructure&&targetPath?.[0]!=="__page__";
  for(const action of ['rename','layer-color']){
   const button=menu.querySelector(`[data-action="${action}"]`);
   if(button){button.classList.toggle('hidden',!structureItem);button.disabled=!canEdit||!structureItem;}
@@ -1422,11 +1422,11 @@ function prepareContextMenu(e,targetPath=null,blank=false,point=null){
  showContextMenu(e.clientX,e.clientY);
 }
 $("tree").addEventListener("contextmenu",e=>{
- const item=e.target.closest(".tree-item");prepareContextMenu(e,item?toPath(item.dataset.path):null,!item,null);
+ const item=e.target.closest(".tree-item");prepareContextMenu(e,item?toPath(item.dataset.path):null,!item,null,Boolean(item));
 });
 document.querySelector(".outline-dock").addEventListener("contextmenu",e=>{
  if(e.target.closest("#tree"))return;
- const item=e.target.closest(".tree-item");prepareContextMenu(e,item?toPath(item.dataset.path):null,!item,null);
+ const item=e.target.closest(".tree-item");prepareContextMenu(e,item?toPath(item.dataset.path):null,!item,null,Boolean(item));
 });
 paper.addEventListener("contextmenu",e=>{
  const g=e.target.closest("[data-path]");
