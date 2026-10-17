@@ -234,3 +234,7 @@ Na aba **Structure**, selecione várias camadas com **Ctrl/Cmd** ou **Shift**. A
 ### Guias magnéticas de alinhamento
 
 Em **Settings → Magnetic guides**, ative ou desative o encaixe ao mover objetos; a preferência permanece salva localmente no navegador. As guias usam a geometria **visível** (e não a área transparente usada para clique), incluindo linhas, curvas, grupos, elementos com rotação e cópias renderizadas por `repeat`. O alinhamento compara bordas e centros dos elementos com outros objetos e com a página, respeitando a proximidade de aproximadamente 7 pixels na tela. Quando desativadas, nem o encaixe nem as linhas-guia são produzidos. A configuração não é incluída no `.xtemplate` exportado.
+
+### Controles de transformação em instâncias de `repeat`
+
+Ao selecionar um elemento filho de `repeat`, o editor mostra as alças de transformação **somente na cópia ativa**, evitando controles sobrepostos em todas as instâncias. Clique em outra cópia no canvas para transferir as alças para ela. Arrastar ou redimensionar qualquer cópia modifica **o único elemento de origem** do template: as demais instâncias são atualizadas automaticamente. O cálculo usa a posição da cópia clicada para interação, mas grava as coordenadas corretas no sistema de referência original, sem acumular o deslocamento de linha/coluna da repetição. Guias magnéticas horizontais também consideram cada linha gerada por `repeat`, não somente o contêiner ou a primeira linha.
