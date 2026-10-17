@@ -517,29 +517,32 @@ try{
  const repeatedHline='g[data-path="items.0.children.0"]';
  assert.equal((await compatibilityPage.$$(repeatedHline)).length,4,'all four horizontal lines must render');
  await compatibilityPage.$eval('.tree-item[data-path="items.0.children.0"]',el=>el.dispatchEvent(new MouseEvent('click',{bubbles:true})));
- const handleCount=await compatibilityPage.$$eval(repeatedHline,nodes=>nodes.map(n=>n.querySelectorAll('[data-handle]').length));
- assert.equal(handleCount.filter(x=>x>0).length,1,'only one repeat copy gets handles');
- assert.equal(handleCount.reduce((a,b)=>a+b,0),3,'hline has end handles and rotation');
- const instance2=await compatibilityPage.$$eval(repeatedHline+' .svg-hitbox',nodes=>{
+ // A repeated child keeps only its two endpoint resize handles, focused on
+ // one copy; the outer repeat block owns the single rotation control.
+ const childHandles=await compatibilityPage.$$eval(repeatedHline,nodes=>nodes.map(n=>n.querySelectorAll('[data-handle]').length));
+ assert.equal(childHandles.filter(x=>x>0).length,1,'one repeat copy may have resize handles');
+ assert.equal(childHandles.reduce((a,b)=>a+b,0),2,'hline keeps only two endpoint resize handles');
+ assert.equal(await compatibilityPage.$$eval(repeatedHline,nodes=>nodes.reduce((count,n)=>count+n.querySelectorAll('[data-handle="rotate"]').length,0)),0,
+  'repeat copies do not each rotate individually');
+ assert.equal(await compatibilityPage.$eval('g[data-path="items.0"]',n=>n.querySelectorAll(':scope > [data-handle="rotate"]').length),1,
+  'repeat must show one rotation handle for its entire bounds');
+ const thirdCopy=await compatibilityPage.$$eval(repeatedHline+' .svg-hitbox',nodes=>{
   const r=nodes[2].getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};
  });
- await compatibilityPage.mouse.click(instance2.x,instance2.y);
+ await compatibilityPage.mouse.click(thirdCopy.x,thirdCopy.y);
  const focusHandles=await compatibilityPage.$$eval(repeatedHline,nodes=>nodes.map(n=>n.querySelectorAll('[data-handle]').length));
- assert.equal(focusHandles.filter(x=>x>0).length,1,'one repeated copy has transform handles');
- assert.equal(focusHandles[2],3,'clicking the third rendered repeat copy relocates its transform handles');
- // Resizing the third instance must change the shared hline's x2 only;
- // it must not accidentally include the repeat row's 40mm Y offset.
- const handlePoint=await compatibilityPage.$$eval(repeatedHline,els=>{
-  const r=els[2].querySelector('[data-handle="e"]').getBoundingClientRect();
-  return{x:r.left+r.width/2,y:r.top+r.height/2};
+ assert.equal(focusHandles[2],2,'third copy gains the two endpoint resize handles');
+ const resizeHandle=await compatibilityPage.$$eval(repeatedHline,nodes=>{
+  const r=nodes[2].querySelector('[data-handle="e"]').getBoundingClientRect();
+  return{x:r.x+r.width/2,y:r.y+r.height/2};
  });
- await compatibilityPage.mouse.move(handlePoint.x,handlePoint.y);
+ await compatibilityPage.mouse.move(resizeHandle.x,resizeHandle.y);
  await compatibilityPage.mouse.down();
- await compatibilityPage.mouse.move(handlePoint.x+12,handlePoint.y,{steps:8});
+ await compatibilityPage.mouse.move(resizeHandle.x+12,resizeHandle.y,{steps:8});
  await compatibilityPage.mouse.up();
- const resizedHline=JSON.parse(await compatibilityPage.$eval('#jsonEditor',el=>el.value));
- assert(parseFloat(resizedHline.items[0].children[0].x2)>90,'resizing a repeated copy must update shared endpoint');
- assert(Math.abs(parseFloat(resizedHline.items[0].children[0].y))<0.01,'resizing must not add the row translation to node Y');
+ const resized=JSON.parse(await compatibilityPage.$eval('#jsonEditor',el=>el.value));
+ assert(parseFloat(resized.items[0].children[0].x2)>90,'resizing third copy must change shared x2');
+ assert(Math.abs(parseFloat(resized.items[0].children[0].y))<0.01,'resizing must not bake repeat Y offset');
  const mover=await compatibilityPage.$eval('g[data-path="items.1"] .svg-hitbox',node=>{
   const r=node.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};
  });
@@ -554,42 +557,62 @@ try{
  const afterHorizontal=JSON.parse(await compatibilityPage.$eval('#jsonEditor',el=>el.value));
  assert(Math.abs(parseFloat(afterHorizontal.items[1].y)-40)<0.25,
   `repeat hline should snap y=40: ${afterHorizontal.items[1].y}`);
- // Rotation is 2D around the clicked copy's own center, not the first
- // repeat cell's center (which produces a wild orbit / fake 3D effect).
- const rotateDoc={xtemplate:1,id:'test.repeat.rotate',name:'Repeat rotation',params:{},items:[
-  {type:'repeat',axis:'y',period:'30mm',count:3,children:[
-   {type:'rect',x:'48mm',y:'3mm',w:'24mm',h:'10mm',stroke:'ink',fill:'none'},
+ // Rigid rotation of repeated lines around the *whole collection* center.
+ // Distances between endpoints and line spacing must be preserved.
+ const rotateDoc={xtemplate:1,id:'test.repeat.rotate.block',name:'Repeat block rotation',params:{},items:[
+  {type:'repeat',axis:'y',period:'20mm',count:4,children:[
+   {type:'hline',x1:'40mm',x2:'120mm',y:'0mm',stroke:'ink'},
+   {type:'text',text:'Text',x:'42mm',y:'10mm',fill:'ink'},
   ]},
  ]};
  await compatibilityPage.$eval('#fileInput',(input,raw)=>{
   const transfer=new DataTransfer();transfer.items.add(new File([raw],'rotation.xtemplate',{type:'application/json'}));
   input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
  },JSON.stringify(rotateDoc));
- await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Repeat rotation');
+ await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Repeat block rotation');
  const copyPath='g[data-path="items.0.children.0"]';
- assert.equal((await compatibilityPage.$$(copyPath)).length,3);
- const copyPosition=await compatibilityPage.$$eval(copyPath+' .svg-hitbox',nodes=>{
-  const r=nodes[2].getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};
+ assert.equal((await compatibilityPage.$$(copyPath)).length,4);
+ await compatibilityPage.$eval('.tree-item[data-path="items.0"]',n=>n.dispatchEvent(new MouseEvent('click',{bubbles:true})));
+ const beforeGeometry=await compatibilityPage.evaluate(()=>{
+  const lines=[...document.querySelectorAll('g[data-path="items.0.children.0"] > line')];
+  return lines.map(line=>({x1:+line.getAttribute('x1'),x2:+line.getAttribute('x2'),y:+line.getAttribute('y1')}));
  });
- await compatibilityPage.mouse.click(copyPosition.x,copyPosition.y);
- const rotationGeometry=await compatibilityPage.$$eval(copyPath,nodes=>{
-  const item=nodes[2],center=item.querySelector('.svg-hitbox').getBoundingClientRect(),h=item.querySelector('[data-handle="rotate"]').getBoundingClientRect();
-  return{cx:center.left+center.width/2,cy:center.top+center.height/2,hx:h.left+h.width/2,hy:h.top+h.height/2};
+ const pivot=await compatibilityPage.$eval('g[data-path="items.0"]',element=>{
+  const frame=element.querySelector(':scope > .repeat-selection').getBoundingClientRect();
+  const handle=element.querySelector(':scope > [data-handle="rotate"]').getBoundingClientRect();
+  return{cx:frame.left+frame.width/2,cy:frame.top+frame.height/2,
+   hx:handle.left+handle.width/2,hy:handle.top+handle.height/2};
  });
- const radius=Math.hypot(rotationGeometry.hx-rotationGeometry.cx,rotationGeometry.hy-rotationGeometry.cy);
- await compatibilityPage.mouse.move(rotationGeometry.hx,rotationGeometry.hy);
+ const r=Math.hypot(pivot.hx-pivot.cx,pivot.hy-pivot.cy);
+ await compatibilityPage.mouse.move(pivot.hx,pivot.hy);
  await compatibilityPage.mouse.down();
- await compatibilityPage.mouse.move(rotationGeometry.cx+radius,rotationGeometry.cy,{steps:14});
+ await compatibilityPage.mouse.move(pivot.cx+r,pivot.cy,{steps:14});
  await compatibilityPage.mouse.up();
- const rotationResult=JSON.parse(await compatibilityPage.$eval('#jsonEditor',el=>el.value));
- assert(Math.abs(Number(rotationResult.items[0].children[0].rotate)-90)<6,
-  `turning third repeat copy 90° clockwise should rotate on Z, got ${rotationResult.items[0].children[0].rotate}`);
- const rotationTransforms=await compatibilityPage.$$eval(copyPath,nodes=>nodes.map(el=>el.getAttribute('transform')));
- assert(rotationTransforms.every(t=>t?.startsWith('rotate(')),`all repeat copies must share in-plane SVG rotation: ${rotationTransforms}`);
- const centers=rotationTransforms.map(t=>t.match(/rotate\([^ ]+ ([^ ]+) ([^)]+)\)/)?.slice(1).map(Number));
- assert(centers.every(c=>c?.every(Number.isFinite)),`repeat copies need valid per-instance rotation centers: ${rotationTransforms}`);
- assert(Math.abs(centers[2][1]-centers[0][1]-60)<0.01,
-  `repeat copy pivots must differ by two row periods: ${JSON.stringify(centers)}`);
+ const rotated=JSON.parse(await compatibilityPage.$eval('#jsonEditor',el=>el.value));
+ assert(Math.abs(rotated.items[0].rotate-90)<6,`repeat should rotate the entire block 90°: ${rotated.items[0].rotate}`);
+ assert.equal(rotated.items[0].children[0].rotate,undefined,'rotation must not be written to child hline');
+ const result=await compatibilityPage.$eval('g[data-path="items.0"]',element=>({
+  transform:element.getAttribute('transform'),
+  childTransforms:[...element.querySelectorAll('g[data-path="items.0.children.0"]')].map(el=>el.getAttribute('transform')),
+ }));
+ assert(result.transform.startsWith('rotate('),'repeat parent must own the rotation transform');
+ assert(result.childTransforms.every(x=>!x),'repeat children should keep untransformed shared geometry');
+ assert(await compatibilityPage.$$eval('g[data-path="items.0.children.1"] text',els=>els.every(el=>!el.getAttribute('transform'))),
+  'text children must not inherit the parent repeat rotation a second time');
+ const afterGeometry=await compatibilityPage.evaluate(()=>{
+  const lines=[...document.querySelectorAll('g[data-path="items.0.children.0"] > line')];
+  return lines.map(line=>{
+   const paper=document.querySelector('#paper');const m=paper.getScreenCTM().inverse().multiply(line.getScreenCTM());const x1=+line.getAttribute('x1'),x2=+line.getAttribute('x2'),y=+line.getAttribute('y1');
+   return {a:{x:m.a*x1+m.c*y+m.e,y:m.b*x1+m.d*y+m.f},
+    b:{x:m.a*x2+m.c*y+m.e,y:m.b*x2+m.d*y+m.f}};
+  });
+ });
+ assert.equal(afterGeometry.length,4);
+ for(const line of afterGeometry)assert(Math.abs(Math.hypot(line.b.x-line.a.x,line.b.y-line.a.y)-80)<0.1,
+  'rigid 90-degree group rotation must preserve line length');
+ for(let i=1;i<afterGeometry.length;i++)assert(Math.abs(Math.hypot(afterGeometry[i].a.x-afterGeometry[i-1].a.x,afterGeometry[i].a.y-afterGeometry[i-1].a.y)-20)<0.1,
+  'rigid group rotation must preserve repeat spacing');
+ assert.equal(beforeGeometry.length,4);
  await compatibilityPage.close();
  assert.deepEqual(errors,[],'no errors for sparse multi-edit or repeated snapping');
  console.log('PASS: sparse property compatibility, repeated geometry guides and Settings toggle');
