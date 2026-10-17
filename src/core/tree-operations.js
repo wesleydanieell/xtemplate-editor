@@ -59,3 +59,77 @@ export function deleteSiblingNodes(root, paths) {
   for (const index of [...indices].sort((a, b) => b - a)) array.splice(index, 1);
   return { path: null, paths: [], count: indices.length };
 }
+
+/** Atomically reposition a node in its current list, another container or the Page root.
+ * Resolves destination by object identity after removal to avoid index-shift bugs.
+ */
+export function moveNode(root, sourcePath, targetPath = null, placement = "after") {
+  if (!["before", "after", "inside", "root"].includes(placement)) return null;
+  const sourceArray = getAtPath(root, sourcePath?.slice(0, -1));
+  const index = sourcePath?.at(-1);
+  if (!Array.isArray(sourceArray) || !Number.isInteger(index) || index < 0 || index >= sourceArray.length) return null;
+  const node = sourceArray[index];
+  const target = targetPath ? getAtPath(root, targetPath) : null;
+  if (placement !== "root") {
+    if (!target || target === node || !targetPath?.length || sourcePath.join(".") === targetPath.join(".")) return null;
+    if (targetPath.length > sourcePath.length && targetPath.slice(0, sourcePath.length).every((part, i) => part === sourcePath[i])) return null;
+    if (placement === "inside" && !["group", "repeat"].includes(target.type)) return null;
+  }
+  sourceArray.splice(index, 1);
+  let destination, position;
+  if (placement === "root") {
+    destination = root.items;
+    position = destination.length;
+  } else if (placement === "inside") {
+    destination = target.children || (target.children = []);
+    position = destination.length;
+  } else {
+    const parent = findNodePath(root, target);
+    if (!parent) { sourceArray.splice(index, 0, node); return null; }
+    destination = getAtPath(root, parent.slice(0, -1));
+    position = parent.at(-1) + (placement === "after" ? 1 : 0);
+  }
+  destination.splice(position, 0, node);
+  return findNodePath(root, node);
+}
+
+export function findNodePath(root, target) {
+  function visit(nodes, prefix) {
+    for (let i = 0; i < (nodes || []).length; i++) {
+      const path = prefix.concat(i), node = nodes[i];
+      if (node === target) return path;
+      if (["group", "repeat"].includes(node?.type)) {
+        const found = visit(node.children, path.concat("children"));
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+  return visit(root.items, ["items"]);
+}
+
+/** Move a set of sibling layers exactly one slot, preserving their relative order. */
+export function nudgeSiblingNodes(root, paths, direction) {
+  if (direction !== "up" && direction !== "down") return null;
+  const selected = getSiblingSelection(root, paths);
+  if (!selected) return null;
+  const { array, indices } = selected;
+  const nodes = indices.map(index => array[index]), selectedSet = new Set(nodes);
+  let moved = false;
+  if (direction === "up") {
+    for (let i = 1; i < array.length; i++) {
+      if (selectedSet.has(array[i]) && !selectedSet.has(array[i - 1])) {
+        [array[i - 1], array[i]] = [array[i], array[i - 1]];
+        moved = true;
+      }
+    }
+  } else {
+    for (let i = array.length - 2; i >= 0; i--) {
+      if (selectedSet.has(array[i]) && !selectedSet.has(array[i + 1])) {
+        [array[i], array[i + 1]] = [array[i + 1], array[i]];
+        moved = true;
+      }
+    }
+  }
+  return moved ? nodes.map(node => findNodePath(root, node)) : [];
+}

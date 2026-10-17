@@ -1,0 +1,20 @@
+name: Feature request
+description: Propose a workflow or editor improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: usecase
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Suggested behavior
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: How should it affect existing templates or workflows?

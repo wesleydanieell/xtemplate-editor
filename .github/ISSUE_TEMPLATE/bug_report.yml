@@ -1,0 +1,37 @@
+name: Bug report
+description: Report a reproducible problem in the web editor or AppImage
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "For security issues, please follow SECURITY.md instead of posting an exploit here."
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the actual and expected results.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Open…\n2. Select…\n3. Drag…"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: v0.1.0-alpha.2
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options: [Linux AppImage, Linux browser, Windows browser, macOS browser, Android browser, Other]
+  - type: textarea
+    id: logs
+    attributes:
+      label: Screenshots or logs (remove private information)
