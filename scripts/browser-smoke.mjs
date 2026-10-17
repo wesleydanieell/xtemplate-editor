@@ -179,6 +179,21 @@ try{
   input.value='-35.5';input.dispatchEvent(new Event('change',{bubbles:true}));
  });
  assert.equal(Number(await workspacePage.$eval('#transformRotate',el=>el.value)),-35.5);
+ // Containers should have deliberate interior spacing, even in compact widths.
+ const insets=await workspacePage.evaluate(()=>{
+  const px=selector=>{
+   const el=document.querySelector(selector),style=getComputedStyle(el);
+   return {left:parseFloat(style.paddingLeft),right:parseFloat(style.paddingRight),
+    top:parseFloat(style.paddingTop),bottom:parseFloat(style.paddingBottom)};
+  };
+  return {transform:px('#elementInspector .transform-panel'),
+    alignment:px('#elementInspector .alignment-tools'),
+    variable:px('#paramsPanel .param-card')};
+ });
+ for(const [name,value] of Object.entries(insets)){
+  assert(value.left>=8&&value.right>=8&&value.top>=8&&value.bottom>=8,
+   `${name} is missing internal padding: ${JSON.stringify(value)}`);
+ }
  // Inspector layout: rotation presets and the opacity slider must not
  // overlap or escape narrow sidebars, and actions must not hide fields.
  for(const width of [1440,1024,900]){

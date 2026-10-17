@@ -840,3 +840,25 @@
 #elementInspector .inspector-actions{position:static;bottom:auto;background:transparent;margin:18px 0 8px;padding:12px 0;border-top:1px solid var(--ui-divider)}
 #elementInspector .inspector-actions button{min-width:0}
 #elementInspector .transform-panel .inspector-tip{margin:10px 0 2px}
+
+/* Inspector container insets. Keep headings, controls and notes away from
+   the borders regardless of selected node type or active theme. */
+#propertiesPanel{--inspector-inset:12px;--inspector-stack-gap:12px}
+#elementInspector .transform-panel,
+#propertiesPanel .selection-arrange{padding:var(--inspector-inset);}
+#elementInspector .alignment-tools{padding:10px;margin:10px 0 13px}
+#propertiesPanel .selection-arrange>.transform-title{margin-bottom:10px}
+#propertiesPanel .selection-arrange>.inspector-tip{margin:10px 0 2px}
+#propertiesPanel .inspector-details[open]>.details-body{padding:10px 12px 12px}
+#propertiesPanel .inspector-details:not([open])>.details-body{padding:0}
+#propertiesPanel .inspector-details>summary{padding:10px 12px}
+#elementInspector .advanced-inspector{padding:14px 2px 5px}
+#elementInspector .advanced-inspector>.advanced-heading{margin:10px 0 9px}
+#elementInspector .advanced-inspector>.field,
+#elementInspector .advanced-inspector>.field-row{margin-top:8px;margin-bottom:12px}
+#elementInspector .transform-panel>.inspector-tip{margin:12px 1px 1px;line-height:1.5}
+#paramsPanel .param-card{padding:12px;margin:10px 0}
+#paramsPanel .param-card-head{margin-bottom:11px}
+#paramsPanel .param-grid{gap:10px}
+#propertiesPanel .multi-property-inspector{padding:0 2px 14px}
+#propertiesPanel .multi-property-inspector>.field{margin:12px 0}
