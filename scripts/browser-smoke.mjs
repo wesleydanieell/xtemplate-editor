@@ -102,5 +102,56 @@ try{
   'selected text should provide a rotation handle');
  await guidesPage.close();
  assert.deepEqual(errors,[],'no browser errors after object snapping and text selection');
+ // Editor UI regression: document modal, nested Page hierarchy, color sync,
+ // theme persistence and quick rotation while preserving precise numeric input.
+ const workspacePage=await browser.newPage();
+ await workspacePage.setViewport({width:1440,height:900});
+ workspacePage.on('pageerror',error=>errors.push(error.message));
+ await workspacePage.goto(`http://127.0.0.1:${port}/`,{waitUntil:'networkidle0'});
+ await workspacePage.click('[data-menu="settingsMenu"]');
+ await workspacePage.select('#themeSelect','midnight');
+ assert.equal(await workspacePage.$eval('html',el=>el.dataset.theme),'midnight');
+ await workspacePage.reload({waitUntil:'networkidle0'});
+ assert.equal(await workspacePage.$eval('html',el=>el.dataset.theme),'midnight','theme must persist');
+ await workspacePage.click('[data-menu="fileMenu"]');
+ await workspacePage.click('#fileInfoBtn');
+ assert.equal(await workspacePage.$eval('#filePropertiesModal',el=>el.classList.contains('hidden')),false);
+ assert(await workspacePage.$('#documentPanel #metaName'),'metadata must be in the modal');
+ await workspacePage.$eval('#inkColor',input=>{
+  input.value='#123456';input.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ assert.equal(await workspacePage.$eval('#quickInkColor',input=>input.value),'#123456');
+ await workspacePage.select('#filePageSize','a5');
+ assert.equal(await workspacePage.$eval('#paperSize',input=>input.value),'a5');
+ await workspacePage.click('#filePropertiesModal [data-close-modal="filePropertiesModal"]');
+ await workspacePage.$eval('#quickAccentColor',input=>{
+  input.value='#abcdef';input.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ assert.equal(await workspacePage.$eval('#accentColor',input=>input.value),'#abcdef');
+ await workspacePage.click('[data-menu="insertMenu"]');
+ await workspacePage.click('#insertMenu [data-menu-action="insert-rect"]');
+ const nesting=await workspacePage.evaluate(()=>({
+  page:parseFloat(getComputedStyle(document.querySelector('.tree-page')).paddingLeft),
+  child:parseFloat(getComputedStyle(document.querySelector('[data-path="items.1"]')).paddingLeft),
+ }));
+ assert(nesting.child>=nesting.page+15,'root layers must be visually nested under Page');
+ await workspacePage.click('[data-rotation-preset="90"]');
+ assert.equal(Number(await workspacePage.$eval('#transformRotate',el=>el.value)),90);
+ const wheel=await workspacePage.$eval('#rotationWheel',el=>el.getBoundingClientRect().toJSON());
+ const cx=wheel.x+wheel.width/2,cy=wheel.y+wheel.height/2;
+ await workspacePage.mouse.move(cx,cy);await workspacePage.mouse.down();
+ await workspacePage.mouse.move(cx+wheel.width*.35,cy,{steps:4});await workspacePage.mouse.up();
+ assert.equal(Number(await workspacePage.$eval('#transformRotate',el=>el.value)),90);
+ // Exact values remain possible even after coarse pointer adjustment.
+ await workspacePage.$eval('#transformRotate',input=>{
+  input.value='-35.5';input.dispatchEvent(new Event('change',{bubbles:true}));
+ });
+ assert.equal(Number(await workspacePage.$eval('#transformRotate',el=>el.value)),-35.5);
+ // Editor colors and themes should not introduce new fields in exported template JSON.
+ const docJson=JSON.parse(await workspacePage.$eval('#jsonEditor',el=>el.value));
+ assert(!Object.hasOwn(docJson,'theme')&&!Object.hasOwn(docJson,'previewColors'));
+ assert.deepEqual(errors,[]);
+ await workspacePage.close();
+ console.log('PASS: document modal, quick colors, Page hierarchy, themes and rotation controls');
  console.log('PASS: SVG selection, transform handles, live drag, marquee and object-to-object smart guides');
 }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}

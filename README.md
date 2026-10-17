@@ -176,3 +176,13 @@ O GitHub Actions executa esse teste com o Chrome instalado no runner. Testes de 
 Com a ferramenta **V (Select)**, arraste um elemento em direção às bordas ou centros de outros elementos, inclusive elementos dentro de grupos. O editor destaca pontos de referência e exibe uma **guia rosa curta ligando os objetos** quando encontra um alinhamento dentro da tolerância de aproximadamente 7 pixels de tela. Ao soltar, o elemento fica encaixado na coordenada da guia. Também há referências para bordas e centros da página, mostradas com guias que atravessam a página. As guias desaparecem após o arraste; elas servem apenas ao editor e **não** são exportadas para `.xtemplate`.
 
 Para textos, há contorno de seleção e uma alça de rotação; o tamanho do texto continua configurado pela propriedade **Size**. Nós `repeat` são editados no painel de propriedades; encaixe magnético automático não é aplicado ao arraste de ocorrências repetidas.
+
+### Espaço de trabalho e aparência (desenvolvimento)
+
+- **File → Document properties…** abre uma janela para metadados, tamanho de página de prévia e cores de referência do editor. O botão **Done** permanece acessível enquanto os campos rolam; clicar em **Page** na árvore abre a mesma janela.
+- As cores de prévia **Ink** e **Accent** também aparecem junto ao cabeçalho do canvas. Os dois conjuntos de seletores são sincronizados. Cor de prévia e tamanho de página são ajustes locais do editor, não novos campos do `.xtemplate` exportado.
+- A **Page** é o nível raiz da árvore **Structure**. Os primeiros nós estão recuados como seus filhos, e cada grupo aumenta o recuo.
+- Em **Settings → Appearance**, selecione **Graphite**, **Dusk Blue** ou **Midnight**. A preferência fica no `localStorage` deste navegador e não modifica o template.
+- **Transformação:** X, Y, largura e altura usam campos numéricos precisos e rótulos que podem ser arrastados horizontalmente (*scrubby fields*). Opacidade usa slider. Rotação oferece um dial circular (Shift para ajuste de 0,1°), atalhos de 0°/45°/90°/180° e campo numérico que aceita ângulos exatos. Valores de comprimento e expressões do XTemplate continuam disponíveis nos campos avançados.
+
+Esses recursos não precisam de dependências adicionais em runtime e funcionam tanto na versão web portátil quanto no empacotamento desktop Tauri, após uma nova compilação.
