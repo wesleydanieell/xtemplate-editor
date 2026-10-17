@@ -41,11 +41,22 @@ function loadLayerColors(){
  catch{layerColors={};}
 }
 function saveLayerColors(){try{localStorage.setItem(layerColorStorageKey(),JSON.stringify(layerColors));}catch{}}
-function setLayerColor(path,color){
- const key=nodeKey(path),valid=validLayerColor(color);
- if(valid)layerColors[key]=valid;else delete layerColors[key];
+function setLayerColors(paths,color){
+ const valid=validLayerColor(color);
+ for(const path of paths){
+  if(!Array.isArray(path)||path[0]!=="items"||!getAt(path))continue;
+  const key=nodeKey(path);
+  if(valid)layerColors[key]=valid;else delete layerColors[key];
+ }
  saveLayerColors();renderTree();
 }
+function layerColorTargets(path){
+ // An unselected layer receives its own tag; clicking a selected layer's
+ // marker edits the entire visible multi-selection, including descendants.
+ const selected=selectedPaths.filter(p=>p?.[0]==="items"&&getAt(p));
+ return selected.some(p=>nodeKey(p)===nodeKey(path))?selected.map(p=>p.slice()):[path.slice()];
+}
+function setLayerColor(path,color){setLayerColors([path],color);}
 function resetLayerColors(){layerColors={};}
 function snapshotLayerMarkers(){
  const entries=[];
@@ -282,20 +293,23 @@ document.body.appendChild(layerColorPicker);
 let activeColorLayer=null;
 function closeLayerColorPicker(){layerColorPicker.classList.add("hidden");layerColorPicker.replaceChildren();activeColorLayer=null;}
 function openLayerColorPicker(path,anchor){
- closeLayerColorPicker();activeColorLayer=path.slice();
- const title=document.createElement("div");title.className="layer-color-heading";title.textContent="LAYER COLOR";
+ closeLayerColorPicker();
+ const targets=layerColorTargets(path);
+ activeColorLayer=path.slice();
+ const title=document.createElement("div");title.className="layer-color-heading";
+ title.textContent=targets.length>1?"COLOR · "+targets.length+" SELECTED":"LAYER COLOR";
  const palette=document.createElement("div");palette.className="layer-color-swatches";
  for(const color of LAYER_COLORS){
   const swatch=document.createElement("button");swatch.type="button";swatch.className="layer-color-swatch";
   swatch.style.setProperty("--swatch-color",color);swatch.title=color;swatch.setAttribute("aria-label","Set color "+color);
-  swatch.addEventListener("click",()=>{setLayerColor(path,color);closeLayerColorPicker();});
+  swatch.addEventListener("click",()=>{setLayerColors(targets,color);closeLayerColorPicker();});
   palette.appendChild(swatch);
  }
  const footer=document.createElement("div");footer.className="layer-color-footer";
  const custom=document.createElement("input");custom.type="color";custom.value=layerColors[nodeKey(path)]||LAYER_COLORS[0];custom.setAttribute("aria-label","Custom layer color");
- custom.addEventListener("input",()=>{setLayerColor(path,custom.value);closeLayerColorPicker();});
+ custom.addEventListener("input",()=>{setLayerColors(targets,custom.value);closeLayerColorPicker();});
  const clear=document.createElement("button");clear.type="button";clear.textContent="Clear color";
- clear.addEventListener("click",()=>{setLayerColor(path,null);closeLayerColorPicker();});
+ clear.addEventListener("click",()=>{setLayerColors(targets,null);closeLayerColorPicker();});
  footer.append(custom,clear);layerColorPicker.append(title,palette,footer);
  const rect=anchor.getBoundingClientRect();
  layerColorPicker.classList.remove("hidden");

@@ -385,6 +385,36 @@ try{
  assert([updated.items[0],updated.items[0].children[0],updated.items[0].children[1].children[0],updated.items[1]].every(n=>n.stroke==='accent'),
   'batch edit must reach each selected element across nested levels');
  assert.equal(updated.items[0].children.length,2,'batch edit must preserve hierarchy');
+ const taggedPaths=['items.0','items.0.children.0','items.0.children.1.children.0','items.1'];
+ const tagState=async()=>nestingPage.$$eval('#tree .tree-item.active[data-path]',rows=>rows.map(el=>({
+  path:el.dataset.path,marked:el.classList.contains('tree-is-colored'),
+  color:getComputedStyle(el.querySelector('.tree-color-control')).color,
+ })));
+ // The dot on an already selected layer must apply the tag to all levels.
+ await nestingPage.click('.tree-item[data-path="items.0.children.0"] .tree-color-control');
+ assert.match(await nestingPage.$eval('.layer-color-heading',el=>el.textContent),/4 SELECTED/);
+ await nestingPage.click('.layer-color-swatch');
+ const colored=await tagState();
+ assert.deepEqual(colored.map(x=>x.path),taggedPaths);
+ assert(colored.every(x=>x.marked&&x.color==='rgb(232, 121, 121)'),
+  'batch color must apply to every selected layer regardless of nesting');
+ // Right-click a selected item should retain the group selection and clear all.
+ await nestingPage.click('.tree-item[data-path="items.1"]',{button:'right'});
+ await nestingPage.click('#contextMenu [data-action="layer-color"]');
+ assert.match(await nestingPage.$eval('.layer-color-heading',el=>el.textContent),/4 SELECTED/);
+ await nestingPage.click('.layer-color-footer button');
+ assert((await tagState()).every(x=>!x.marked),'clear color must affect every selected layer');
+ // Clicking the dot on an unselected layer must NOT recolor the selected group.
+ await nestingPage.keyboard.down('Control');
+ await nestingPage.click('.tree-item[data-path="items.1"]');
+ await nestingPage.keyboard.up('Control');
+ await nestingPage.click('.tree-item[data-path="items.1"] .tree-color-control');
+ assert.match(await nestingPage.$eval('.layer-color-heading',el=>el.textContent),/LAYER COLOR/);
+ await nestingPage.click('.layer-color-swatch');
+ assert.equal(await nestingPage.$eval('.tree-item[data-path="items.1"]',el=>el.classList.contains('tree-is-colored')),true);
+ assert.equal(await nestingPage.$eval('.tree-item[data-path="items.0.children.0"]',el=>el.classList.contains('tree-is-colored')),false);
+ const exportWithColors=JSON.parse(await nestingPage.$eval('#jsonEditor',el=>el.value));
+ assert(!JSON.stringify(exportWithColors).includes('layerColor'),'editor-only color must not leak into export');
  await nestingPage.close();
  assert.deepEqual(errors,[],'nested UI selection must not throw');
  console.log('PASS: hierarchical Ctrl-selection and compatible batch edits');
