@@ -5,7 +5,7 @@ import shutil
 
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "dist-web"
-FILES = ("index.html", "app.js", "styles.css")
+FILES = ("index.html", "app.js", "styles.css", "favicon.svg")
 DIRS = ("src", "examples")
 
 if DIST.exists():

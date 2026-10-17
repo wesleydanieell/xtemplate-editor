@@ -155,3 +155,7 @@ O projeto é público e recebe issues e pull requests. Veja [CONTRIBUTING.md](CO
 - **Shift+clique** seleciona o intervalo de camadas visíveis na árvore, mesmo que os tipos sejam diferentes. **Ctrl+Shift+clique** acrescenta esse intervalo à seleção atual.
 - Ao selecionar um grupo e seus filhos simultaneamente, o editor mantém o grupo selecionado para não aplicar a mesma alteração duas vezes.
 - O painel **Element** exibe somente as propriedades que todos os nós selecionados possuem; ordenar/agrupá-los continua sujeito à regra de pertencerem ao mesmo contêiner.
+
+### Menu de aplicativo (versão de desenvolvimento)
+
+A barra superior segue o padrão de aplicativos desktop com **File, Edit, View, Insert e Settings** à esquerda. O nome do documento pode ser editado na aba logo abaixo, e o botão **Export** fica sempre acessível à direita. As ações têm atalhos exibidos nos menus, os menus funcionam com teclado (setas laterais e Esc) e os modelos de exemplo aparecem em **Insert → Example templates**. O idioma fica somente em **Settings**.

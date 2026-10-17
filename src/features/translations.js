@@ -1,5 +1,16 @@
 /** English/Portuguese UI strings kept separate from DOM/event handling. */
 export const pairs = [
+["Edit","Editar"],["View","Exibir"],["Insert","Inserir"],["Settings","Configurações"],
+["New template ","Novo modelo "],["Open… ","Abrir… "],["Export template… ","Exportar modelo… "],
+["Document properties…","Propriedades do documento…"],["Undo ","Desfazer "],["Redo ","Refazer "],
+["Copy ","Copiar "],["Cut ","Recortar "],["Paste ","Colar "],
+["Duplicate ","Duplicar "],["Group selection ","Agrupar seleção "],["Delete selection ","Excluir seleção "],
+["Toggle JSON editor ","Alternar editor JSON "],["Fit page to window","Ajustar página à janela"],
+["Zoom in","Aumentar zoom"],["Zoom out","Reduzir zoom"],["Element properties","Propriedades do elemento"],
+["Template variables","Variáveis do modelo"],["New element… ","Novo elemento… "],
+["Rectangle ","Retângulo "],["Text ","Texto "],["New variable…","Nova variável…"],
+["Example templates","Modelos de exemplo"],["Interface language","Idioma da interface"],
+["Export ","Exportar "],
 ["Standalone template editor · XNotes Android","Editor de templates independente · XNotes Android"],
 ["Layers","Camadas"],["Templates","Modelos"],["STRUCTURE","ESTRUTURA"],["Choose a starting point","Escolha um ponto de partida"],["Open a template to start designing. Export your work before replacing it.","Abra um modelo para começar a criar. Exporte seu trabalho antes de substituí-lo."],["TEMPLATES","MODELOS"],["Advanced geometry","Geometria avançada"],["More properties","Mais propriedades"],["Element type","Tipo de elemento"],["X expression","Expressão X"],["Y expression","Expressão Y"],["Width expression","Expressão de largura"],["Height expression","Expressão de altura"],
 ["ARRANGE SELECTION","ORGANIZAR SELEÇÃO"],["MULTI","MÚLTIPLA"],["Left","Esquerda"],["Center X","Centro X"],["Right","Direita"],["Top","Topo"],["Center Y","Centro Y"],["Bottom","Base"],["Distribute X","Distribuir X"],["Distribute Y","Distribuir Y"],["Align left edges","Alinhar bordas esquerdas"],["Align horizontal centers","Alinhar centros horizontais"],["Align right edges","Alinhar bordas direitas"],["Align top edges","Alinhar bordas superiores"],["Align vertical centers","Alinhar centros verticais"],["Align bottom edges","Alinhar bordas inferiores"],["Distribute horizontal gaps evenly","Distribuir espaçamentos horizontais"],["Distribute vertical gaps evenly","Distribuir espaçamentos verticais"],["Align or distribute multiple selected elements. Hold Ctrl/Cmd and click, or Shift-click in Layers.","Alinhe ou distribua vários elementos selecionados. Use Ctrl/Cmd+clique ou Shift+clique em Camadas."],
