@@ -515,3 +515,6 @@
 .top-export span{margin-left:6px}
 @media(max-width:1080px){.topbar .app-name{display:none}.menubar-left{gap:5px}.app-menu-trigger{padding:6px 8px}}
 @media(max-width:790px){.topbar{height:auto;min-height:48px;padding:6px 8px}.app{height:auto}.menubar-left{width:100%;flex-wrap:wrap}.app-menubar{max-width:100%;overflow:visible}.app-menu-trigger{padding:7px 7px;font-size:11px}.top-actions{margin-left:auto}.top-export{padding:6px 10px}}
+
+/* Never rely on the SVG default (opaque black) when drawing a marquee. */
+#paper .marquee-selection{fill:rgba(100,133,245,.15);stroke:#6485f5;stroke-width:.55;stroke-dasharray:2 1;pointer-events:none;vector-effect:non-scaling-stroke}
