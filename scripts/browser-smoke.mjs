@@ -71,5 +71,36 @@ try{
  await page.mouse.up();
  assert.equal(await page.$('#marquee-selection'),null,'marquee must disappear on pointerup');
  assert.deepEqual(errors,[],'the editor must not log page errors');
- console.log('PASS: SVG selection, transform handles, live drag, marquee appearance and cleanup');
+ // Smart alignment: compare one shape to another, not just page centers.
+ const guidesPage=await browser.newPage();
+ await guidesPage.setViewport({width:1440,height:900});
+ guidesPage.on('pageerror',error=>errors.push(error.message));
+ await guidesPage.goto(`http://127.0.0.1:${port}/`,{waitUntil:'networkidle0'});
+ const insert=async type=>{
+  await guidesPage.click('[data-menu="insertMenu"]');
+  await guidesPage.click(`#insertMenu [data-menu-action="insert-${type}"]`);
+ };
+ const center=path=>guidesPage.$eval(`g[data-path="${path}"] .svg-hitbox`,el=>{
+  const r=el.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};
+ });
+ await insert('rect');await insert('rect');
+ const upper=await center('items.2');
+ await guidesPage.mouse.move(upper.x,upper.y);await guidesPage.mouse.down();
+ await guidesPage.mouse.move(upper.x+100,upper.y,{steps:8});await guidesPage.mouse.up();
+ const lower=await center('items.1');
+ await guidesPage.mouse.move(lower.x,lower.y);await guidesPage.mouse.down();
+ await guidesPage.mouse.move(lower.x+100,lower.y,{steps:9});
+ const objectGuides=await guidesPage.$$eval('#paper .smart-guide',els=>els.map(el=>({
+  kind:el.getAttribute('class'),x:Number(el.getAttribute('x1')),
+ })));
+ assert(objectGuides.some(guide=>guide.kind?.includes('object-guide')&&guide.x>50),
+  'dragging onto another object must display a visible object-reference guide');
+ await guidesPage.mouse.up();
+ assert.equal(await guidesPage.$('#paper .smart-guide'),null,'guide overlays must clear after release');
+ await insert('text');
+ assert.equal(await guidesPage.$eval('g[data-path="items.3"]',el=>el.querySelectorAll('.transform-handle.rotate-handle').length),1,
+  'selected text should provide a rotation handle');
+ await guidesPage.close();
+ assert.deepEqual(errors,[],'no browser errors after object snapping and text selection');
+ console.log('PASS: SVG selection, transform handles, live drag, marquee and object-to-object smart guides');
 }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}
