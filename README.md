@@ -138,3 +138,12 @@ A publicação da alpha é automatizada: tags `v*-alpha.*` executam os testes e 
 ## Contribuir e reportar problemas
 
 O projeto é público e recebe issues e pull requests. Veja [CONTRIBUTING.md](CONTRIBUTING.md) para instruções de desenvolvimento, testes e propostas de mudanças, [SECURITY.md](SECURITY.md) para reportar vulnerabilidades e [LICENSE](LICENSE) para a licença MIT do código do editor. Os exemplos `.xtemplate` podem ter metadados e licenças próprios; consulte cada arquivo antes de reutilizá-los fora do projeto.
+
+### Camadas e propriedades (versão de desenvolvimento)
+
+- Use **duplo clique** ou **F2** em uma camada para dar um nome específico (por exemplo, “Linha do cabeçalho”). Sem nome personalizado, as camadas exibem tipo, ordinal e contexto geométrico.
+- Arraste uma camada para a parte superior/inferior de outra para ordenar, para o centro de um grupo ou repetição para aninhar, ou para **Page** ou o espaço vazio da árvore para retornar à raiz. Arrastar a mesma camada para dentro dela própria ou de seus descendentes é bloqueado.
+- `Alt+↑` e `Alt+↓` movem uma ou várias camadas selecionadas um nível na ordem entre irmãs, sem alterar a ordem relativa entre as selecionadas.
+- `Ctrl+C`, `Ctrl+X` e `Ctrl+V` fazem cópia/corte e colagem entre grupos e raiz. Ao colar com um grupo ou repetição selecionado, o conteúdo é inserido no contêiner.
+- A edição de seleção múltipla exibe apenas propriedades que **todos** os elementos selecionados possuem. Não adiciona implicitamente atributos ausentes ou não compatíveis.
+- Os nomes de camadas (`name` no nó) servem à organização do editor; como nem todos os leitores `.xtemplate` usam esse campo, o desenho final não deve depender dele.

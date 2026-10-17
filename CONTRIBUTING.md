@@ -34,3 +34,7 @@ Documentation of the `.xtemplate` schema: [docs/GUIA-XTEMPLATE.md](docs/GUIA-XTE
 ## License
 
 By submitting a contribution, you agree that your contribution is licensed under the repository's [MIT license](LICENSE).
+
+## Branches, commits e releases
+
+Use uma branch curta por objetivo e commits focados, seguindo preferencialmente `feat:`, `fix:`, `refactor:`, `test:`, `docs:` ou `security:`. Não envie mudanças diretamente à `main`: abra um pull request, aguarde os workflows **Checks** e **Linux AppImage** e faça revisão antes do merge. As releases são geradas apenas por tags versionadas, nunca por commits comuns.
