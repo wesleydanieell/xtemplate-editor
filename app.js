@@ -11,6 +11,7 @@ import { resizePreviewTransform, rotationPreviewTransform, resizedBounds } from 
 import { deleteSiblingNodes, duplicateSiblingNodes, getSiblingSelection as getTreeSiblingSelection, groupSiblingNodes, normalizePaths, sameParent, moveNode, nudgeSiblingNodes } from "./src/core/tree-operations.js";
 import { arrangeBounds } from "./src/features/arrange-selection.js";
 import { sharedEditableProperties } from "./src/core/common-properties.js";
+import { selectTreePaths } from "./src/core/tree-selection.js";
 (() => {
 "use strict";
 const $=id=>document.getElementById(id),NS="http://www.w3.org/2000/svg";
@@ -28,7 +29,7 @@ let smartGuides={x:null,y:null};
 const history=createHistory(JSON.stringify(doc));let historyRestoring=false;
 let pageSize=[210,297],zoomMode="fit",previewValues={},lastValidJson="",expanded=true,clipSerial=0;
 const collapsedTree=new Set();
-let treeDragSource=null;
+let treeDragSource=null,treeSelectionAnchor=null;
 const paper=$("paper"),wrap=$("paperWrap"),jsonEditor=$("jsonEditor");
 function toast(msg){const e=$("toast");e.textContent=msg;e.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>e.classList.remove("show"),2300);$("statusMessage").textContent=msg;}
 function setDirty(v=true){dirty=v;$("dirtyMark").classList.toggle("hidden",!v);$("dirtyMark").title=v?"Unsaved changes":"Saved";}
@@ -246,16 +247,14 @@ function select(path){
 }
 function normalizeSelectedPaths(paths){return normalizePaths(paths);}
 function selectFromTree(path,e){
- if(e.shiftKey&&selectedPath&&sameParent(path,selectedPath)){
-  const siblings=[...$("tree").querySelectorAll(".tree-item")].map(b=>toPath(b.dataset.path)).filter(p=>sameParent(p,path));
-  const a=siblings.findIndex(p=>nodeKey(p)===nodeKey(selectedPath)),b=siblings.findIndex(p=>nodeKey(p)===nodeKey(path));
-  if(a>=0&&b>=0)selectedPaths=siblings.slice(Math.min(a,b),Math.max(a,b)+1);else selectedPaths=[path.slice()];
- }else if(e.ctrlKey||e.metaKey){
-  const key=nodeKey(path),i=selectedPaths.findIndex(p=>nodeKey(p)===key);
-  if(i>=0)selectedPaths.splice(i,1);else selectedPaths.push(path.slice());
- }else selectedPaths=[path.slice()];
- selectedPaths=normalizeSelectedPaths(selectedPaths);
- selectedPath=selectedPaths.length?selectedPaths[selectedPaths.length-1]:null;
+ const visible=[...$("tree").querySelectorAll(".tree-item[data-path]")]
+  .map(button=>toPath(button.dataset.path)).filter(p=>p[0]!=="__page__");
+ const next=selectTreePaths(visible,selectedPaths,treeSelectionAnchor||selectedPath,path,{
+  shift:e.shiftKey,additive:e.ctrlKey||e.metaKey
+ });
+ selectedPaths=next.paths;
+ treeSelectionAnchor=next.anchor;
+ selectedPath=selectedPaths.at(-1)||null;
  for(const p of selectedPaths)for(let i=2;i<p.length;i+=2)collapsedTree.delete(nodeKey(p.slice(0,i)));
  render();setInspectorTab("properties");
 }

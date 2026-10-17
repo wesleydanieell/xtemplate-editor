@@ -147,3 +147,11 @@ O projeto é público e recebe issues e pull requests. Veja [CONTRIBUTING.md](CO
 - `Ctrl+C`, `Ctrl+X` e `Ctrl+V` fazem cópia/corte e colagem entre grupos e raiz. Ao colar com um grupo ou repetição selecionado, o conteúdo é inserido no contêiner.
 - A edição de seleção múltipla exibe apenas propriedades que **todos** os elementos selecionados possuem. Não adiciona implicitamente atributos ausentes ou não compatíveis.
 - Os nomes de camadas (`name` no nó) servem à organização do editor; como nem todos os leitores `.xtemplate` usam esse campo, o desenho final não deve depender dele.
+
+### Seleção de elementos na Structure
+
+- Clique simples seleciona um elemento.
+- **Ctrl+clique** (ou Cmd+clique no macOS) adiciona/remove elementos de qualquer tipo, inclusive de grupos diferentes.
+- **Shift+clique** seleciona o intervalo de camadas visíveis na árvore, mesmo que os tipos sejam diferentes. **Ctrl+Shift+clique** acrescenta esse intervalo à seleção atual.
+- Ao selecionar um grupo e seus filhos simultaneamente, o editor mantém o grupo selecionado para não aplicar a mesma alteração duas vezes.
+- O painel **Element** exibe somente as propriedades que todos os nós selecionados possuem; ordenar/agrupá-los continua sujeito à regra de pertencerem ao mesmo contêiner.
