@@ -916,3 +916,7 @@
 
 .tree-item.tree-is-colored{border-left:3px solid var(--layer-mark);padding-right:1px}
 .tree-item.tree-is-colored .tree-symbol{color:var(--layer-mark)}
+
+/* Magnetic guides are an editor preference, not a template property. */
+.app-menu .settings-toggle{display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:14px;cursor:pointer}
+.app-menu .settings-toggle input[type=checkbox]{width:16px;height:16px;margin:0;flex:0 0 auto;accent-color:var(--accent,#7096dc);cursor:pointer}

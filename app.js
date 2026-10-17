@@ -14,7 +14,7 @@ import { repeatPositions } from "./src/features/repeat-layout.js";
 import { resizePreviewTransform, rotationPreviewTransform, resizedBounds } from "./src/features/resize-preview.js";
 import { deleteSiblingNodes, duplicateSiblingNodes, getSiblingSelection as getTreeSiblingSelection, groupSiblingNodes, normalizePaths, sameParent, moveNode, nudgeSiblingNodes } from "./src/core/tree-operations.js";
 import { arrangeBounds } from "./src/features/arrange-selection.js";
-import { sharedEditableProperties } from "./src/core/common-properties.js";
+import { sharedEditableProperties, editablePropertyValue } from "./src/core/common-properties.js";
 import { selectTreePaths } from "./src/core/tree-selection.js";
 (() => {
 "use strict";
@@ -30,6 +30,9 @@ todo:{xtemplate:1,id:"xtemplate.examples.todo",name:"Checklist",description:"Row
 };
 let doc=clone(samples.ruled),selectedPath=null,selectedPaths=[],dirty=false,drag=null,marqueeState=null,split=false,activeInspector="properties",suppressJson=false,toastTimer,clipboardNodes=[];
 let smartGuides={x:null,y:null},smartGuideSegments={x:null,y:null};
+let magneticGuidesEnabled=true;
+try{magneticGuidesEnabled=localStorage.getItem('xtemplate-magnetic-guides')!=='false';}catch{}
+
 const history=createHistory(JSON.stringify(doc));let historyRestoring=false;
 let pageSize=[210,297],zoomMode="fit",previewValues={},lastValidJson="",expanded=true,clipSerial=0;
 const collapsedTree=new Set();
@@ -527,9 +530,10 @@ function renderInspector(){
 }
 function renderMultiPropertyInspector(root){
  root.replaceChildren();root.className="multi-property-inspector";
- const lead=document.createElement("p");lead.className="section-description";lead.textContent="Editing "+selectedPaths.length+" selected elements. Only properties supported by every selected element are shown; changes apply to all of them.";root.appendChild(lead);
+ const lead=document.createElement("p");lead.className="section-description";lead.textContent="Editing "+selectedPaths.length+" selected elements. Only properties supported by every selected element are shown; missing optional values may be set together.";root.appendChild(lead);
  const nodes=selectedPaths.map(path=>getAt(path)).filter(Boolean);if(nodes.length!==selectedPaths.length)return;
- // Mixed-type edits are allowed, but only for existing shared attributes.
+ // Capabilities, not explicit JSON keys: defaults and inherited styles are valid.
+ // A changed field writes a value to each node; unrelated keys are untouched.
  const fields=sharedEditableProperties(nodes);
  if(!fields.length){const empty=document.createElement("p");empty.className="param-empty";empty.textContent="The selected elements have no editable properties in common.";root.appendChild(empty);return;}
  const labels={stroke:"Stroke",fill:"Fill",strokeWidth:"Stroke width",opacity:"Opacity (%)",rotate:"Rotation (°)",font:"Font",size:"Text size",weight:"Weight",italic:"Italic",align:"Alignment",baseline:"Baseline",dash:"Dash pattern",clip:"Clip",inset:"Inset",axis:"Axis",period:"Period",count:"Count",fit:"Fit",index:"Index alias",stagger:"Stagger",extend:"Extend",text:"Text",x:"X",y:"Y",w:"Width",h:"Height",rx:"Corner radius",cx:"Center X",cy:"Center Y",r:"Radius",ry:"Radius Y",points:"Points",d:"SVG path data",viewBox:"ViewBox",aspect:"Aspect ratio",angle:"Angle",offset:"Offset",select:"Text index",x1:"X1",y1:"Y1",x2:"X2",y2:"Y2"};
@@ -540,13 +544,15 @@ function renderMultiPropertyInspector(root){
  });
  for(const key of fields){
   const lab=document.createElement("label");lab.className="field";lab.append(document.createTextNode(labels[key]||key));let input;
-  const vals=nodes.map(node=>node[key]);const same=vals.every(v=>JSON.stringify(v)===JSON.stringify(vals[0]));
+  const vals=nodes.map(node=>editablePropertyValue(node,key));
+  const same=vals.every(v=>JSON.stringify(v)===JSON.stringify(vals[0]));
+  const unset=vals.every(v=>v===undefined);
   if(key==="italic"||key==="clip"||key==="extend"){input=document.createElement("input");input.type="checkbox";input.checked=same&&!!vals[0];}
   else if(["axis","fit","weight","font","align","baseline","aspect"].includes(key)){input=document.createElement("select");const opts={axis:["x","y","xy","none"],fit:["repeat","space","round","center"],weight:["normal","bold"],font:["sans","serif","mono"],align:["start","middle","end"],baseline:["alphabetic","middle","top"],aspect:["contain","stretch"]}[key];const blank=document.createElement("option");blank.value="";blank.textContent=same?String(vals[0]??""):"Multiple values";input.appendChild(blank);opts.forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=v;input.appendChild(o);});input.value=same?String(vals[0]??""):"";}
-  else {input=document.createElement("input");input.type=key==="opacity"?"range":"text";if(key==="opacity"){input.min="0";input.max="100";input.step="1";input.value=same?Math.round(Number(vals[0]??1)*100):50;}else input.value=same?(Array.isArray(vals[0])?JSON.stringify(vals[0]):String(vals[0]??"")):"";input.placeholder=same?"":"Multiple values";}
+  else {input=document.createElement("input");input.type=key==="opacity"?"range":"text";if(key==="opacity"){input.min="0";input.max="100";input.step="1";input.value=same?Math.round(Number(vals[0]??1)*100):50;}else input.value=same?(Array.isArray(vals[0])?JSON.stringify(vals[0]):String(vals[0]??"")):"";input.placeholder=unset?"Inherited / not set":same?"":"Multiple values";}
   if(key==="opacity")input.addEventListener("input",()=>{const v=Number(input.value)/100;for(const path of selectedPaths){const target=getAt(path);if(target)target.opacity=Math.max(0,Math.min(1,v));}renderCanvas();});
   input.dataset.property=key;
-  input.addEventListener("change",()=>{let value=input.value;if(["italic","clip","extend"].includes(key))value=input.checked;else if(key==="opacity")value=Number(value)/100;else if(value.trim()===""){value=undefined;}else if(["inset","period","count","fit","index","points","viewBox","dash"].includes(key)&&value.trim().startsWith("[")){try{value=JSON.parse(value);}catch{toast("Invalid list for "+key);return;}}else if(["clip","extend","italic"].includes(key))value=input.checked;
+  input.addEventListener("change",()=>{let value=input.value;if(["italic","clip","extend"].includes(key))value=input.checked;else if(key==="opacity")value=Number(value)/100;else if(value.trim()===""){value=undefined;}else if(["inset","period","count","fit","index","points","viewBox","dash","text"].includes(key)&&value.trim().startsWith("[")){try{value=JSON.parse(value);}catch{toast("Invalid list for "+key);return;}}else if(["clip","extend","italic"].includes(key))value=input.checked;
    commit(()=>{for(const path of selectedPaths){const target=getAt(path);if(!target)continue;if(value===undefined)delete target[key];else target[key]=clone(value);}});
   });
   lab.appendChild(input);root.appendChild(lab);
@@ -753,26 +759,47 @@ $("expandTree").addEventListener("click",()=>{
  renderTree();
 });
 
+/** A node's actually painted SVG bounds, including nested group transforms and
+ * each repeated instance, in page/document units rather than CSS pixels. */
+function paintedBounds(element){
+ try{
+  // A clipped hatch draws long strokes outside its visible region. SVG
+  // getBBox ignores clipping, so prefer the local clipping rectangle.
+  const clipId=element.getAttribute('clip-path')?.match(/^url\(#([\w-]+)\)$/)?.[1];
+  const visibleClip=clipId?document.getElementById(clipId)?.querySelector('rect'):null;
+  // Transparent hitboxes and selection handles improve pointer interaction,
+  // but must not expand an alignment target beyond its painted geometry.
+  const visibleChildren=[...element.children].filter(child=>
+   typeof child.getBBox==='function' && child.tagName.toLowerCase()!=='defs' &&
+   !['svg-hitbox','svg-selection','transform-handle','rotation-stem','smart-guide','smart-guide-point'].some(name=>child.classList.contains(name)));
+  const source=visibleClip?element:(visibleChildren.length===1?visibleChildren[0]:element);
+  const bounds=visibleClip?visibleClip.getBBox():source.getBBox(),screen=source.getScreenCTM(),pageMatrix=paper.getScreenCTM();
+  if(!screen||!pageMatrix)return null;
+  const matrix=pageMatrix.inverse().multiply(screen);
+  const corners=[[bounds.x,bounds.y],[bounds.x+bounds.width,bounds.y],
+    [bounds.x,bounds.y+bounds.height],[bounds.x+bounds.width,bounds.y+bounds.height]];
+  const vertices=corners.map(([x,y])=>({x:matrix.a*x+matrix.c*y+matrix.e,y:matrix.b*x+matrix.d*y+matrix.f}));
+  const xs=vertices.map(p=>p.x),ys=vertices.map(p=>p.y);
+  const result={x:Math.min(...xs),y:Math.min(...ys),w:Math.max(...xs)-Math.min(...xs),h:Math.max(...ys)-Math.min(...ys)};
+  return Object.values(result).every(Number.isFinite)?result:null;
+ }catch{return null;}
+}
 function snapTargetsFor(excludedPaths=[]){
  const excluded=excludedPaths.map(nodeKey),targets=[];
  const related=candidate=>excluded.some(key=>candidate===key||candidate.startsWith(key+".")||key.startsWith(candidate+"."));
- function visit(nodes,parentPath=["items"]){
-  (nodes||[]).forEach((node,index)=>{
-   if(!node||typeof node!=="object")return;
-   const path=parentPath.concat(index),candidate=nodeKey(path);
-   if(!related(candidate)&&node.type!=="repeat"){
-    const bounds=transformGeometry(node,path);
-    if(bounds&&Object.values(bounds).every(Number.isFinite)&&bounds.w>=0&&bounds.h>=0){
-     targets.push({...bounds,kind:"object",path:candidate});
-    }
-   }
-   if(["group","repeat"].includes(node.type))visit(node.children||[],path.concat("children"));
-  });
+ // Query actual SVG instances, not template nodes. A repeat can produce dozens
+ // of individually visible alignment targets; custom shapes and hatch groups
+ // also have proper painted bounds despite lacking explicit x/y/w/h keys.
+ for(const element of paper.querySelectorAll('g[data-path]')){
+  const candidate=element.dataset.path;
+  if(related(candidate))continue;
+  const bounds=paintedBounds(element);
+  if(bounds&&bounds.w>=0&&bounds.h>=0)targets.push({...bounds,kind:'object',path:candidate});
  }
- visit(doc.items||[]);
  return targets;
 }
 function snapToGuides(proposed,excludedPaths=[],targets=null){
+ if(!magneticGuidesEnabled)return{dx:0,dy:0,guides:{x:null,y:null},segments:{x:null,y:null}};
  const rect=paper.getBoundingClientRect(),toleranceX=7*pageSize[0]/Math.max(1,rect.width),toleranceY=7*pageSize[1]/Math.max(1,rect.height);
  return calculateObjectSnap(proposed,targets||snapTargetsFor(excludedPaths),{w:pageSize[0],h:pageSize[1]},toleranceX,toleranceY);
 }
@@ -837,7 +864,9 @@ paper.addEventListener("pointerdown",e=>{
  if(!g){const pt=pagePoint(e);marqueeState={pointerId:e.pointerId,start:pt,current:pt};paper.appendChild(svg("rect",{id:"marquee-selection",class:"marquee-selection",x:pt.x,y:pt.y,width:0,height:0,fill:"#6485f526",stroke:"#6485f5","stroke-width":0.55,"stroke-dasharray":"2 1","pointer-events":"none"}));paper.setPointerCapture(e.pointerId);e.preventDefault();return;}
  const path=toPath(g.dataset.path),n=getAt(path),handle=e.target.closest("[data-handle]")?.dataset.handle,key=nodeKey(path);
  if(!n)return;
- let visibleBounds=null;if(isRepeatedPath(path)&&!handle){try{const b=g.getBBox();visibleBounds={x:b.x,y:b.y,w:b.width,h:b.height};}catch{}}
+ // Snapshot painted geometry before select() replaces this SVG subtree;
+ // when dragging a repeated child, this is the clicked instance's bounds.
+ const visibleBounds=!handle?paintedBounds(g):null;
  if(e.ctrlKey||e.metaKey||e.shiftKey){selectFromTree(path,e);return;}
  const multi=!handle&&selectedPaths.length>1&&selectedPaths.some(p=>nodeKey(p)===key);
  if(!multi)select(path);
@@ -872,7 +901,7 @@ paper.addEventListener("pointermove",e=>{
  }
  if(drag.mode==="move"){
   const g=drag.bounds,proposed={x:g.x+dx,y:g.y+dy,w:g.w,h:g.h};
-  const snap=drag.repeated||drag.items.some(item=>item.repeated)?{dx:0,dy:0,guides:{x:null,y:null}}:snapToGuides(proposed,drag.items.map(item=>item.path),drag.snapTargets);
+  const snap=snapToGuides(proposed,drag.items.map(item=>item.path),drag.snapTargets);
   dx+=snap.dx;dy+=snap.dy;drag.lastDelta={dx,dy};smartGuides=snap.guides;smartGuideSegments=snap.segments||{x:null,y:null};
   applyDragPreview(drag.previewTransforms,dx,dy);renderSmartGuideOverlay();updateTransformPreview(dx,dy);return;
  }
@@ -943,7 +972,7 @@ paper.addEventListener("pointerup",e=>{
  if(state.mode==="move"&&Math.hypot(e.clientX-state.startX,e.clientY-state.startY)>=3){
   const end=pagePoint(e);let dx=end.x-state.startPoint.x,dy=end.y-state.startPoint.y;
   const bounds=state.bounds,proposed={x:bounds.x+dx,y:bounds.y+dy,w:bounds.w,h:bounds.h};
-  const snap=state.repeated||state.items.some(item=>item.repeated)?{dx:0,dy:0,guides:{x:null,y:null}}:snapToGuides(proposed,state.items.map(item=>item.path),state.snapTargets);
+  const snap=snapToGuides(proposed,state.items.map(item=>item.path),state.snapTargets);
   dx+=snap.dx;dy+=snap.dy;state.lastDelta={dx,dy};state.moved=true;
  }
  clearSmartGuides();
@@ -1375,6 +1404,13 @@ document.querySelectorAll('[data-menu-action]').forEach(button=>button.addEventL
   case "export":$("saveBtn").click();break;
  }
 }));
+const magneticGuidesToggle=$("magneticGuidesToggle");
+magneticGuidesToggle.checked=magneticGuidesEnabled;
+magneticGuidesToggle.addEventListener('change',()=>{
+ magneticGuidesEnabled=magneticGuidesToggle.checked;
+ try{localStorage.setItem('xtemplate-magnetic-guides',String(magneticGuidesEnabled));}catch{}
+ if(!magneticGuidesEnabled){clearSmartGuides();renderSmartGuideOverlay();}
+});
 const themeSelect=$("themeSelect");
 const THEMES=new Set(["graphite","dusk","midnight"]);
 function applyEditorTheme(value){
