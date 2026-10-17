@@ -146,7 +146,7 @@ function renderTree(){
  page.type="button";page.className="tree-item tree-page"+(selectedPath?.[0]==="__page__"?" active":"");
  page.dataset.path="__page__";page.draggable=false;page.setAttribute("aria-pressed",String(selectedPath?.[0]==="__page__"));
  page.innerHTML='<span class="tree-disclosure"></span><span class="tree-symbol">▤</span><span class="tree-text"><span class="tree-label">Page</span><span class="tree-meta">ROOT · '+pageSize[0]+' × '+pageSize[1]+' mm</span></span><span class="tree-index">PAGE</span>';
- page.addEventListener("click",()=>{selectedPath=["__page__"];selectedPaths=[selectedPath.slice()];render();setInspectorTab("document");});
+ page.addEventListener("click",()=>{selectedPath=["__page__"];selectedPaths=[selectedPath.slice()];setInspectorTab("properties");render();});
  page.addEventListener("dragover",e=>{if(!treeDragSource)return;e.preventDefault();page.classList.add("tree-drop-target");});
  page.addEventListener("dragleave",()=>page.classList.remove("tree-drop-target"));
  page.addEventListener("drop",e=>{e.preventDefault();page.classList.remove("tree-drop-target");const source=treeDragSource||toPath(e.dataTransfer.getData("text/plain"));if(source.length&&source[0]!=="__page__")moveTreeNode(source,null,"root");treeDragSource=null;});
@@ -268,15 +268,34 @@ function groupSelection(){
  selectedPath=result.path;selectedPaths=result.paths;commit(()=>{});setInspectorTab("properties");toast("Elementos agrupados.");
 }
 function getValue(n,k){if(n[k]===undefined)return"";return typeof n[k]==="object"?JSON.stringify(n[k]):String(n[k]);}
+// The document form has one owner at a time: Element when Page is selected,
+// or the File properties dialog when requested from the application menu.
+// Move the existing DOM nodes instead of cloning fields with duplicate IDs.
+function placeDocumentFields(inSidebar){
+ const fields=$("documentPanel");
+ if(inSidebar){
+  if(fields.parentElement!==$("propertiesPanel"))$("propertiesPanel").appendChild(fields);
+  fields.classList.add("page-properties-fields");
+ }else{
+  const modalCard=$("filePropertiesModal").querySelector(".file-properties-card");
+  if(fields.parentElement!==modalCard)modalCard.insertBefore(fields,modalCard.querySelector(".modal-actions"));
+  fields.classList.remove("page-properties-fields");
+ }
+}
+function showFilePropertiesDialog(){
+ placeDocumentFields(false);
+ $("filePropertiesModal").classList.remove("hidden");
+ $("metaName").focus();
+}
 function renderInspector(){
  const n=getAt(selectedPath),has=!!n,multi=selectedPaths.length>1;
+ if(n?.type!=="page"&&$("filePropertiesModal").classList.contains("hidden"))placeDocumentFields(false);
  let multiRoot=$("multiPropertyInspector");
  if(!multiRoot){multiRoot=document.createElement("div");multiRoot.id="multiPropertyInspector";$("elementInspector").before(multiRoot);}
  multiRoot.classList.toggle("hidden",!multi);$("selectionArrange")?.classList.toggle("hidden",!multi);document.querySelector(".transform-panel")?.classList.toggle("hidden",multi);
  if(n?.type==="page"){
-  $("selectedType").textContent="PAGE";$("emptySelection").classList.remove("hidden");$("elementInspector").classList.add("hidden");multiRoot.classList.add("hidden");
-  $("emptySelection").querySelector("b").textContent="Page selected";
-  $("emptySelection").querySelector("p").textContent="Page is the parent of all layers. File properties are available from File → Document properties.";
+  $("selectedType").textContent="PAGE";$("emptySelection").classList.add("hidden");$("elementInspector").classList.add("hidden");multiRoot.classList.add("hidden");
+  if($("filePropertiesModal").classList.contains("hidden"))placeDocumentFields(true);
   return;
  }
  if(multi){
@@ -392,8 +411,7 @@ function updateNode(k,v){const n=getAt(selectedPath);if(!n)return;if(v.trim()===
 });
 function setInspectorTab(tab){
  if(tab==="document"){
-  $("filePropertiesModal").classList.remove("hidden");
-  $("metaName").focus();
+  setInspectorTab("properties");
   return;
  }
  activeInspector=tab;
@@ -939,9 +957,14 @@ function closeConfirmation(answer){
 }
 $("acceptConfirmBtn").addEventListener("click",()=>closeConfirmation(true));$("cancelConfirmBtn").addEventListener("click",()=>closeConfirmation(false));
 $("confirmModal").querySelectorAll('[data-close-modal="confirmModal"]').forEach(button=>button.addEventListener("click",()=>closeConfirmation(false)));
-function closeModal(id){$(id)?.classList.add("hidden");}
+function closeModal(id){
+ $(id)?.classList.add("hidden");
+ if(id==="filePropertiesModal"&&selectedPath?.[0]==="__page__"){
+  placeDocumentFields(true);setInspectorTab("properties");renderInspector();
+ }
+}
 document.querySelectorAll("[data-close-modal]").forEach(button=>button.addEventListener("click",()=>closeModal(button.dataset.closeModal)));
-document.querySelectorAll(".modal-backdrop").forEach(backdrop=>backdrop.addEventListener("pointerdown",e=>{if(e.target===backdrop){if(backdrop.id==="confirmModal")closeConfirmation(false);else backdrop.classList.add("hidden");}}));
+document.querySelectorAll(".modal-backdrop").forEach(backdrop=>backdrop.addEventListener("pointerdown",e=>{if(e.target===backdrop){if(backdrop.id==="confirmModal")closeConfirmation(false);else closeModal(backdrop.id);}}));
 function positionContextSubmenu(){
  const menu=$("contextMenu"),trigger=menu.querySelector(".context-new-trigger"),submenu=menu.querySelector(".context-submenu");if(!trigger||!submenu)return;
  const a=trigger.getBoundingClientRect();submenu.style.left="0px";submenu.style.top="0px";const b=submenu.getBoundingClientRect(),gap=3;
@@ -1108,7 +1131,7 @@ let savedEditorTheme="graphite";
 try{savedEditorTheme=localStorage.getItem("xtemplate-theme")||"graphite";}catch{}
 applyEditorTheme(savedEditorTheme);
 themeSelect.addEventListener("change",()=>applyEditorTheme(themeSelect.value));
-$("fileInfoBtn").addEventListener("click",()=>{closeFileMenu();selectedPath=["__page__"];selectedPaths=[selectedPath.slice()];render();setInspectorTab("document");});
+$("fileInfoBtn").addEventListener("click",()=>{closeFileMenu();showFilePropertiesDialog();});
 $("openBtn").addEventListener("click",()=>{closeFileMenu();$("fileInput").click();});
 $("newBtn").addEventListener("click",async()=>{
  closeFileMenu();if(dirty&&!await requestConfirmation("Discard unsaved changes?","Create a new template and discard the current unsaved changes?","Continue"))return;
@@ -1120,7 +1143,7 @@ $("newTemplateForm").addEventListener("submit",e=>{
  const size=$("newTemplatePaper").value||"a4";doc={xtemplate:1,id,name,description:$("newTemplateDescription").value.trim(),author:$("newTemplateAuthor").value.trim(),license:$("newTemplateLicense")?.value.trim()||"MIT",version:$("newTemplateVersion")?.value.trim()||undefined,tags:($("newTemplateTags")?.value||"").split(",").map(v=>v.trim()).filter(Boolean),params:{},items:[]};
  for(const key of ["author","version"])if(!doc[key])delete doc[key];if(!doc.description)delete doc.description;
  pageSize=SIZES[size]||SIZES.a4;$("paperSize").value=size;wrap.style.aspectRatio=pageSize[0]+"/"+pageSize[1];$("inkColor").value=$("quickInkColor").value=$("newTemplateInk").value;$("accentColor").value=$("quickAccentColor").value=$("newTemplateAccent").value;
- selectedPath=["__page__"];selectedPaths=[selectedPath.slice()];previewValues={};resetHistory();initializePreviewValues();setDirty(true);syncJson();render();setInspectorTab("document");closeModal("newTemplateModal");toast("New template created.");
+ selectedPath=["__page__"];selectedPaths=[selectedPath.slice()];previewValues={};resetHistory();initializePreviewValues();setDirty(true);syncJson();render();setInspectorTab("properties");closeModal("newTemplateModal");toast("New template created.");
 });
 function prepareExport(){
  try{const current=JSON.parse(jsonEditor.value);validate(current);doc=current;}catch(error){setValidation("error","JSON inválido");toast("Correct the JSON errors before exporting: "+error.message);return;}
@@ -1194,7 +1217,7 @@ $("contextMenu").addEventListener("click",e=>{
 });
 document.addEventListener("pointerdown",e=>{const target=e.target instanceof Element?e.target:null;if(!target?.closest("#contextMenu"))hideContextMenu();},true);
 document.addEventListener("click",e=>{const target=e.target instanceof Element?e.target:null;if(target&&!target.closest("#contextMenu")&&!target.closest("#tree")&&!target.closest(".outline-dock"))hideContextMenu();});
-document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;hideContextMenu();$("addMenu")?.classList.add("hidden");const visible=[...document.querySelectorAll(".modal-backdrop:not(.hidden)")].at(-1);if(visible){if(visible.id==="confirmModal")closeConfirmation(false);else visible.classList.add("hidden");}});
+document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;hideContextMenu();$("addMenu")?.classList.add("hidden");const visible=[...document.querySelectorAll(".modal-backdrop:not(.hidden)")].at(-1);if(visible){if(visible.id==="confirmModal")closeConfirmation(false);else closeModal(visible.id);}});
 async function loadOfficialExample(file,source){
  if(!file)return;
  if(dirty&&!confirm("Descartar alterações não exportadas e abrir este exemplo?")){if(source)source.value="";return;}

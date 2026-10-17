@@ -179,7 +179,7 @@ Para textos, há contorno de seleção e uma alça de rotação; o tamanho do te
 
 ### Espaço de trabalho e aparência (desenvolvimento)
 
-- **File → Document properties…** abre uma janela para metadados, tamanho de página de prévia e cores de referência do editor. O botão **Done** permanece acessível enquanto os campos rolam; clicar em **Page** na árvore abre a mesma janela.
+- **File → Document properties…** abre uma janela para metadados, tamanho de página de prévia e cores de referência do editor. O botão **Done** permanece acessível enquanto os campos rolam. **Selecionar Page na Structure mostra esses mesmos campos na aba Element**, sem modal. Não existem cópias divergentes do formulário: ele é reaproveitado nos dois locais.
 - As cores de prévia **Ink** e **Accent** também aparecem junto ao cabeçalho do canvas. Os dois conjuntos de seletores são sincronizados. Cor de prévia e tamanho de página são ajustes locais do editor, não novos campos do `.xtemplate` exportado.
 - A **Page** é o nível raiz da árvore **Structure**. Os primeiros nós estão recuados como seus filhos, e cada grupo aumenta o recuo.
 - Em **Settings → Appearance**, selecione **Graphite**, **Dusk Blue** ou **Midnight**. A preferência fica no `localStorage` deste navegador e não modifica o template.
