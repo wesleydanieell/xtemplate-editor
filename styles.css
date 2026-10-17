@@ -850,7 +850,6 @@
 #propertiesPanel .selection-arrange>.transform-title{margin-bottom:10px}
 #propertiesPanel .selection-arrange>.inspector-tip{margin:10px 0 2px}
 #propertiesPanel .inspector-details[open]>.details-body{padding:10px 12px 12px}
-#propertiesPanel .inspector-details:not([open])>.details-body{padding:0}
 #propertiesPanel .inspector-details>summary{padding:10px 12px}
 #elementInspector .advanced-inspector{padding:14px 2px 5px}
 #elementInspector .advanced-inspector>.advanced-heading{margin:10px 0 9px}
@@ -862,3 +861,16 @@
 #paramsPanel .param-grid{gap:10px}
 #propertiesPanel .multi-property-inspector{padding:0 2px 14px}
 #propertiesPanel .multi-property-inspector>.field{margin:12px 0}
+
+/* Nested inspector fields and variable names must have their own breathing room. */
+#elementInspector .inspector-details>.details-body{padding:12px 11px 14px}
+#elementInspector .inspector-details .details-body>.field{margin:2px 0 13px}
+#elementInspector .inspector-details .details-body>.field-row{margin:6px 0 14px;gap:9px}
+#elementInspector .inspector-details .details-body>.field-row>.field{margin:0;min-width:0}
+#elementInspector .inspector-details .details-body>label.field:last-child{margin-bottom:3px}
+#paramsPanel .param-card>summary.param-card-head{display:flex;align-items:center;gap:10px;padding:2px 0 11px;margin:0 0 12px;min-width:0;border-bottom:1px solid var(--ui-divider)}
+#paramsPanel .param-title-wrap{display:flex;flex:1;min-width:0;flex-direction:column;gap:5px;overflow-wrap:anywhere}
+#paramsPanel .param-title-wrap code{display:block;max-width:100%;overflow-wrap:anywhere;line-height:1.3}
+#paramsPanel .param-title-wrap small{display:block;color:var(--ui-soft);line-height:1.5;overflow-wrap:anywhere}
+#paramsPanel .param-card-head>button{flex:0 0 24px;align-self:flex-start}
+#paramsPanel .param-usage{margin-top:14px;padding-top:12px;border-top:1px solid var(--ui-divider)}
