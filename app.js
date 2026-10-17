@@ -718,7 +718,7 @@ $("deleteElement").addEventListener("click",async()=>{
  if(!selectedPaths.length)return;
  const count=selectedPaths.length;
  if(!await requestConfirmation("Delete element"+(count===1?"":"s"),"Delete "+count+" selected element"+(count===1?"":"s")+"? This change can be undone with Ctrl+Z.","Delete"))return;
- const paths=selectedPaths.filter(path=>path?.[0]!=="__page__").map(path=>path.slice()).sort((a,b)=>{const pa=nodeKey(a.slice(0,-1)),pb=nodeKey(b.slice(0,-1));return pa===pb?b.at(-1)-a.at(-1):b.length-a.length;});
+ const paths=normalizeSelectedPaths(selectedPaths).filter(path=>path?.[0]!=="__page__").map(path=>path.slice()).sort((a,b)=>{const pa=nodeKey(a.slice(0,-1)),pb=nodeKey(b.slice(0,-1));return pa===pb?b.at(-1)-a.at(-1):b.length-a.length;});
  if(!paths.length)return;
  for(const path of paths){const parent=getAt(path.slice(0,-1)),index=path.at(-1);if(Array.isArray(parent)&&index>=0&&index<parent.length)parent.splice(index,1);}
  selectedPath=null;selectedPaths=[];commit(()=>{});
@@ -953,7 +953,21 @@ const ZOOM_LEVELS=[25,50,75,100,125,150,200,300];
 function fitWidth(){const canvas=$("canvasArea"),availableW=Math.max(100,canvas.clientWidth-75),availableH=Math.max(150,canvas.clientHeight-70);return Math.max(100,Math.min(availableW,availableH*pageSize[0]/pageSize[1],500));}
 function currentPaperWidth(){return wrap.getBoundingClientRect().width||fitWidth();}
 function fitPaper(){const canvas=$("canvasArea"),fit=fitWidth();let w=zoomMode==="fit"?fit:pageSize[0]*2*(Number(zoomMode)/100);wrap.style.width=Math.max(60,w)+"px";$("zoom").value=zoomMode;const actual=zoomMode==="fit"?Math.round(fit/(pageSize[0]*2)*100):Number(zoomMode);$("zoomLabel").textContent=zoomMode==="fit"?"Fit · "+actual+"%":actual+"%";canvas.classList.toggle("zoomed-in",zoomMode!=="fit"&&w>fit+1);}
-function setZoom(next,anchor=null){const oldWidth=currentPaperWidth(),oldRect=wrap.getBoundingClientRect(),oldPan={...panOffset};zoomMode=next;fitPaper();const newWidth=currentPaperWidth(),newRect=wrap.getBoundingClientRect();if(next==="fit"){panOffset.x=0;panOffset.y=0;applyPan();return;}if(anchor&&oldWidth>0){panOffset=anchoredPan({pan:oldPan,anchor,oldRect,newRect,scale:newWidth/oldWidth});applyPan();}}
+function setZoom(next,anchor=null){
+ const oldWidth=currentPaperWidth(),oldRect=wrap.getBoundingClientRect(),oldPan={...panOffset};
+ // The canvas changes from a centered flex layout to top-left alignment when
+ // zooming past Fit. Without an anchor, menu/toolbar zoom would jump between
+ // the two layout origins, especially when alternating in/out. Zoom around
+ // the existing page center by default; pointer-wheel zoom keeps its cursor.
+ const reference=anchor||{x:oldRect.left+oldRect.width/2,y:oldRect.top+oldRect.height/2};
+ zoomMode=next;fitPaper();
+ const newWidth=currentPaperWidth(),newRect=wrap.getBoundingClientRect();
+ if(next==="fit"){panOffset.x=0;panOffset.y=0;applyPan();return;}
+ if(oldWidth>0){
+  panOffset=anchoredPan({pan:oldPan,anchor:reference,oldRect,newRect,scale:newWidth/oldWidth});
+  applyPan();
+ }
+}
 function stepZoom(direction,anchor=null){
  // Fit is a viewport-dependent percentage, not 100%. Calculate the real
  // rendered scale before choosing the next step, otherwise Zoom in can shrink
@@ -1213,11 +1227,12 @@ function getClipboardDestination(){
 }
 function copySelection(cut=false){
  if(!selectedPaths.length){toast("Select at least one element first.");return;}
- const nodes=selectedPaths.map(path=>getAt(path)).filter(Boolean);
+ const safePaths=normalizeSelectedPaths(selectedPaths);
+ const nodes=safePaths.map(path=>getAt(path)).filter(Boolean);
  if(!nodes.length||nodes.some(node=>node.type==="page")){toast("The Page cannot be copied.");return;}
  clipboardNodes=nodes.map(clone);
  if(cut){
-  const paths=selectedPaths.map(path=>path.slice()).sort((a,b)=>{const pa=nodeKey(a.slice(0,-1)),pb=nodeKey(b.slice(0,-1));return pa===pb?b.at(-1)-a.at(-1):b.length-a.length;});
+  const paths=safePaths.map(path=>path.slice()).sort((a,b)=>{const pa=nodeKey(a.slice(0,-1)),pb=nodeKey(b.slice(0,-1));return pa===pb?b.at(-1)-a.at(-1):b.length-a.length;});
   for(const path of paths){const arr=getAt(path.slice(0,-1)),index=path.at(-1);if(Array.isArray(arr)&&index>=0&&index<arr.length)arr.splice(index,1);}
   selectedPath=null;selectedPaths=[];commit(()=>{});toast("Elements cut. Select a destination and press Ctrl+V.");
  }else toast(nodes.length+" element"+(nodes.length===1?"":"s")+" copied.");
