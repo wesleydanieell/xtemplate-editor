@@ -113,11 +113,18 @@ try{
   await workspacePage.$eval('#themeSelect',(el,value)=>{
    el.value=value;el.dispatchEvent(new Event('change',{bubbles:true}));
   },theme);
+  await new Promise(resolve=>setTimeout(resolve,200));
   themeColors[theme]=await workspacePage.evaluate(()=>{
    const bg=selector=>getComputedStyle(document.querySelector(selector)).backgroundColor;
+   const css=selector=>getComputedStyle(document.querySelector(selector));
    return {modal:bg('.modal-card'),menu:bg('#fileMenu'),variable:bg('.param-card'),
     code:bg('#jsonEditor'),status:bg('.statusbar'),settings:bg('#themeSelect'),
-    export:bg('.top-export')};
+    export:bg('.top-export'),toolRail:bg('.canvas-tools'),
+    toolActive:bg('.canvas-tools .canvas-tool.active'),
+    toolActiveBorder:css('.canvas-tools .canvas-tool.active').borderTopColor,
+    toolHoverColor:css('.canvas-tools .canvas-tool[data-tool="rect"]').color,
+    toolShortcut:css('.canvas-tools .canvas-tool[data-tool="rect"] kbd').color,
+    toolDivider:bg('.canvas-tools .tool-separator')};
   });
  }
  for(const selector of Object.keys(themeColors.dusk)){
