@@ -18,9 +18,20 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install tooling
+        run: npm ci
+      - name: Install Chrome for browser integration tests
+        id: chrome
+        uses: browser-actions/setup-chrome@v2
+        with:
+          chrome-version: stable
       - name: Check syntax
         run: npm run check
       - name: Run tests
         run: npm test
+      - name: Test canvas interactions in Chromium
+        env:
+          XTEMPLATE_BROWSER_PATH: ${{ steps.chrome.outputs.chrome-path }}
+        run: npm run test:browser
       - name: Check distributable
         run: python3 scripts/package-release.py --output /tmp/XTemplate-Studio-test.zip

@@ -544,8 +544,11 @@ const draggableTypes=new Set(["group","rect","path","text","ellipse","circle","d
 paper.addEventListener("pointerdown",e=>{
  if(activeTool==="curve"){e.preventDefault();e.stopImmediatePropagation();handlePenPointerDown(e);return;}
  if(activeTool!=="select"||e.button!==0)return;
+ // render() replaces SVG descendants; stop this event before the outer canvas
+ // sees a detached target and incorrectly clears the freshly made selection.
+ e.stopPropagation();
  const g=e.target.closest("[data-path]");
- if(!g){const pt=pagePoint(e);marqueeState={pointerId:e.pointerId,start:pt,current:pt};paper.appendChild(svg("rect",{id:"marquee-selection",class:"marquee-selection",x:pt.x,y:pt.y,width:0,height:0}));paper.setPointerCapture(e.pointerId);e.preventDefault();return;}
+ if(!g){const pt=pagePoint(e);marqueeState={pointerId:e.pointerId,start:pt,current:pt};paper.appendChild(svg("rect",{id:"marquee-selection",class:"marquee-selection",x:pt.x,y:pt.y,width:0,height:0,fill:"#6485f526",stroke:"#6485f5","stroke-width":0.55,"stroke-dasharray":"2 1","pointer-events":"none"}));paper.setPointerCapture(e.pointerId);e.preventDefault();return;}
  const path=toPath(g.dataset.path),n=getAt(path),handle=e.target.closest("[data-handle]")?.dataset.handle,key=nodeKey(path);
  if(!n)return;
  let visibleBounds=null;if(isRepeatedPath(path)&&!handle){try{const b=g.getBBox();visibleBounds={x:b.x,y:b.y,w:b.width,h:b.height};}catch{}}
@@ -612,7 +615,7 @@ paper.addEventListener("pointermove",e=>{
  render();
 });
 function cancelCanvasGesture(e){
- if(marqueeState&&(!e||marqueeState.pointerId===e.pointerId)){marqueeState=null;$("#marquee-selection")?.remove();}
+ if(marqueeState&&(!e||marqueeState.pointerId===e.pointerId)){marqueeState=null;$("marquee-selection")?.remove();}
  if(drag&&(!e||drag.pointerId===e.pointerId)){const state=drag;drag=null;for(const item of state.items||[])replaceAt(item.path,item.origin);smartGuides={x:null,y:null};render();}
  if(typeof curveState!=="undefined"&&curveState&&(!e||curveState.pointerId===e.pointerId)){curveState.pointerId=null;renderPenPreview();}
  if(typeof drawState!=="undefined"&&drawState&&(!e||drawState.pointerId===e.pointerId)){drawState=null;renderDrawPreview();}
@@ -620,7 +623,7 @@ function cancelCanvasGesture(e){
 paper.addEventListener("pointerup",e=>{
  if(curveState&&curveState.pointerId===e.pointerId){curveState.pointerId=null;e.stopImmediatePropagation();return;}
  if(marqueeState&&marqueeState.pointerId===e.pointerId){
-  const state=marqueeState;marqueeState=null;$("#marquee-selection")?.remove();const a=state.start,b=state.current,box={x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.abs(b.x-a.x),h:Math.abs(b.y-a.y)};
+  const state=marqueeState;marqueeState=null;$("marquee-selection")?.remove();const a=state.start,b=state.current,box={x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.abs(b.x-a.x),h:Math.abs(b.y-a.y)};
   const hits=new Map();
   if(box.w>=1||box.h>=1){
    for(const element of paper.querySelectorAll("g[data-path]")){

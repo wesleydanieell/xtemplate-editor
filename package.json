@@ -10,13 +10,15 @@
     "package": "python3 scripts/package-release.py",
     "desktop:assets": "python3 scripts/build-desktop-assets.py",
     "desktop:dev": "npm run desktop:assets && tauri dev",
-    "desktop:build": "npm run desktop:assets && tauri build --bundles appimage"
+    "desktop:build": "npm run desktop:assets && tauri build --bundles appimage",
+    "test:browser": "node scripts/browser-smoke.mjs"
   },
   "engines": {
     "node": ">=18"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.0.0"
+    "@tauri-apps/cli": "^2.0.0",
+    "puppeteer-core": "^25.14.0"
   },
   "license": "MIT"
 }
