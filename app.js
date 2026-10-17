@@ -736,7 +736,14 @@ function fitWidth(){const canvas=$("canvasArea"),availableW=Math.max(100,canvas.
 function currentPaperWidth(){return wrap.getBoundingClientRect().width||fitWidth();}
 function fitPaper(){const canvas=$("canvasArea"),fit=fitWidth();let w=zoomMode==="fit"?fit:pageSize[0]*2*(Number(zoomMode)/100);wrap.style.width=Math.max(60,w)+"px";$("zoom").value=zoomMode;const actual=zoomMode==="fit"?Math.round(fit/(pageSize[0]*2)*100):Number(zoomMode);$("zoomLabel").textContent=zoomMode==="fit"?"Fit · "+actual+"%":actual+"%";canvas.classList.toggle("zoomed-in",zoomMode!=="fit"&&w>fit+1);}
 function setZoom(next,anchor=null){const oldWidth=currentPaperWidth(),oldRect=wrap.getBoundingClientRect(),oldPan={...panOffset};zoomMode=next;fitPaper();const newWidth=currentPaperWidth(),newRect=wrap.getBoundingClientRect();if(next==="fit"){panOffset.x=0;panOffset.y=0;applyPan();return;}if(anchor&&oldWidth>0){panOffset=anchoredPan({pan:oldPan,anchor,oldRect,newRect,scale:newWidth/oldWidth});applyPan();}}
-function stepZoom(direction,anchor=null){setZoom(nextZoomLevel(zoomMode,direction,ZOOM_LEVELS),anchor);}
+function stepZoom(direction,anchor=null){
+ // Fit is a viewport-dependent percentage, not 100%. Calculate the real
+ // rendered scale before choosing the next step, otherwise Zoom in can shrink
+ // the page (or Zoom out can grow it) after selecting Fit.
+ const visiblePercent=zoomMode==="fit"?currentPaperWidth()/(pageSize[0]*2)*100:Number(zoomMode);
+ const next=nextZoomLevel(visiblePercent,direction,ZOOM_LEVELS);
+ setZoom(next,anchor);
+}
 $("zoom").addEventListener("change",e=>setZoom(e.target.value));$("zoomOut").addEventListener("click",()=>stepZoom(-1));$("zoomIn").addEventListener("click",()=>stepZoom(1));
 window.addEventListener("resize",fitPaper);
 window.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s"){e.preventDefault();$("saveBtn").click();}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="o"){e.preventDefault();$("openBtn").click();}if(e.key==="Escape")$("addMenu")?.classList.add("hidden");if((e.ctrlKey||e.metaKey)&&e.key==="Enter"){e.preventDefault();toggleSplit();}});
@@ -1243,10 +1250,25 @@ function addNodeAtContext(type,point){
  selectedPath=parent?parentPath.concat(["children",items.length-1]):["items",items.length-1];
  selectedPaths=[selectedPath.slice()];commit(()=>{});setInspectorTab("properties");
 }
+// Pointer-activated buttons should not retain keyboard focus. Otherwise a
+// subsequent Space press can unintentionally activate the last clicked tool.
+// Keyboard-focused buttons deliberately keep focus and retain Space/Enter access.
+document.addEventListener("pointerup",e=>{
+ if(e.pointerType!=="mouse"||e.button!==0)return;
+ const active=document.activeElement;
+ if(active instanceof HTMLButtonElement&&active.contains(e.target))active.blur();
+},true);
 // Alt + wheel zooms; Space + drag pans the paper itself, even when it fits the viewport.
 const canvas=$("canvasArea"),paperWrap=$("paperWrap");let spaceDown=false,pan=null,panOffset={x:0,y:0};
 function applyPan(){paperWrap.style.transform="translate("+panOffset.x+"px, "+panOffset.y+"px)";}
-window.addEventListener("keydown",e=>{if(e.code==="Space"&&!e.repeat&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){spaceDown=true;canvas.classList.add("space-ready");e.preventDefault();}});
+window.addEventListener("keydown",e=>{
+ if(e.code!=="Space"||e.repeat)return;
+ const focused=document.activeElement;
+ // Space is the accessibility activation key for buttons, menuitems and
+ // controls. Only use it as the pan modifier outside interactive widgets.
+ if(focused?.closest('button,input,textarea,select,[role="button"],[role="menuitem"],[contenteditable="true"]'))return;
+ spaceDown=true;canvas.classList.add("space-ready");e.preventDefault();
+});
 window.addEventListener("keyup",e=>{if(e.code==="Space"){spaceDown=false;canvas.classList.remove("space-ready");if(pan&&!pan.started)pan=null;}});
 window.addEventListener("blur",()=>{spaceDown=false;canvas.classList.remove("space-ready","panning");pan=null;});
 canvas.addEventListener("wheel",e=>{if(e.target.closest(".canvas-tools,.canvas-footer,.canvas-hint"))return;e.preventDefault();if(e.altKey){stepZoom(e.deltaY<0?1:-1,{x:e.clientX,y:e.clientY});return;}panOffset.x-=e.deltaX;panOffset.y-=e.deltaY;applyPan();},{passive:false});

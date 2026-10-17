@@ -194,6 +194,55 @@ try{
   assert(value.left>=8&&value.right>=8&&value.top>=8&&value.bottom>=8,
    `${name} is missing internal padding: ${JSON.stringify(value)}`);
  }
+ // Variable headings must separate their code name, description and delete action.
+ await workspacePage.click('[data-inspector="params"]');
+ const variableLayout=await workspacePage.evaluate(()=>{
+  const card=document.querySelector('#paramsPanel .param-card');
+  const heading=card.querySelector('.param-title-wrap');
+  const children=[...heading.children].map(el=>el.getBoundingClientRect().toJSON());
+  const name=heading.getBoundingClientRect();
+  const button=card.querySelector('.param-card-head>button').getBoundingClientRect();
+  return {spacing:children[1].top-children[0].bottom,
+   overlap:button.left<name.right-1,padding:getComputedStyle(card).paddingTop};
+ });
+ assert(variableLayout.spacing>=4&&!variableLayout.overlap,
+  `Variable headings must not collide: ${JSON.stringify(variableLayout)}`);
+ await workspacePage.click('[data-inspector="properties"]');
+ // Nested property cards must not place inputs against their edges.
+ const nestedSpace=await workspacePage.evaluate(()=>{
+  const body=document.querySelector('#elementInspector .inspector-details .details-body');
+  const style=getComputedStyle(body);
+  return {top:parseFloat(style.paddingTop),left:parseFloat(style.paddingLeft),right:parseFloat(style.paddingRight)};
+ });
+ assert(nestedSpace.top>=10&&nestedSpace.left>=10&&nestedSpace.right>=10,
+  `Element type and stroke width need proper insets: ${JSON.stringify(nestedSpace)}`);
+ // Zoom from Fit must increase/decrease the actual page width, not assume Fit=100%.
+ await workspacePage.$eval('#zoom',el=>{el.value='fit';el.dispatchEvent(new Event('change',{bubbles:true}));});
+ const pageWidth=()=>workspacePage.$eval('#paperWrap',el=>el.getBoundingClientRect().width);
+ const fitWidth=await pageWidth();
+ await workspacePage.click('[data-menu="viewMenu"]');
+ await workspacePage.click('#viewMenu [data-menu-action="zoom-in"]');
+ const larger=await pageWidth();
+ assert(larger>fitWidth+0.5,`View Zoom in should grow page: ${fitWidth} → ${larger}`);
+ await workspacePage.click('[data-menu="viewMenu"]');
+ await workspacePage.click('#viewMenu [data-menu-action="zoom-out"]');
+ const smaller=await pageWidth();
+ assert(smaller<larger-0.5,`View Zoom out should shrink page: ${larger} → ${smaller}`);
+ // Mouse click should not leave Zoom+ focused and accidentally activated
+ // again by Space; keyboard navigation should still support Space on buttons.
+ await workspacePage.click('#zoomIn');
+ assert.notEqual(await workspacePage.evaluate(()=>document.activeElement?.id),'zoomIn',
+  'mouse-activated Zoom in must release focus');
+ const afterMouseZoom=await pageWidth();
+ await workspacePage.keyboard.press('Space');
+ const afterSpace=await pageWidth();
+ assert(Math.abs(afterSpace-afterMouseZoom)<0.1,
+  `Space after clicking Zoom in should not trigger zoom: ${afterMouseZoom} → ${afterSpace}`);
+ await workspacePage.$eval('#zoomIn',el=>el.focus());
+ await workspacePage.keyboard.press('Space');
+ const afterKeyboard=await pageWidth();
+ assert(afterKeyboard>afterSpace+0.5,
+  `Space on intentionally keyboard-focused Zoom in should still work: ${afterSpace} → ${afterKeyboard}`);
  // Inspector layout: rotation presets and the opacity slider must not
  // overlap or escape narrow sidebars, and actions must not hide fields.
  for(const width of [1440,1024,900]){
