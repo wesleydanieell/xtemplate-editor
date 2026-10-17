@@ -192,3 +192,9 @@ Esses recursos não precisam de dependências adicionais em runtime e funcionam 
 Ao focar um campo compatível em **Element**, surge uma lista de variáveis com nome, tipo, rótulo e valor padrão, usando as cores do tema. Digitar filtra as opções; setas ↑/↓ navegam, **Enter** insere e **Esc** fecha. Para expressões, o editor substitui somente o identificador sob o cursor (por exemplo, `W * spa` → `W * spacing`), sem apagar os outros termos. Campos de Stroke/Fill sugerem apenas tokens de cor (`ink`, `accent`, `none`) e variáveis do tipo `color`.
 
 Os campos exibem pequenas indicações sobre o formato aceito, como `mm`, porcentagem, HEX ou expressão. O seletor **Type** das variáveis também explica com exemplos o significado de `length`, `color`, `number` e `integer`.
+
+### Organizar camadas por nome e cor na Structure
+
+- **Renomear:** dê um duplo clique no nome da camada ou selecione-a e pressione **F2**. Confirme com **Enter**, cancele com **Esc**. O nome do elemento faz parte do JSON `.xtemplate`.
+- **Cor de identificação:** clique no ponto colorido ao lado da camada para escolher uma das sete cores ou uma personalizada; **Clear color** remove a marca. A cor identifica a camada e seu ícone na árvore, sem alterar o preenchimento ou traço do desenho.
+- **Importante:** as cores de organização são **somente do editor**, salvas no armazenamento local do navegador para cada ID de documento e caminho da camada. Elas **não** são incluídas no `.xtemplate` exportado e portanto não são transferidas com o arquivo para outros navegadores/dispositivos. Em edições estruturais amplas ou reimportações, as identificações podem precisar ser reaplicadas.

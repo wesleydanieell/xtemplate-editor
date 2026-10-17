@@ -282,6 +282,22 @@ try{
  const docJson=JSON.parse(await workspacePage.$eval('#jsonEditor',el=>el.value));
  assert(!Object.hasOwn(docJson,'theme')&&!Object.hasOwn(docJson,'previewColors'));
  assert.deepEqual(errors,[]);
+ // Layer naming is part of the template, organization color is NOT.
+ const layerPath='items.1';
+ await workspacePage.$eval(`.tree-item[data-path="${layerPath}"] .tree-label`,el=>el.dispatchEvent(new MouseEvent('dblclick',{bubbles:true})));
+ await workspacePage.$eval('.tree-rename',el=>{
+  el.value='Colored border';el.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+ });
+ assert.equal(await workspacePage.$eval(`.tree-item[data-path="${layerPath}"] .tree-label`,el=>el.textContent),'Colored border');
+ await workspacePage.click(`.tree-item[data-path="${layerPath}"] .tree-color-control`);
+ assert.equal(await workspacePage.$eval('.layer-color-picker',el=>el.classList.contains('hidden')),false);
+ await workspacePage.click('.layer-color-swatch');
+ const markerColor=await workspacePage.$eval(`.tree-item[data-path="${layerPath}"] .tree-color-control`,el=>getComputedStyle(el).color);
+ assert.equal(markerColor,'rgb(232, 121, 121)');
+ const exportedDoc=JSON.parse(await workspacePage.$eval('#jsonEditor',el=>el.value));
+ assert.equal(exportedDoc.items[1].name,'Colored border');
+ assert.equal(Object.hasOwn(exportedDoc.items[1],'layerColor'),false);
+ assert.equal(Object.hasOwn(exportedDoc.items[1],'colorTag'),false);
  await workspacePage.close();
  console.log('PASS: document modal, quick colors, Page hierarchy, themes and rotation controls');
  console.log('PASS: SVG selection, transform handles, live drag, marquee and object-to-object smart guides');
