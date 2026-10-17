@@ -523,3 +523,76 @@
 #paper .smart-guide{stroke:#ed2770;stroke-width:1.15;stroke-dasharray:3 1.5;vector-effect:non-scaling-stroke;pointer-events:none;opacity:1}
 #paper .smart-guide.object-guide{stroke:#d91b67;stroke-width:1.25;stroke-dasharray:2 1;filter:drop-shadow(0 0 1px #ffffff)}
 #paper .smart-guide-point{fill:#d91b67;stroke:#ffffff;stroke-width:.4;vector-effect:non-scaling-stroke;pointer-events:none}
+
+/* Workspace refinements: document settings live in a focused modal. */
+.file-properties-card{width:min(690px,100%);max-height:min(92vh,850px)}
+.file-properties-fields{display:grid;grid-template-columns:1fr 1fr;column-gap:16px;align-items:start}
+.file-properties-fields>.inspector-heading,.file-properties-fields>.section-description,.file-properties-fields>.inspector-tip,.file-properties-fields>.field:has(textarea){grid-column:1/-1}
+.file-properties-fields .field{margin:9px 0;min-width:0}
+.file-properties-fields .field input,.file-properties-fields .field textarea{width:100%;min-width:0}
+.file-properties-fields .color-heading{margin-top:15px}
+.file-properties-fields .color-field{display:flex;align-items:center;flex-direction:row;gap:14px}
+.file-properties-fields input[type=color]{width:56px;height:32px;flex:0 0 56px}
+.preview-colors-quick{display:flex;align-items:center;gap:9px;flex:0 0 auto;padding:0 10px 0 0;border-right:1px solid #3b414d}
+.preview-colors-title{color:#9ea8ba;font-size:9px;text-transform:uppercase;letter-spacing:.08em;font-weight:750}
+.preview-colors-quick label{display:flex;align-items:center;gap:4px;cursor:pointer;color:#c0c9d7;font-size:10px}
+.preview-colors-quick input[type=color]{width:23px;height:23px;min-width:23px;padding:2px;border:1px solid #616c80;border-radius:6px;background:transparent;cursor:pointer}
+.tree-page{margin:5px 0 2px;min-height:34px;background:#28303e;border:1px solid #48536a;border-left:3px solid #8da5e6;font-weight:740;border-radius:5px}
+.tree-page .tree-label{font-size:12px}
+.tree-page~.tree-item:not(.tree-page){position:relative}
+.tree-page~.tree-item:not(.tree-page)::selection{background:transparent}
+.rotation-controls{display:flex;align-items:center;gap:7px}
+.rotation-controls #transformRotate{flex:0 0 65px;width:65px}
+.rotation-controls #rotationDial{flex:1;min-width:50px;accent-color:var(--accent2);cursor:ew-resize;padding:0;border:0;background:transparent}
+.rotation-presets{display:flex;gap:4px;margin-top:5px}
+.rotation-presets button{flex:1;min-width:0;border:1px solid #485062;background:#282e3b;color:#c6cfdd;font-size:10px;padding:5px 2px;border-radius:5px}
+.rotation-presets button:hover{border-color:var(--accent);color:#fff}
+/* App-wide palettes: theme choices retain the same hierarchy and contrast. */
+:root[data-theme="graphite"]{--panel:#202226;--panel2:#26292f;--line:#3a3e46;--muted:#a4adbc;--accent:#d7c7ae;--accent2:#bba17b;--text:#eeede9}
+:root[data-theme="graphite"] body{background:#16181c;color:#eeede9}
+:root[data-theme="graphite"] .topbar,:root[data-theme="graphite"] .document-tabs,:root[data-theme="graphite"] .right-tabs,:root[data-theme="graphite"] .workspace-toolbar{background:#262930;border-color:#414650}
+:root[data-theme="graphite"] .workspace,:root[data-theme="graphite"] .json-pane{background:#1a1c21}
+:root[data-theme="graphite"] .canvas-area{background-color:#1b1d22;background-image:radial-gradient(#41444b .8px,transparent .8px)}
+:root[data-theme="graphite"] .left-panel,:root[data-theme="graphite"] .right-panel{background:#202226;border-color:#40454f}
+:root[data-theme="graphite"] .tree-item.active,:root[data-theme="graphite"] .doc-tab.active{background:#444038;color:#fff3df}
+:root[data-theme="graphite"] .tree-page{background:#353738;border-color:#64635c;border-left-color:#d7c7ae}
+:root[data-theme="graphite"] .brand-mark{background:linear-gradient(145deg,#d4c19f,#a99572)}
+:root[data-theme="graphite"] .primary,:root[data-theme="graphite"] .top-export{background:#806e55;border-color:#ae9573;color:#fff}
+:root[data-theme="graphite"] .right-tab.active{background:#383633;color:#f5e9d4;border-color:#d7c7ae}
+:root[data-theme="graphite"] .modal-card,:root[data-theme="graphite"] .app-menu{background:#282b31;border-color:#595c65}
+:root[data-theme="graphite"] .inspector-content input,:root[data-theme="graphite"] .inspector-content select,:root[data-theme="graphite"] .inspector-content textarea,:root[data-theme="graphite"] .file-properties-fields input,:root[data-theme="graphite"] .file-properties-fields textarea{background:#292c33;border-color:#4b505b}
+:root[data-theme="dusk"]{--panel:#1b1d24;--panel2:#20232b;--line:#30333d;--muted:#9298a7;--accent:#9bb4ff;--accent2:#6485f5;--text:#e5e8ef}
+:root[data-theme="midnight"]{--panel:#111d27;--panel2:#172631;--line:#2b4452;--muted:#8ea5b7;--accent:#81d5dc;--accent2:#36acb8;--text:#dfedf2}
+:root[data-theme="midnight"] body{background:#08131a;color:#dfedf2}
+:root[data-theme="midnight"] .topbar,:root[data-theme="midnight"] .document-tabs,:root[data-theme="midnight"] .right-tabs,:root[data-theme="midnight"] .workspace-toolbar{background:#12232e;border-color:#274354}
+:root[data-theme="midnight"] .workspace,:root[data-theme="midnight"] .json-pane{background:#0c1820}
+:root[data-theme="midnight"] .canvas-area{background-color:#0a1620;background-image:radial-gradient(#264553 .8px,transparent .8px)}
+:root[data-theme="midnight"] .left-panel,:root[data-theme="midnight"] .right-panel{background:#111d27;border-color:#294251}
+:root[data-theme="midnight"] .tree-item.active{background:#234757;color:#d8faff}
+:root[data-theme="midnight"] .tree-page{background:#213845;border-color:#3e6a7a;border-left-color:#81d5dc}
+:root[data-theme="midnight"] .brand-mark{background:linear-gradient(145deg,#75d7dc,#3197a9)}
+:root[data-theme="midnight"] .primary,:root[data-theme="midnight"] .top-export{background:#226d7b;border-color:#3b9aab;color:white}
+:root[data-theme="midnight"] .right-tab.active{background:#1e3d4b;color:#c8f9fb;border-color:#81d5dc}
+:root[data-theme="midnight"] .modal-card,:root[data-theme="midnight"] .app-menu{background:#192c37;border-color:#3d6577}
+:root[data-theme="midnight"] .inspector-content input,:root[data-theme="midnight"] .inspector-content select,:root[data-theme="midnight"] .inspector-content textarea,:root[data-theme="midnight"] .file-properties-fields input,:root[data-theme="midnight"] .file-properties-fields textarea{background:#1d3441;border-color:#3b5868}
+@media(max-width:1100px){.preview-colors-title{display:none}.preview-colors-quick{gap:5px;padding-right:4px}.preview-colors-quick label span{display:none}}
+@media(max-width:790px){.file-properties-fields{grid-template-columns:1fr}.file-properties-fields>*{grid-column:1/-1}.preview-colors-quick label span{display:inline}}
+
+/* Quick swatches belong in the canvas heading, not the page/zoom toolbar. */
+.preview-pane>.pane-title>.preview-colors-quick{margin-left:auto;border-right:0;border-left:1px solid #424b59;padding:0 0 0 12px;gap:10px;height:100%}
+.preview-pane>.pane-title>.preview-colors-quick .preview-colors-title{font-size:9px}
+.preview-pane>.pane-title>.preview-colors-quick input[type=color]{width:22px;height:22px}
+@media(max-width:1120px){.preview-pane>.pane-title>.muted{display:none}.preview-pane>.pane-title>.preview-colors-quick .preview-colors-title{display:inline}}
+
+/* Keep the Done action visible while a long metadata form scrolls. */
+.file-properties-card{display:flex;flex-direction:column;overflow:hidden;max-height:min(90vh,850px)}
+.file-properties-card>.modal-title-row,.file-properties-card>.modal-description,.file-properties-card>.modal-actions{flex:none}
+.file-properties-card>.file-properties-fields{flex:1;min-height:0;overflow-y:auto;padding-right:9px;margin-right:-9px;scrollbar-gutter:stable}
+.file-properties-card>.modal-actions{padding-top:14px;margin-top:14px;border-top:1px solid #414858;background:inherit}
+
+/* Compact circular rotation control; numeric input remains the precise source. */
+.rotation-wheel{position:relative;display:grid;place-items:center;flex:0 0 39px;width:39px;height:39px;padding:0;border:2px solid #526177;border-radius:50%;background:radial-gradient(circle at 50% 50%,#263243 0 29%,transparent 30%),conic-gradient(from 0deg,#8c9eaf 0 1deg,#2f3d50 1deg 359deg,#8c9eaf 359deg);cursor:grab;touch-action:none;box-shadow:inset 0 0 0 3px #222c3a}
+.rotation-wheel:hover,.rotation-wheel:focus-visible{border-color:var(--accent)}
+.rotation-wheel:active{cursor:grabbing}
+.rotation-wheel-pointer{position:absolute;width:3px;height:13px;border-radius:3px;background:var(--accent2);left:calc(50% - 1.5px);top:4px;transform-origin:1.5px 15.5px;transform:rotate(var(--rotation-angle,0deg));pointer-events:none}
+.rotation-controls #transformRotate{flex:1;min-width:45px;width:100%}
