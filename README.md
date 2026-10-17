@@ -2,6 +2,25 @@
 
 Local, offline, standalone editor for creating and customizing `.xtemplate` do XNotes Android.
 
+## Primeira versão alpha — v0.1.0-alpha.1
+
+Esta é uma **versão de testes**. O aplicativo funciona localmente no navegador, sem servidor externo e sem conta. Não é necessário instalar dependências de JavaScript.
+
+### Instalação (Linux)
+
+1. Baixe `XTemplate-Studio-v0.1.0-alpha.1.zip` na seção **Releases** do GitHub e extraia o arquivo.
+2. Abra a pasta `XTemplate-Studio` e execute `./start.sh` (Python 3 e um navegador instalados).
+3. Acesse `http://127.0.0.1:8765/` se o navegador não abrir automaticamente.
+4. Para encerrar um servidor iniciado pelo script, execute `./stop.sh`.
+
+No Windows e no macOS, a aplicação web pode ser servida localmente com Python 3: na pasta extraída, execute `python3 -m http.server 8765 --bind 127.0.0.1` (no Windows, pode ser `py -3 -m http.server 8765 --bind 127.0.0.1`) e abra o endereço acima. **Não abra `index.html` via `file://`**: os módulos e exemplos exigem um servidor HTTP local.
+
+### Limitações conhecidas da alpha
+
+- A pré-visualização SVG pode diferir do XNotes Android em fontes, hachuras, expressões avançadas e elementos complexos. Sempre valide o `.xtemplate` exportado no XNotes.
+- O editor não oferece sincronização em nuvem nem salvamento automático persistente: **exporte o arquivo antes de sair ou abrir outro modelo**.
+- Não há instalador nativo para Windows, macOS ou Android. A distribuição é um arquivo ZIP portátil.
+
 ## Guia de autoria `.xtemplate`
 
 Read [the XTemplate format guide](docs/GUIA-XTEMPLATE.md) to understand elements, expressions, colors, fills, variables, and how to test compatibility with XNotes Android.
@@ -92,3 +111,5 @@ npm test
 A suíte valida todos os arquivos `.xtemplate` de `examples/` e cobre os limites de 1 MiB, 32 níveis e 10.000 nós. Ela complementa — não substitui — a verificação visual no XNotes Android, pois o renderizador do editor é uma aproximação do renderizador nativo.
 
 A aplicação continua sendo servida localmente e funciona offline após abrir. O uso de módulos ES permite adicionar novas funcionalidades em src/features/ sem introduzir um framework ou dependências externas desnecessárias.
+
+A publicação da alpha é automatizada: tags `v*-alpha.*` executam os testes e produzem o ZIP na seção **Releases** do GitHub.

@@ -1,0 +1,34 @@
+name: Alpha release
+
+on:
+  push:
+    tags:
+      - 'v*-alpha.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate
+        run: |
+          npm run check
+          npm test
+      - name: Package portable app
+        run: python3 scripts/package-release.py --output dist/XTemplate-Studio-${{ github.ref_name }}.zip
+      - name: Publish GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" "dist/XTemplate-Studio-$TAG.zip" \
+            --title "XTemplate Studio $TAG (Alpha)" \
+            --notes-file RELEASE_NOTES.md \
+            --prerelease \
+            --verify-tag
