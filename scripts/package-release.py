@@ -5,7 +5,7 @@ from zipfile import ZipFile, ZIP_DEFLATED, ZipInfo
 import argparse
 
 ROOT = Path(__file__).resolve().parent.parent
-INCLUDED = ("index.html", "app.js", "styles.css", "start.sh", "stop.sh", "README.md", "package.json")
+INCLUDED = ("index.html", "app.js", "styles.css", "start.sh", "stop.sh", "README.md", "LICENSE", "CONTRIBUTING.md", "SECURITY.md", "package.json")
 DIRECTORIES = ("src", "examples", "docs")
 
 

@@ -6,3 +6,18 @@ dist/
 
 dist-web/
 src-tauri/target/
+
+# Local configurations and secrets (never commit)
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.pfx
+*.key
+*.keystore
+*.jks
+*.mobileprovision
+*.env.local
+.cache/
+coverage/

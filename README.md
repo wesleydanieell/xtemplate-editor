@@ -134,3 +134,7 @@ A suíte valida todos os arquivos `.xtemplate` de `examples/` e cobre os limites
 A aplicação continua sendo servida localmente e funciona offline após abrir. O uso de módulos ES permite adicionar novas funcionalidades em src/features/ sem introduzir um framework ou dependências externas desnecessárias.
 
 A publicação da alpha é automatizada: tags `v*-alpha.*` executam os testes e produzem o ZIP na seção **Releases** do GitHub.
+
+## Contribuir e reportar problemas
+
+O projeto é público e recebe issues e pull requests. Veja [CONTRIBUTING.md](CONTRIBUTING.md) para instruções de desenvolvimento, testes e propostas de mudanças, [SECURITY.md](SECURITY.md) para reportar vulnerabilidades e [LICENSE](LICENSE) para a licença MIT do código do editor. Os exemplos `.xtemplate` podem ter metadados e licenças próprios; consulte cada arquivo antes de reutilizá-los fora do projeto.
