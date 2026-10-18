@@ -1,20 +1,23 @@
 import { createAlignmentTools } from "./src/features/alignment.js";
 import { validateTemplate } from "./src/core/validate-template.js";
+import { xnotesCompatibilityWarnings } from "./src/core/xnotes-compatibility.js";
 import { createDefaultNode } from "./src/core/template-schema.js";
 import { evalExpr, mm } from "./src/core/expressions.js";
 import { createHistory } from "./src/core/history.js";
 import { anchoredPan, nextZoomLevel } from "./src/features/zoom.js";
-import { calculateSnap, calculateObjectSnap } from "./src/features/snapping.js";
+import { calculateSnap, calculateObjectSnap, calculateResizeSnap } from "./src/features/snapping.js";
 import { rotationFromPointer, normalizeDialAngle } from "./src/features/rotation-wheel.js";
 import { variableChoices, completeExpression } from "./src/features/variable-completion.js";
 import { valueHint, variableTypeHint } from "./src/features/value-hints.js";
 import { LAYER_COLORS, readLayerColors, validLayerColor } from "./src/features/layer-colors.js";
 import { screenToDocumentPoint } from "./src/features/pointer-geometry.js";
+import { paintedBounds } from "./src/features/painted-bounds.js";
 import { repeatPositions } from "./src/features/repeat-layout.js";
+import { translate as matrixTranslate, scale as matrixScale, rotate as matrixRotate, around as matrixAround, multiply as matrixMultiply, toSVG as matrixSVG } from "./src/features/affine-transform.js";
 import { resizePreviewTransform, rotationPreviewTransform, resizedBounds } from "./src/features/resize-preview.js";
 import { deleteSiblingNodes, duplicateSiblingNodes, getSiblingSelection as getTreeSiblingSelection, groupSiblingNodes, normalizePaths, sameParent, moveNode, nudgeSiblingNodes } from "./src/core/tree-operations.js";
 import { arrangeBounds } from "./src/features/arrange-selection.js";
-import { sharedEditableProperties } from "./src/core/common-properties.js";
+import { sharedEditableProperties, editablePropertyValue } from "./src/core/common-properties.js";
 import { selectTreePaths } from "./src/core/tree-selection.js";
 (() => {
 "use strict";
@@ -30,6 +33,17 @@ todo:{xtemplate:1,id:"xtemplate.examples.todo",name:"Checklist",description:"Row
 };
 let doc=clone(samples.ruled),selectedPath=null,selectedPaths=[],dirty=false,drag=null,marqueeState=null,split=false,activeInspector="properties",suppressJson=false,toastTimer,clipboardNodes=[];
 let smartGuides={x:null,y:null},smartGuideSegments={x:null,y:null};
+// A repeated template node is one model object but has several visible SVG
+// instances. Only the focused copy gets handles, avoiding hundreds of knobs.
+let focusedRepeatInstance=null;
+const renderInstanceCounts=new Map();
+const repeatFrameBounds=new Map();
+function unionRepeatBounds(a,b){if(!a)return{...b};return{x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.max(a.x+a.w,b.x+b.w)-Math.min(a.x,b.x),h:Math.max(a.y+a.h,b.y+b.h)-Math.min(a.y,b.y)};}
+
+
+let magneticGuidesEnabled=true;
+try{magneticGuidesEnabled=localStorage.getItem('xtemplate-magnetic-guides')!=='false';}catch{}
+
 const history=createHistory(JSON.stringify(doc));let historyRestoring=false;
 let pageSize=[210,297],zoomMode="fit",previewValues={},lastValidJson="",expanded=true,clipSerial=0;
 const collapsedTree=new Set();
@@ -219,7 +233,8 @@ function refreshVariableSuggestions(){
  // The popup renders current params on focus/input, including after edits.
  if(completionInput&&document.activeElement===completionInput)showVariableCompletion(completionInput);
 }
-function mergedStyle(n,p={}){const out={...p};for(const k of ["stroke","strokeWidth","dash","fill","opacity","font","size","weight","italic","align","baseline","rotate"])if(n[k]!==undefined)out[k]=n[k];return out;}
+function mergedStyle(n,p={}){const out={...p};// Android inherits rotation as a text style (quarter-turns only).
+for(const k of ["stroke","strokeWidth","dash","fill","opacity","font","size","weight","italic","align","baseline","rotate"])if(n[k]!==undefined)out[k]=n[k];return out;}
 function svgStyle(s){const o={};if(s.stroke!==undefined)o.stroke=resolveColor(s.stroke);if(s.strokeWidth!==undefined)o["stroke-width"]=evalExpr(s.strokeWidth,{w:1,h:1,vars:previewValues},"short",.25);if(s.fill!==undefined)o.fill=resolveColor(s.fill);if(s.opacity!==undefined)o.opacity=Math.max(0,Math.min(1,Number(s.opacity)));if(Array.isArray(s.dash)&&s.dash.length===2)o["stroke-dasharray"]=s.dash.map(v=>evalExpr(v,{w:1,h:1,vars:previewValues},"short",0)).join(" ");if(s.dash==="none")o["stroke-dasharray"]="none";if(s.size!==undefined)o["font-size"]=evalExpr(s.size,{w:1,h:1,vars:previewValues},"short",3.5);if(s.font)o["font-family"]=s.font==="mono"?"monospace":s.font==="serif"?"serif":"sans-serif";if(s.weight)o["font-weight"]=s.weight==="bold"?"700":s.weight;if(s.italic!==undefined)o["font-style"]=s.italic?"italic":"normal";if(s.align)o["text-anchor"]=s.align==="middle"?"middle":s.align==="end"?"end":"start";if(s.baseline)o["dominant-baseline"]=s.baseline==="middle"?"middle":s.baseline==="top"?"hanging":"alphabetic";return o;}
 function svg(tag,attrs={},txt){const e=document.createElementNS(NS,tag);for(const [k,v] of Object.entries(attrs))if(v!==undefined&&v!==null)e.setAttribute(k,String(v));if(txt!==undefined)e.textContent=txt;return e;}
 function applyClip(element,b){const id="xstudio-clip-"+(++clipSerial);let defs=paper.querySelector("defs");if(!defs){defs=svg("defs");paper.insertBefore(defs,paper.firstChild);}const cp=svg("clipPath",{id,clipPathUnits:"userSpaceOnUse"});cp.appendChild(svg("rect",{x:b.x,y:b.y,width:Math.max(0,b.w),height:Math.max(0,b.h)}));defs.appendChild(cp);element.setAttribute("clip-path","url(#"+id+")");return element;}
@@ -230,7 +245,26 @@ function exprContext(box){return{...box,vars:{...previewValues,W:box.w,H:box.h,i
 function evalN(v,box,axis="x",fallback=0){return evalExpr(v,{...box,vars:ctxVars(box)},axis,fallback);}
 function childrenRender(n,path,box,style){const g=svg("g");(n.children||[]).forEach((c,i)=>{const e=renderNode(c,path.concat(["children",i]),box,style);if(e)g.appendChild(e);});return g;}
 
-function renderNode(n,path,box,parentStyle={stroke:"ink",strokeWidth:0.25,fill:null,opacity:1,font:"sans",size:3.5,weight:"normal",italic:false,align:"start",baseline:"alphabetic"}){if(!n||typeof n!=="object")return null;const type=n.type,st=mergedStyle(n,parentStyle),attrs=svgStyle(st),key=nodeKey(path),isSelected=selectedPaths.some(p=>nodeKey(p)===key),g=svg("g",{"data-path":key,class:"svg-node",tabindex:0,role:"button","aria-label":type||"element"});const x=evalN(n.x??0,box,"x"),y=evalN(n.y??0,box,"y"),w=evalN(n.w??"100%",box,"x",box.w),h=evalN(n.h??"100%",box,"y",box.h);
+function renderNode(n,path,box,parentStyle={stroke:"ink",strokeWidth:0.25,fill:null,opacity:1,font:"sans",size:3.5,weight:"normal",italic:false,align:"start",baseline:"alphabetic"}){if(!n||typeof n!=="object")return null;const type=n.type,st=mergedStyle(n,parentStyle),attrs=svgStyle(st),key=nodeKey(path),isSelected=selectedPaths.some(p=>nodeKey(p)===key),instance=renderInstanceCounts.get(key)||0;
+renderInstanceCounts.set(key,instance+1);
+const repeatChild=isRepeatedPath(path),showHandles=isSelected&&(!repeatChild||instance===(focusedRepeatInstance?.key===key?focusedRepeatInstance.instance:0));
+const g=svg("g",{"data-path":key,"data-instance":instance,class:"svg-node",tabindex:0,role:"button","aria-label":type||"element"});const x=evalN(n.x??0,box,"x"),y=evalN(n.y??0,box,"y"),w=evalN(n.w??"100%",box,"x",box.w),h=evalN(n.h??"100%",box,"y",box.h);
+// An SVG subtree is detached while renderNode runs; getBBox() on the repeat
+// container reports an empty rectangle in Chromium. Accumulate the actual
+// rendered leaf positions in page units instead, across every repeat cell.
+if(!['group','repeat'].includes(type)){
+ const shape=selectionBounds(n,box);
+ if(shape&&[shape.x,shape.y,shape.w,shape.h].every(Number.isFinite)){
+  for(let depth=2;depth<path.length;depth+=2){
+   const ancestor=path.slice(0,depth);
+   if(getAt(ancestor)?.type==='repeat'){
+    const ancestorKey=nodeKey(ancestor);
+    repeatFrameBounds.set(ancestorKey,unionRepeatBounds(repeatFrameBounds.get(ancestorKey),shape));
+   }
+  }
+ }
+}
+
 switch(type){
 case"group":{let [top,right,bottom,left]=[0,0,0,0];if(n.inset!==undefined){let a=Array.isArray(n.inset)?n.inset:[n.inset];if(a.length===1)a=[a[0],a[0],a[0],a[0]];else if(a.length===2)a=[a[0],a[1],a[0],a[1]];else if(a.length===3)a=[a[0],a[1],a[2],a[1]];[top,right,bottom,left]=[evalN(a[0],box,"y"),evalN(a[1],box,"x"),evalN(a[2],box,"y"),evalN(a[3],box,"x")];}const b={x:box.x+x+left,y:box.y+y+top,w:Math.max(0,w-left-right),h:Math.max(0,h-top-bottom),vars:box.vars||previewValues};const child=childrenRender(n,path,b,st);if(n.clip)applyClip(child,b);g.appendChild(child);break;}
 case"repeat":{
@@ -270,18 +304,27 @@ case"vline":{const xx=box.x+evalN(n.x??0,box,"x");g.appendChild(svg("line",{...a
 case"rect":g.appendChild(svg("rect",{...attrs,x:box.x+x,y:box.y+y,width:w,height:h,rx:evalN(n.rx??0,box,"short")}));break;
 case"circle":case"ellipse":case"dot":{const cx=box.x+evalN(n.cx??0,box,"x"),cy=box.y+evalN(n.cy??0,box,"y"),rx=evalN(n.r??n.rx??"0.35mm",box,"short"),ry=type==="ellipse"?evalN(n.ry??"2mm",box,"short"):rx;const a={...attrs,cx,cy,rx,ry};if(type==="dot"){a.fill=resolveColor(n.fill||n.stroke||"ink");a.stroke="none";}g.appendChild(svg("ellipse",a));break;}
 case"polyline":case"polygon":{let pts=n.points;if(typeof pts==="string")pts=pts.trim().split(/[\s,]+/).map(Number);if(Array.isArray(pts)){const values=[];for(const p of pts){if(Array.isArray(p))values.push(...p);else values.push(p);}const points=[];for(let i=0;i+1<values.length;i+=2)points.push((box.x+evalN(values[i],box,"x"))+","+(box.y+evalN(values[i+1],box,"y")));g.appendChild(svg(type,{...attrs,points:points.join(" ")}));}break;}
-case"text":{const all=Array.isArray(n.text)?n.text:String(n.text??"");let text=Array.isArray(all)?all[Math.max(0,Math.min(all.length-1,Math.floor(evalN(n.select??"i",box,"plain"))))]||"":all;text=String(text).replace(/{{/g,"\u0001").replace(/}}/g,"\u0002").replace(/\{([^{}]+)\}/g,(_,expr)=>String(evalN(expr,box,"plain",0))).replace(/\u0001/g,"{").replace(/\u0002/g,"}");const tx=box.x+x,ty=box.y+y;const textAttrs={...attrs,x:tx,y:ty,fill:resolveColor(st.fill||st.stroke||"ink"),stroke:"none"};const t=svg("text",textAttrs);if(n.rotate!==undefined||st.rotate!==undefined)t.setAttribute("transform","rotate("+evalN(n.rotate??st.rotate,box,"plain")+" "+tx+" "+ty+")");t.textContent=text;g.appendChild(t);break;}
+case"text":{const all=Array.isArray(n.text)?n.text:String(n.text??"");let text=Array.isArray(all)?all[Math.max(0,Math.min(all.length-1,Math.floor(evalN(n.select??"i",box,"plain"))))]||"":all;text=String(text).replace(/{{/g,"\u0001").replace(/}}/g,"\u0002").replace(/\{([^{}]+)\}/g,(_,expr)=>String(evalN(expr,box,"plain",0))).replace(/\u0001/g,"{").replace(/\u0002/g,"}");const tx=box.x+x,ty=box.y+y;const textAttrs={...attrs,x:tx,y:ty,fill:resolveColor(st.fill||st.stroke||"ink"),stroke:"none"};const t=svg("text",textAttrs);if(n.rotate!==undefined||st.rotate!==undefined)t.setAttribute("transform",matrixSVG(matrixAround(matrixRotate(Math.round(evalN(st.rotate??0,box,"plain")/90)*90),tx,ty)));t.textContent=text;g.appendChild(t);break;}
 case"hatch":{const period=Math.max(.5,evalN(n.period,box,"short",4)),angle=evalN(n.angle??0,box,"plain"),offset=evalN(n.offset??0,box,"short"),theta=angle*Math.PI/180,dx=Math.cos(theta),dy=-Math.sin(theta),nx=Math.sin(theta),ny=Math.cos(theta),length=(n.extend?Math.hypot(pageSize[0],pageSize[1]):Math.hypot(box.w,box.h))*2;for(let k=-500;k<=500;k++){const d=k*period+offset,cx=box.x+box.w/2+nx*d,cy=box.y+box.h/2+ny*d;g.appendChild(svg("line",{...attrs,x1:cx-dx*length,y1:cy-dy*length,x2:cx+dx*length,y2:cy+dy*length}));if(d>length)break;}applyClip(g,n.extend?{x:0,y:0,w:pageSize[0],h:pageSize[1]}:box);break;}
-case"path":{if(typeof n.d==="string"){const vb=Array.isArray(n.viewBox)?n.viewBox:typeof n.viewBox==="string"?n.viewBox.split(/[\s,]+/).map(Number):null;let transform="translate("+box.x+" "+box.y+")";if(vb&&vb.length===4&&vb[2]>0&&vb[3]>0){let sx=w/vb[2],sy=h/vb[3],tx=box.x+x,ty=box.y+y;if(n.aspect!=="stretch"){const scale=Math.min(sx,sy);sx=sy=scale;tx+=(w-vb[2]*scale)/2;ty+=(h-vb[3]*scale)/2;}tx-=vb[0]*sx;ty-=vb[1]*sy;transform="translate("+tx+" "+ty+") scale("+sx+" "+sy+")";}g.appendChild(svg("path",{...attrs,d:n.d,transform}));}break;}
+case"path":{if(typeof n.d==="string"){const vb=Array.isArray(n.viewBox)?n.viewBox:typeof n.viewBox==="string"?n.viewBox.split(/[\s,]+/).map(Number):null;let transform=matrixSVG(matrixTranslate(box.x,box.y));if(vb&&vb.length===4&&vb[2]>0&&vb[3]>0){let sx=w/vb[2],sy=h/vb[3],tx=box.x+x,ty=box.y+y;if(n.aspect!=="stretch"){const scale=Math.min(sx,sy);sx=sy=scale;tx+=(w-vb[2]*scale)/2;ty+=(h-vb[3]*scale)/2;}tx-=vb[0]*sx;ty-=vb[1]*sy;transform=matrixSVG(matrixMultiply(matrixTranslate(tx,ty),matrixScale(sx,sy)));}g.appendChild(svg("path",{...attrs,d:n.d,transform}));}break;}
 }
-if(n.rotate!==undefined&&type!=="text"){const rb=selectionBounds(n,box);g.setAttribute("transform","rotate("+evalN(n.rotate,box,"plain")+" "+(rb.x+rb.w/2)+" "+(rb.y+rb.h/2)+")");}const hitTypes=["rect","text","path","ellipse","circle","dot","line","hline","vline","polygon","polyline"];if(hitTypes.includes(type)||(isSelected&&["group","repeat"].includes(type))){const hb=selectionBounds(n,box);g.insertBefore(svg("rect",{class:"svg-hitbox",x:hb.x,y:hb.y,width:Math.max(2,hb.w),height:Math.max(2,hb.h),fill:"transparent",stroke:"none","pointer-events":"all"}),g.firstChild);}if(isSelected){const b=selectionBounds(n,box);g.appendChild(svg("rect",{class:"svg-selection",x:b.x,y:b.y,width:Math.max(1,b.w),height:Math.max(1,b.h)}));if(!isRepeatedPath(path)&&["group","rect","path","ellipse","circle","dot","line","hline","vline","polyline","polygon"].includes(type)&&(b.w>1||b.h>1)){const hs=1.7,pts=[[b.x,b.y,"nw"],[b.x+b.w/2,b.y,"n"],[b.x+b.w,b.y,"ne"],[b.x+b.w,b.y+b.h/2,"e"],[b.x+b.w,b.y+b.h,"se"],[b.x+b.w/2,b.y+b.h,"s"],[b.x,b.y+b.h,"sw"],[b.x,b.y+b.h/2,"w"]],visiblePts=type==="hline"?pts.filter(p=>["e","w"].includes(p[2])):type==="vline"?pts.filter(p=>["n","s"].includes(p[2])):pts;for(const [hx,hy,id] of visiblePts)g.appendChild(svg("rect",{class:"transform-handle handle-"+id,"data-handle":id,x:hx-hs/2,y:hy-hs/2,width:hs,height:hs,rx:.25}));g.appendChild(svg("line",{class:"rotation-stem",x1:b.x+b.w/2,y1:b.y,x2:b.x+b.w/2,y2:b.y-5}));g.appendChild(svg("circle",{class:"transform-handle rotate-handle","data-handle":"rotate",cx:b.x+b.w/2,cy:b.y-5,r:1.5}));}else if(type==="text"&&!isRepeatedPath(path)){
+// XNotes TemplateEval applies rotate only to glyph contours, quantized to 90°.
+// Geometry of groups, repeats and non-text primitives must stay unrotated.
+const repeatFrame=type==="repeat"?(repeatFrameBounds.get(key)||selectionBounds(n,box)):null;
+const repeatedDescendantSelected=type==="repeat"&&selectedPaths.some(p=>nodeKey(p).startsWith(key+"."));
+if(type==="repeat"&&(isSelected||repeatedDescendantSelected)&&repeatFrame){
+ const b=repeatFrame;
+ g.appendChild(svg("rect",{class:"svg-selection repeat-selection",x:b.x,y:b.y,width:Math.max(1,b.w),height:Math.max(1,b.h)}));
+
+}
+const hitTypes=["rect","text","path","ellipse","circle","dot","line","hline","vline","polygon","polyline"];if(hitTypes.includes(type)||(isSelected&&["group","repeat"].includes(type))){const hb=selectionBounds(n,box);g.insertBefore(svg("rect",{class:"svg-hitbox",x:hb.x,y:hb.y,width:Math.max(2,hb.w),height:Math.max(2,hb.h),fill:"transparent",stroke:"none","pointer-events":"all"}),g.firstChild);}if(isSelected&&type!=="repeat"&&(!repeatChild||showHandles)){const b=selectionBounds(n,box);g.appendChild(svg("rect",{class:"svg-selection",x:b.x,y:b.y,width:Math.max(1,b.w),height:Math.max(1,b.h)}));if(showHandles&&["group","rect","path","ellipse","circle","dot","line","hline","vline","polyline","polygon"].includes(type)&&(b.w>1||b.h>1)){const hs=1.7,pts=[[b.x,b.y,"nw"],[b.x+b.w/2,b.y,"n"],[b.x+b.w,b.y,"ne"],[b.x+b.w,b.y+b.h/2,"e"],[b.x+b.w,b.y+b.h,"se"],[b.x+b.w/2,b.y+b.h,"s"],[b.x,b.y+b.h,"sw"],[b.x,b.y+b.h/2,"w"]],visiblePts=type==="hline"?pts.filter(p=>["e","w"].includes(p[2])):type==="vline"?pts.filter(p=>["n","s"].includes(p[2])):pts;for(const [hx,hy,id] of visiblePts)g.appendChild(svg("rect",{class:"transform-handle handle-"+id,"data-handle":id,x:hx-hs/2,y:hy-hs/2,width:hs,height:hs,rx:.25}));if(!repeatChild&&type==="text"){g.appendChild(svg("line",{class:"rotation-stem",x1:b.x+b.w/2,y1:b.y,x2:b.x+b.w/2,y2:b.y-5}));g.appendChild(svg("circle",{class:"transform-handle rotate-handle","data-handle":"rotate",cx:b.x+b.w/2,cy:b.y-5,r:1.5}));}}else if(type==="text"&&showHandles&&!repeatChild){
  g.appendChild(svg("line",{class:"rotation-stem",x1:b.x+b.w/2,y1:b.y,x2:b.x+b.w/2,y2:b.y-5}));
  g.appendChild(svg("circle",{class:"transform-handle rotate-handle","data-handle":"rotate",cx:b.x+b.w/2,cy:b.y-5,r:1.5}));
  }}
 return g;}
 function selectionBounds(n,b){const t=n.type,x=b.x+evalN(n.x??0,b,"x"),y=b.y+evalN(n.y??0,b,"y"),w=evalN(n.w??"100%",b,"x",b.w),h=evalN(n.h??"100%",b,"y",b.h);if(t==="hline"){const x1=evalN(n.x1??0,b,"x"),x2=evalN(n.x2??"100%",b,"x");return{x:b.x+Math.min(x1,x2),y:b.y+evalN(n.y??0,b,"y"),w:Math.abs(x2-x1),h:0.6};}if(t==="vline"){const y1=evalN(n.y1??0,b,"y"),y2=evalN(n.y2??"100%",b,"y");return{x:b.x+evalN(n.x??0,b,"x"),y:b.y+Math.min(y1,y2),w:0.6,h:Math.abs(y2-y1)};}if(t==="line"){const x1=evalN(n.x1??0,b,"x"),y1=evalN(n.y1??0,b,"y"),x2=evalN(n.x2??0,b,"x"),y2=evalN(n.y2??0,b,"y");return{x:b.x+Math.min(x1,x2),y:b.y+Math.min(y1,y2),w:Math.abs(x2-x1),h:Math.abs(y2-y1)};}if(t==="text")return{x,y,w:Math.max(10,String(n.text||"").length*1.8),h:5};if(t==="ellipse"){const rx=evalN(n.rx??"15mm",b,"short"),ry=evalN(n.ry??"8mm",b,"short");return{x:b.x+evalN(n.cx??0,b,"x")-rx,y:b.y+evalN(n.cy??0,b,"y")-ry,w:2*rx,h:2*ry};}if(["circle","dot"].includes(t)){const r=evalN(n.r??"0.35mm",b,"short");return{x:b.x+evalN(n.cx??0,b,"x")-r,y:b.y+evalN(n.cy??0,b,"y")-r,w:2*r,h:2*r};}if(["polyline","polygon"].includes(t)){let values=n.points;if(typeof values==="string")values=values.trim().split(/[\s,]+/).map(Number);if(Array.isArray(values)){const flat=values.flat(Infinity),xs=[],ys=[];for(let i=0;i+1<flat.length;i+=2){xs.push(b.x+evalN(flat[i],b,"x"));ys.push(b.y+evalN(flat[i+1],b,"y"));}if(xs.length)return{x:Math.min(...xs),y:Math.min(...ys),w:Math.max(...xs)-Math.min(...xs),h:Math.max(...ys)-Math.min(...ys)};}}return{x,y,w,h};}
 function initializePreviewValues(){const previous=previewValues,next={};for(const [name,p] of Object.entries(doc.params||{})){const d=p.default;if(p.type==="color")next["$"+name]=previous["$"+name]||d||"#333333";else next[name]=previous[name]!==undefined?previous[name]:(typeof d==="number"?d:(mm(d,1) ?? (Number(d)||0)));}previewValues=next;}
-function renderCanvas(){paper.replaceChildren();paper.setAttribute("viewBox","0 0 "+pageSize[0]+" "+pageSize[1]);paper.appendChild(svg("rect",{x:0,y:0,width:pageSize[0],height:pageSize[1],fill:"#fffefa"}));const box={x:0,y:0,w:pageSize[0],h:pageSize[1],vars:{...previewValues,W:pageSize[0],H:pageSize[1],i:0,j:0}};(doc.items||[]).forEach((n,i)=>{const e=renderNode(n,["items",i],box);if(e)paper.appendChild(e);});
+function renderCanvas(){renderInstanceCounts.clear();repeatFrameBounds.clear();paper.replaceChildren();paper.setAttribute("viewBox","0 0 "+pageSize[0]+" "+pageSize[1]);paper.appendChild(svg("rect",{x:0,y:0,width:pageSize[0],height:pageSize[1],fill:"#fffefa"}));const box={x:0,y:0,w:pageSize[0],h:pageSize[1],vars:{...previewValues,W:pageSize[0],H:pageSize[1],i:0,j:0}};(doc.items||[]).forEach((n,i)=>{const e=renderNode(n,["items",i],box);if(e)paper.appendChild(e);});
 renderSmartGuideOverlay();}
 function render(){renderCanvas();
 $("pageDimensions").textContent=pageSize[0]+" × "+pageSize[1]+" mm";if($("filePageSize"))$("filePageSize").value=$("paperSize").value;$("docName").textContent=doc.name||"Untitled";$("nodeStatus").textContent=countNodes(doc.items||[])+" nodes";if(document.activeElement!==$("metaName"))$("metaName").value=doc.name||"";if(document.activeElement!==$("metaId"))$("metaId").value=doc.id||"";if(document.activeElement!==$("metaDescription"))$("metaDescription").value=doc.description||"";if(document.activeElement!==$("metaAuthor"))$("metaAuthor").value=doc.author||"";if(document.activeElement!==$("metaLicense"))$("metaLicense").value=doc.license||"";if(document.activeElement!==$("metaVersion"))$("metaVersion").value=doc.version||"";if(document.activeElement!==$("metaTags"))$("metaTags").value=(doc.tags||[]).join(", ");renderTree();renderInspector();renderParams();renderAllColorChoices();refreshVariableSuggestions();renderQuickProperties();fitPaper();}
@@ -527,9 +570,10 @@ function renderInspector(){
 }
 function renderMultiPropertyInspector(root){
  root.replaceChildren();root.className="multi-property-inspector";
- const lead=document.createElement("p");lead.className="section-description";lead.textContent="Editing "+selectedPaths.length+" selected elements. Only properties supported by every selected element are shown; changes apply to all of them.";root.appendChild(lead);
+ const lead=document.createElement("p");lead.className="section-description";lead.textContent="Editing "+selectedPaths.length+" selected elements. Only properties supported by every selected element are shown; missing optional values may be set together.";root.appendChild(lead);
  const nodes=selectedPaths.map(path=>getAt(path)).filter(Boolean);if(nodes.length!==selectedPaths.length)return;
- // Mixed-type edits are allowed, but only for existing shared attributes.
+ // Capabilities, not explicit JSON keys: defaults and inherited styles are valid.
+ // A changed field writes a value to each node; unrelated keys are untouched.
  const fields=sharedEditableProperties(nodes);
  if(!fields.length){const empty=document.createElement("p");empty.className="param-empty";empty.textContent="The selected elements have no editable properties in common.";root.appendChild(empty);return;}
  const labels={stroke:"Stroke",fill:"Fill",strokeWidth:"Stroke width",opacity:"Opacity (%)",rotate:"Rotation (°)",font:"Font",size:"Text size",weight:"Weight",italic:"Italic",align:"Alignment",baseline:"Baseline",dash:"Dash pattern",clip:"Clip",inset:"Inset",axis:"Axis",period:"Period",count:"Count",fit:"Fit",index:"Index alias",stagger:"Stagger",extend:"Extend",text:"Text",x:"X",y:"Y",w:"Width",h:"Height",rx:"Corner radius",cx:"Center X",cy:"Center Y",r:"Radius",ry:"Radius Y",points:"Points",d:"SVG path data",viewBox:"ViewBox",aspect:"Aspect ratio",angle:"Angle",offset:"Offset",select:"Text index",x1:"X1",y1:"Y1",x2:"X2",y2:"Y2"};
@@ -540,13 +584,15 @@ function renderMultiPropertyInspector(root){
  });
  for(const key of fields){
   const lab=document.createElement("label");lab.className="field";lab.append(document.createTextNode(labels[key]||key));let input;
-  const vals=nodes.map(node=>node[key]);const same=vals.every(v=>JSON.stringify(v)===JSON.stringify(vals[0]));
+  const vals=nodes.map(node=>editablePropertyValue(node,key));
+  const same=vals.every(v=>JSON.stringify(v)===JSON.stringify(vals[0]));
+  const unset=vals.every(v=>v===undefined);
   if(key==="italic"||key==="clip"||key==="extend"){input=document.createElement("input");input.type="checkbox";input.checked=same&&!!vals[0];}
   else if(["axis","fit","weight","font","align","baseline","aspect"].includes(key)){input=document.createElement("select");const opts={axis:["x","y","xy","none"],fit:["repeat","space","round","center"],weight:["normal","bold"],font:["sans","serif","mono"],align:["start","middle","end"],baseline:["alphabetic","middle","top"],aspect:["contain","stretch"]}[key];const blank=document.createElement("option");blank.value="";blank.textContent=same?String(vals[0]??""):"Multiple values";input.appendChild(blank);opts.forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=v;input.appendChild(o);});input.value=same?String(vals[0]??""):"";}
-  else {input=document.createElement("input");input.type=key==="opacity"?"range":"text";if(key==="opacity"){input.min="0";input.max="100";input.step="1";input.value=same?Math.round(Number(vals[0]??1)*100):50;}else input.value=same?(Array.isArray(vals[0])?JSON.stringify(vals[0]):String(vals[0]??"")):"";input.placeholder=same?"":"Multiple values";}
+  else {input=document.createElement("input");input.type=key==="opacity"?"range":"text";if(key==="opacity"){input.min="0";input.max="100";input.step="1";input.value=same?Math.round(Number(vals[0]??1)*100):50;}else input.value=same?(Array.isArray(vals[0])?JSON.stringify(vals[0]):String(vals[0]??"")):"";input.placeholder=unset?"Inherited / not set":same?"":"Multiple values";}
   if(key==="opacity")input.addEventListener("input",()=>{const v=Number(input.value)/100;for(const path of selectedPaths){const target=getAt(path);if(target)target.opacity=Math.max(0,Math.min(1,v));}renderCanvas();});
   input.dataset.property=key;
-  input.addEventListener("change",()=>{let value=input.value;if(["italic","clip","extend"].includes(key))value=input.checked;else if(key==="opacity")value=Number(value)/100;else if(value.trim()===""){value=undefined;}else if(["inset","period","count","fit","index","points","viewBox","dash"].includes(key)&&value.trim().startsWith("[")){try{value=JSON.parse(value);}catch{toast("Invalid list for "+key);return;}}else if(["clip","extend","italic"].includes(key))value=input.checked;
+  input.addEventListener("change",()=>{let value=input.value;if(["italic","clip","extend"].includes(key))value=input.checked;else if(key==="opacity")value=Number(value)/100;else if(value.trim()===""){value=undefined;}else if(["inset","period","count","fit","index","points","viewBox","dash","text"].includes(key)&&value.trim().startsWith("[")){try{value=JSON.parse(value);}catch{toast("Invalid list for "+key);return;}}else if(["clip","extend","italic"].includes(key))value=input.checked;
    commit(()=>{for(const path of selectedPaths){const target=getAt(path);if(!target)continue;if(value===undefined)delete target[key];else target[key]=clone(value);}});
   });
   lab.appendChild(input);root.appendChild(lab);
@@ -605,7 +651,7 @@ function renderAdvanced(n){
  if(n.type==="hatch"){addField("Period","period",{json:Array.isArray(n.period)});addField("Ângulo (graus)","angle",{numeric:true});addField("Deslocamento","offset");addField("Estender além da caixa","extend",{checkbox:true});}
  const styleHead=document.createElement("div");styleHead.className="advanced-heading";styleHead.textContent="TYPE & STROKE";root.appendChild(styleHead);
  if(n.type==="text"){addField("Tamanho da fonte","size");addField("Peso","weight",{select:["normal","bold"]});addField("Fonte","font",{select:["sans","serif","mono"]});addField("Alinhamento","align",{select:["start","middle","end"]});addField("Linha de base","baseline",{select:["alphabetic","middle","top"]});addField("Italic","italic",{checkbox:true});}
- addField("Rotation (degrees)","rotate");
+ if(n.type==="text")addField("Rotation (degrees, XNotes 90° steps)","rotate");
  addField("Tracejado [stroke, espaço]","dash",{wide:true,json:Array.isArray(n.dash)});
 }
 function commit(fn){
@@ -753,28 +799,32 @@ $("expandTree").addEventListener("click",()=>{
  renderTree();
 });
 
+/** A node's actually painted SVG bounds, including nested group transforms and
+ * each repeated instance, in page/document units rather than CSS pixels. */
+
 function snapTargetsFor(excludedPaths=[]){
  const excluded=excludedPaths.map(nodeKey),targets=[];
  const related=candidate=>excluded.some(key=>candidate===key||candidate.startsWith(key+".")||key.startsWith(candidate+"."));
- function visit(nodes,parentPath=["items"]){
-  (nodes||[]).forEach((node,index)=>{
-   if(!node||typeof node!=="object")return;
-   const path=parentPath.concat(index),candidate=nodeKey(path);
-   if(!related(candidate)&&node.type!=="repeat"){
-    const bounds=transformGeometry(node,path);
-    if(bounds&&Object.values(bounds).every(Number.isFinite)&&bounds.w>=0&&bounds.h>=0){
-     targets.push({...bounds,kind:"object",path:candidate});
-    }
-   }
-   if(["group","repeat"].includes(node.type))visit(node.children||[],path.concat("children"));
-  });
+ // Query actual SVG instances, not template nodes. A repeat can produce dozens
+ // of individually visible alignment targets; custom shapes and hatch groups
+ // also have proper painted bounds despite lacking explicit x/y/w/h keys.
+ for(const element of paper.querySelectorAll('g[data-path]')){
+  const candidate=element.dataset.path;
+  if(related(candidate))continue;
+  const bounds=paintedBounds(element,paper);
+  if(bounds&&bounds.w>=0&&bounds.h>=0)targets.push({...bounds,kind:'object',path:candidate});
  }
- visit(doc.items||[]);
  return targets;
 }
 function snapToGuides(proposed,excludedPaths=[],targets=null){
+ if(!magneticGuidesEnabled)return{dx:0,dy:0,guides:{x:null,y:null},segments:{x:null,y:null}};
  const rect=paper.getBoundingClientRect(),toleranceX=7*pageSize[0]/Math.max(1,rect.width),toleranceY=7*pageSize[1]/Math.max(1,rect.height);
  return calculateObjectSnap(proposed,targets||snapTargetsFor(excludedPaths),{w:pageSize[0],h:pageSize[1]},toleranceX,toleranceY);
+}
+function snappedResizeBounds(bounds,handle,excludedPaths=[],targets=null){
+ if(!magneticGuidesEnabled)return{bounds,guides:{x:null,y:null},segments:{x:null,y:null}};
+ const rect=paper.getBoundingClientRect(),tx=7*pageSize[0]/Math.max(1,rect.width),ty=7*pageSize[1]/Math.max(1,rect.height);
+ return calculateResizeSnap(bounds,handle,targets||snapTargetsFor(excludedPaths),{w:pageSize[0],h:pageSize[1]},tx,ty);
 }
 function clearSmartGuides(){smartGuides={x:null,y:null};smartGuideSegments={x:null,y:null};}
 function renderSmartGuideOverlay(){
@@ -837,16 +887,23 @@ paper.addEventListener("pointerdown",e=>{
  if(!g){const pt=pagePoint(e);marqueeState={pointerId:e.pointerId,start:pt,current:pt};paper.appendChild(svg("rect",{id:"marquee-selection",class:"marquee-selection",x:pt.x,y:pt.y,width:0,height:0,fill:"#6485f526",stroke:"#6485f5","stroke-width":0.55,"stroke-dasharray":"2 1","pointer-events":"none"}));paper.setPointerCapture(e.pointerId);e.preventDefault();return;}
  const path=toPath(g.dataset.path),n=getAt(path),handle=e.target.closest("[data-handle]")?.dataset.handle,key=nodeKey(path);
  if(!n)return;
- let visibleBounds=null;if(isRepeatedPath(path)&&!handle){try{const b=g.getBBox();visibleBounds={x:b.x,y:b.y,w:b.width,h:b.height};}catch{}}
+ // Snapshot painted geometry before select() replaces this SVG subtree;
+ // when dragging a repeated child, this is the clicked instance's bounds.
+ const visibleBounds=paintedBounds(g,paper);
+ if(isRepeatedPath(path))focusedRepeatInstance={key,instance:Number(g.dataset.instance)||0};
+ else focusedRepeatInstance=null;
  if(e.ctrlKey||e.metaKey||e.shiftKey){selectFromTree(path,e);return;}
  const multi=!handle&&selectedPaths.length>1&&selectedPaths.some(p=>nodeKey(p)===key);
  if(!multi)select(path);
- if(!draggableTypes.has(n.type)||n.type==="repeat")return;
+ if(n.type==="repeat"&&handle!=="rotate")return;
+ if(!draggableTypes.has(n.type)&&n.type!=="repeat")return;
  const parentBox=parentBoxForPath(path),geometry=transformGeometry(n,path);
  const items=(multi?selectedPaths.map(p=>p.slice()):[path.slice()]).map(p=>({path:p,origin:clone(getAt(p)),bounds:transformGeometry(getAt(p),p),parentBox:clone(parentBoxForPath(p)),repeated:isRepeatedPath(p)}));
- const bounds=multi?(unionBounds(items)||geometry):(visibleBounds||geometry);if(!bounds)return;
+ const repeatRect=n.type==="repeat"?g.querySelector(':scope > .repeat-selection'):null;
+ const repeatBounds=repeatRect?{x:Number(repeatRect.getAttribute('x')),y:Number(repeatRect.getAttribute('y')),w:Number(repeatRect.getAttribute('width')),h:Number(repeatRect.getAttribute('height'))}:null;
+ const bounds=repeatBounds||(multi?(unionBounds(items)||geometry):(handle&&n.type==="group"?geometry:(visibleBounds||geometry)));if(!bounds)return;
  const point=pagePoint(e),snapTargets=snapTargetsFor(items.map(item=>item.path)),previewTransforms=captureDragTransforms(items.map(item=>item.path));
- drag={pointerId:e.pointerId,path,mode:handle?"transform":"move",handle,startX:e.clientX,startY:e.clientY,startPoint:point,parentBox:clone(parentBox),bounds,origin:clone(n),items,moved:false,repeated:isRepeatedPath(path),snapTargets,previewTransforms,lastDelta:{dx:0,dy:0},startAngle:Math.atan2(point.y-(bounds.y+bounds.h/2),point.x-(bounds.x+bounds.w/2))*180/Math.PI};
+ drag={pointerId:e.pointerId,path,mode:handle?"transform":"move",handle,modelBounds:geometry,startX:e.clientX,startY:e.clientY,startPoint:point,parentBox:clone(parentBox),bounds,origin:clone(n),items,moved:false,repeated:isRepeatedPath(path),snapTargets,previewTransforms,lastDelta:{dx:0,dy:0},startAngle:Math.atan2(point.y-(bounds.y+bounds.h/2),point.x-(bounds.x+bounds.w/2))*180/Math.PI};
  try{paper.setPointerCapture(e.pointerId);}catch{}e.preventDefault();
 });
 paper.addEventListener("pointermove",e=>{
@@ -855,31 +912,44 @@ paper.addEventListener("pointermove",e=>{
  if(!drag||drag.pointerId!==e.pointerId)return;
  if(!drag.moved&&Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)<3)return;
  drag.moved=true;const point=pagePoint(e);let dx=point.x-drag.startPoint.x,dy=point.y-drag.startPoint.y;
+ if(drag.mode==="transform"&&drag.origin.type==="repeat"){
+  const b=drag.bounds,angle=Math.atan2(point.y-(b.y+b.h/2),point.x-(b.x+b.w/2))*180/Math.PI-drag.startAngle;
+  // Keep pointer capture intact: live-replacing the SVG during the drag
+  // fires lostpointercapture and cancels the operation before pointerup.
+  const preview=drag.previewTransforms.find(item=>item.element.dataset.path===nodeKey(drag.path));
+  if(preview)preview.element.setAttribute('transform',rotationPreviewTransform(angle,b.x+b.w/2,b.y+b.h/2,preview.transform));
+  return;
+ }
  if(drag.mode==="transform"&&drag.origin.type==="group"){
-  const g=drag.bounds,previewItem=drag.previewTransforms.find(item=>item.element.dataset.path===nodeKey(drag.path));
-  if(!previewItem)return;
-  const element=previewItem.element,baseTransform=previewItem.transform||"";
-  if(drag.handle==="rotate"){
-   const angle=Math.atan2(point.y-(g.y+g.h/2),point.x-(g.x+g.w/2))*180/Math.PI-drag.startAngle;
-   element.setAttribute("transform",rotationPreviewTransform(angle,g.x+g.w/2,g.y+g.h/2,baseTransform));
-  }else{
-   const preview=resizePreviewTransform(g,drag.handle,dx,dy,baseTransform);
-   element.setAttribute("transform",preview.transform);
-   drag.previewBounds=preview;
-  }
+  // Group children use their own repeat period/count. Do not scale the painted SVG:
+  // modify the *container box* and rebuild its layout instead, preserving cell spacing.
+  const original=drag.modelBounds||drag.bounds;
+  const snap=snappedResizeBounds(resizedBounds(original,drag.handle,dx,dy),drag.handle,[drag.path],drag.snapTargets);
+  const next=snap.bounds;smartGuides=snap.guides;smartGuideSegments=snap.segments;
+  const node=getAt(drag.path),box=drag.parentBox,fmt=value=>Number(value.toFixed(3))+"mm";
+  if(!node)return;
+  node.x=fmt(next.x-box.x);node.y=fmt(next.y-box.y);
+  node.w=fmt(next.w);node.h=fmt(next.h);
+  drag.previewBounds=next;
+  renderCanvas();renderSmartGuideOverlay();
   updateResizePreviewFields(drag);
   return;
  }
  if(drag.mode==="move"){
   const g=drag.bounds,proposed={x:g.x+dx,y:g.y+dy,w:g.w,h:g.h};
-  const snap=drag.repeated||drag.items.some(item=>item.repeated)?{dx:0,dy:0,guides:{x:null,y:null}}:snapToGuides(proposed,drag.items.map(item=>item.path),drag.snapTargets);
+  const snap=snapToGuides(proposed,drag.items.map(item=>item.path),drag.snapTargets);
   dx+=snap.dx;dy+=snap.dy;drag.lastDelta={dx,dy};smartGuides=snap.guides;smartGuideSegments=snap.segments||{x:null,y:null};
   applyDragPreview(drag.previewTransforms,dx,dy);renderSmartGuideOverlay();updateTransformPreview(dx,dy);return;
  }
  replaceAt(drag.path,drag.origin);const n=getAt(drag.path);if(!n)return;
- const base=drag.origin,g=drag.bounds,type=base.type,fmt=v=>Number(v.toFixed(2))+"mm",box=drag.parentBox;
+ const base=drag.origin,g=drag.modelBounds||drag.bounds,type=base.type,fmt=v=>Number(v.toFixed(2))+"mm",box=drag.parentBox;
  if(drag.handle==="rotate"){
-  const angle=Math.atan2(point.y-(g.y+g.h/2),point.x-(g.x+g.w/2))*180/Math.PI;n.rotate=Math.round((Number(base.rotate)||0)+angle-drag.startAngle);
+  // The pointer belongs to the *clicked SVG instance*, not the first repeat
+  // cell. Measure both angles around its on-screen center; the template model
+  // stores only their difference, which each copy applies around its own center.
+  const pivot=drag.bounds;
+  const angle=Math.atan2(point.y-(pivot.y+pivot.h/2),point.x-(pivot.x+pivot.w/2))*180/Math.PI;
+  if(type==="text")n.rotate=Math.round(((Number(base.rotate)||0)+angle-drag.startAngle)/90)*90;
  }else{
   let left=g.x,right=g.x+g.w,top=g.y,bottom=g.y+g.h,h=drag.handle;
   if(h.includes("w"))left=Math.min(right-1,left+dx);if(h.includes("e"))right=Math.max(left+1,right+dx);if(h.includes("n"))top=Math.min(bottom-1,top+dy);if(h.includes("s"))bottom=Math.max(top+1,bottom+dy);
@@ -927,15 +997,20 @@ paper.addEventListener("pointerup",e=>{
  const state=drag;drag=null;
  // Groups with dense descendants have been previewed using one SVG transform. Now apply the
  // equivalent geometry change once so repeat layout is recomputed just once on commit.
+ if(state.mode==="transform"&&state.origin.type==="repeat"&&state.moved){
+  const pt=pagePoint(e),b=state.bounds;
+  const endAngle=Math.atan2(pt.y-(b.y+b.h/2),pt.x-(b.x+b.w/2))*180/Math.PI;
+  getAt(state.path).rotate=Math.round((Number(state.origin.rotate)||0)+endAngle-state.startAngle);
+ }
  if(state.mode==="transform"&&state.origin.type==="group"&&state.moved){
   const endPoint=pagePoint(e),dx=endPoint.x-state.startPoint.x,dy=endPoint.y-state.startPoint.y;
   replaceAt(state.path,state.origin);
-  const node=getAt(state.path),g=state.bounds,box=state.parentBox,fmt=value=>Number(value.toFixed(2))+"mm";
+  const node=getAt(state.path),g=state.modelBounds||state.bounds,box=state.parentBox,fmt=value=>Number(value.toFixed(2))+"mm";
   if(state.handle==="rotate"){
    const angle=Math.atan2(endPoint.y-(g.y+g.h/2),endPoint.x-(g.x+g.w/2))*180/Math.PI;
    node.rotate=Math.round((Number(state.origin.rotate)||0)+angle-state.startAngle);
   }else{
-   const resized=resizedBounds(g,state.handle,dx,dy);
+   const resized=snappedResizeBounds(resizedBounds(g,state.handle,dx,dy),state.handle,[state.path],state.snapTargets).bounds;
    node.x=fmt(resized.x-box.x);node.y=fmt(resized.y-box.y);node.w=fmt(resized.w);node.h=fmt(resized.h);
   }
  }
@@ -943,7 +1018,7 @@ paper.addEventListener("pointerup",e=>{
  if(state.mode==="move"&&Math.hypot(e.clientX-state.startX,e.clientY-state.startY)>=3){
   const end=pagePoint(e);let dx=end.x-state.startPoint.x,dy=end.y-state.startPoint.y;
   const bounds=state.bounds,proposed={x:bounds.x+dx,y:bounds.y+dy,w:bounds.w,h:bounds.h};
-  const snap=state.repeated||state.items.some(item=>item.repeated)?{dx:0,dy:0,guides:{x:null,y:null}}:snapToGuides(proposed,state.items.map(item=>item.path),state.snapTargets);
+  const snap=snapToGuides(proposed,state.items.map(item=>item.path),state.snapTargets);
   dx+=snap.dx;dy+=snap.dy;state.lastDelta={dx,dy};state.moved=true;
  }
  clearSmartGuides();
@@ -1061,10 +1136,12 @@ function transformRead(){
  if(!supported)return;
  const g=transformGeometry(n),type=n.type;
  const values={transformX:g.x,transformY:g.y,transformW:g.w,transformH:g.h,transformRotate:Number(n.rotate)||0,transformOpacity:Math.round((n.opacity===undefined?1:Number(n.opacity))*100)};
- const disabled={transformW:["text","vline"].includes(type),transformH:["text","hline"].includes(type)};
+ const disabled={transformW:["text","vline"].includes(type),transformH:["text","hline"].includes(type),transformRotate:type!=="text"};
+ const rotationControls=$("transformRotate").closest("label");
+ if(rotationControls)rotationControls.classList.toggle("hidden",type!=="text");
  if(type==="circle"||type==="dot")values.transformH=values.transformW;
  const rotationWheel=$("rotationWheel");
- if(rotationWheel){rotationWheel.style.setProperty("--rotation-angle",normalizeDialAngle(values.transformRotate)+"deg");rotationWheel.setAttribute("aria-valuenow",String(normalizeDialAngle(values.transformRotate)));}
+ if(rotationWheel){rotationWheel.disabled=type!=="text";rotationWheel.style.setProperty("--rotation-angle",normalizeDialAngle(values.transformRotate)+"deg");rotationWheel.setAttribute("aria-valuenow",String(normalizeDialAngle(values.transformRotate)));}
  $("transformOpacityValue").textContent=values.transformOpacity+"%";$("elementOpacityValue").textContent=values.transformOpacity+"%";
  for(const [id,v] of Object.entries(values)){const el=$(id);el.disabled=!!disabled[id];if(document.activeElement!==el)el.value=Number.isFinite(v)?Number(v.toFixed(2)):"";const slider=el.parentElement?.querySelector(".number-scrubber");if(slider&&document.activeElement!==slider)slider.value=Number.isFinite(v)?Math.max(Number(slider.min),Math.min(Number(slider.max),v)):0;}
  const repeated=selectedPath.some((part,i)=>part==="children"&&getAt(selectedPath.slice(0,i))?.type==="repeat");
@@ -1090,7 +1167,7 @@ document.querySelectorAll("[data-arrange-selection]").forEach(button=>button.add
 
 function applyTransformChange(n,key,value){
  const g=transformGeometry(n),type=n.type,box=parentBoxForPath(selectedPath),v=Number(value);
- if(key==="rotate"){n.rotate=v;return;}
+ if(key==="rotate"){if(type==="text")n.rotate=Math.round(v/90)*90;return;}
  if(key==="opacity"){n.opacity=Math.max(0,Math.min(1,v/100));return;}
  if(key==="x"||key==="y"){moveBy(n,key==="x"?v-g.x:0,key==="y"?v-g.y:0,box);return;}
  if(key==="w"||key==="h"){
@@ -1125,14 +1202,14 @@ if(rotationWheel){
  let wheelGesture=null;
  const previewAngle=angle=>{
   const node=getAt(selectedPath);
-  if(!node)return;
-  node.rotate=angle;$("transformRotate").value=String(angle);
+  if(!node||node.type!=="text")return;
+  node.rotate=Math.round(angle/90)*90;$("transformRotate").value=String(angle);
   rotationWheel.style.setProperty("--rotation-angle",normalizeDialAngle(angle)+"deg");
   rotationWheel.setAttribute("aria-valuenow",String(normalizeDialAngle(angle)));
   renderCanvas();
  };
  rotationWheel.addEventListener("pointerdown",e=>{
-  if(e.button!==0||!getAt(selectedPath))return;
+  if(e.button!==0||getAt(selectedPath)?.type!=="text")return;
   wheelGesture={id:e.pointerId,origin:Number(getAt(selectedPath).rotate)||0};
   rotationWheel.setPointerCapture(e.pointerId);e.preventDefault();
  });
@@ -1152,7 +1229,7 @@ if(rotationWheel){
  });
  rotationWheel.addEventListener("keydown",e=>{
   if(!["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Home"].includes(e.key))return;
-  const node=getAt(selectedPath);if(!node)return;
+  const node=getAt(selectedPath);if(node?.type!=="text")return;
   e.preventDefault();
   const step=e.shiftKey?0.1:1;
   const next=e.key==="Home"?0:Number((Number(node.rotate||0)+(e.key==="ArrowLeft"||e.key==="ArrowDown"?-step:step)).toFixed(2));
@@ -1167,7 +1244,7 @@ if(rotationWheel){
  });
 }
 document.querySelectorAll("[data-rotation-preset]").forEach(button=>button.addEventListener("click",()=>{
- const node=getAt(selectedPath);if(!node)return;
+ const node=getAt(selectedPath);if(node?.type!=="text")return;
  const value=Number(button.dataset.rotationPreset);
  commit(()=>applyTransformChange(node,"rotate",value));
 }));
@@ -1273,7 +1350,7 @@ function renderQuickProperties(){
  const node=getAt(selectedPath);if(!node||node.type==="page"){const label=document.createElement("span");label.className="quick-properties-label";label.textContent="PAGE";root.appendChild(label);const info=document.createElement("span");info.textContent=pageSize[0]+" × "+pageSize[1]+" mm";root.appendChild(info);return;}
  const multi=selectedPaths.length>1,g=multi?null:transformGeometry(node,selectedPath),geometryKeys=g?["x","y","w","h"].filter(key=>!(node.type==="text"&&["w","h"].includes(key))&&!(node.type==="hline"&&key==="h")&&!(node.type==="vline"&&key==="w")):[];
  const shared=multi?sharedEditableProperties(selectedPaths.map(path=>getAt(path)).filter(Boolean)):[];
- const fields=multi?(shared.includes("opacity")?[{key:"opacity",label:"Opacity",range:true}]:[]):[...geometryKeys.map(key=>({key,label:key.toUpperCase()})),{key:"rotate",label:"Rotation"},{key:"opacity",label:"Opacity",range:true}];
+ const fields=multi?(shared.includes("opacity")?[{key:"opacity",label:"Opacity",range:true}]:[]):[...geometryKeys.map(key=>({key,label:key.toUpperCase()})),...(node.type==="text"?[{key:"rotate",label:"Rotation"}]:[]),{key:"opacity",label:"Opacity",range:true}];
  const type=document.createElement("span");type.className="quick-properties-label";type.textContent=multi?selectedPaths.length+" selected":String(node.type||"element").toUpperCase();root.appendChild(type);
  for(const f of fields){const lab=document.createElement("label");lab.className="quick-property";lab.title=f.label;lab.append(document.createTextNode(f.label));const input=document.createElement("input");input.type=f.range?"range":"number";if(f.range){input.min="0";input.max="100";input.step="1";}else input.step="0.1";
   let value;if(f.key==="opacity")value=Number(node.opacity??1)*100;else if(f.key==="rotate")value=Number(node.rotate??0);else value=g?.[f.key];
@@ -1375,6 +1452,13 @@ document.querySelectorAll('[data-menu-action]').forEach(button=>button.addEventL
   case "export":$("saveBtn").click();break;
  }
 }));
+const magneticGuidesToggle=$("magneticGuidesToggle");
+magneticGuidesToggle.checked=magneticGuidesEnabled;
+magneticGuidesToggle.addEventListener('change',()=>{
+ magneticGuidesEnabled=magneticGuidesToggle.checked;
+ try{localStorage.setItem('xtemplate-magnetic-guides',String(magneticGuidesEnabled));}catch{}
+ if(!magneticGuidesEnabled){clearSmartGuides();renderSmartGuideOverlay();}
+});
 const themeSelect=$("themeSelect");
 const THEMES=new Set(["graphite","dusk","midnight"]);
 function applyEditorTheme(value){
@@ -1404,6 +1488,8 @@ $("newTemplateForm").addEventListener("submit",e=>{
 function prepareExport(){
  try{const current=JSON.parse(jsonEditor.value);validate(current);doc=current;}catch(error){setValidation("error","JSON inválido");toast("Correct the JSON errors before exporting: "+error.message);return;}
  const root=$("exportSummary");root.replaceChildren();const data=[["Name",doc.name||"Untitled"],["ID",doc.id||"—"],["Description",doc.description||"—"],["Author",doc.author||"—"],["License",doc.license||"—"],["Version",doc.version||"—"],["Tags",(doc.tags||[]).join(", ")||"—"],["Structure",countNodes(doc.items||[])+" elements"],["Variables",Object.keys(doc.params||{}).length]];
+ const compatibility=xnotesCompatibilityWarnings(doc);
+ if(compatibility.length)data.push(["XNotes compatibility",`${compatibility.length} rotation warning(s): non-text rotation may be ignored; text rotation is limited to 90-degree steps. See docs/XNOTES_COMPATIBILITY.md`]);
  data.forEach(([label,value])=>{const row=document.createElement("div");row.className="export-summary-row";const k=document.createElement("span");k.textContent=label;const v=document.createElement("strong");v.textContent=String(value);row.append(k,v);root.appendChild(row);});
  $("exportTemplateModal").classList.remove("hidden");closeFileMenu();
 }
