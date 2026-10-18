@@ -1,5 +1,6 @@
 import { createAlignmentTools } from "./src/features/alignment.js";
 import { validateTemplate } from "./src/core/validate-template.js";
+import { xnotesCompatibilityWarnings } from "./src/core/xnotes-compatibility.js";
 import { createDefaultNode } from "./src/core/template-schema.js";
 import { evalExpr, mm } from "./src/core/expressions.js";
 import { createHistory } from "./src/core/history.js";
@@ -1503,6 +1504,8 @@ $("newTemplateForm").addEventListener("submit",e=>{
 function prepareExport(){
  try{const current=JSON.parse(jsonEditor.value);validate(current);doc=current;}catch(error){setValidation("error","JSON inválido");toast("Correct the JSON errors before exporting: "+error.message);return;}
  const root=$("exportSummary");root.replaceChildren();const data=[["Name",doc.name||"Untitled"],["ID",doc.id||"—"],["Description",doc.description||"—"],["Author",doc.author||"—"],["License",doc.license||"—"],["Version",doc.version||"—"],["Tags",(doc.tags||[]).join(", ")||"—"],["Structure",countNodes(doc.items||[])+" elements"],["Variables",Object.keys(doc.params||{}).length]];
+ const compatibility=xnotesCompatibilityWarnings(doc);
+ if(compatibility.length)data.push(["XNotes compatibility",`${compatibility.length} rotation warning(s): non-text rotation may be ignored; text rotation is limited to 90-degree steps. See docs/XNOTES_COMPATIBILITY.md`]);
  data.forEach(([label,value])=>{const row=document.createElement("div");row.className="export-summary-row";const k=document.createElement("span");k.textContent=label;const v=document.createElement("strong");v.textContent=String(value);row.append(k,v);root.appendChild(row);});
  $("exportTemplateModal").classList.remove("hidden");closeFileMenu();
 }
