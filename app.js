@@ -13,6 +13,7 @@ import { LAYER_COLORS, readLayerColors, validLayerColor } from "./src/features/l
 import { screenToDocumentPoint } from "./src/features/pointer-geometry.js";
 import { paintedBounds } from "./src/features/painted-bounds.js";
 import { repeatPositions } from "./src/features/repeat-layout.js";
+import { inspectorSections } from "./src/features/inspector-priority.js";
 import { translate as matrixTranslate, scale as matrixScale, rotate as matrixRotate, around as matrixAround, multiply as matrixMultiply, toSVG as matrixSVG } from "./src/features/affine-transform.js";
 import { resizePreviewTransform, rotationPreviewTransform, resizedBounds } from "./src/features/resize-preview.js";
 import { deleteSiblingNodes, duplicateSiblingNodes, getSiblingSelection as getTreeSiblingSelection, groupSiblingNodes, normalizePaths, sameParent, moveNode, nudgeSiblingNodes } from "./src/core/tree-operations.js";
@@ -634,9 +635,9 @@ function renderAdvanced(n){
     commit(()=>{});
    }catch(e){toast("Invalid value: "+e.message);}
   });
-  lab.appendChild(inp);root.appendChild(lab);
+  lab.dataset.fieldKeys=key;lab.appendChild(inp);root.appendChild(lab);
  }
- const row=(a,b)=>{const wrap=document.createElement("div");wrap.className="field-row";root.appendChild(wrap);function fieldIn(label,key,opt={}){const lab=document.createElement("label");lab.className="field";lab.append(document.createTextNode(label));const inp=document.createElement("input");inp.value=getValue(n,key);inp.addEventListener("change",()=>{if(inp.value.trim()==="")delete n[key];else if(opt.numeric&&Number.isFinite(Number(inp.value)))n[key]=Number(inp.value);else n[key]=inp.value;commit(()=>{});});lab.appendChild(inp);wrap.appendChild(lab);}fieldIn(a[0],a[1],a[2]||{});fieldIn(b[0],b[1],b[2]||{});};
+ const row=(a,b)=>{const wrap=document.createElement("div");wrap.className="field-row";wrap.dataset.fieldKeys=a[1]+","+b[1];root.appendChild(wrap);function fieldIn(label,key,opt={}){const lab=document.createElement("label");lab.className="field";lab.append(document.createTextNode(label));const inp=document.createElement("input");inp.value=getValue(n,key);inp.addEventListener("change",()=>{if(inp.value.trim()==="")delete n[key];else if(opt.numeric&&Number.isFinite(Number(inp.value)))n[key]=Number(inp.value);else n[key]=inp.value;commit(()=>{});});lab.appendChild(inp);wrap.appendChild(lab);}fieldIn(a[0],a[1],a[2]||{});fieldIn(b[0],b[1],b[2]||{});};
  if(n.type==="group"){addField("Margem interna (inset)","inset",{wide:true,json:Array.isArray(n.inset)});addField("Recortar conteúdo (clip)","clip",{checkbox:true});}
  if(n.type==="repeat"){addField("Eixo","axis",{select:["x","y","xy","none"]});addField("Period (period)","period",{wide:true,json:Array.isArray(n.period)});addField("Contagem (count)","count",{wide:true,json:Array.isArray(n.count)});addField("Ajuste (fit)","fit",Array.isArray(n.fit)?{wide:true,json:true}:{select:["repeat","space","round","center"]});addField("Índice (alias)","index",{wide:true,json:Array.isArray(n.index)});addField("Deslocamento alternado (stagger)","stagger");addField("Estender até o papel (extend)","extend",{checkbox:true});}
  if(n.type==="line"){row(["X inicial","x1"],["Y inicial","y1"]);row(["X final","x2"],["Y final","y2"]);}
@@ -653,6 +654,15 @@ function renderAdvanced(n){
  if(n.type==="text"){addField("Tamanho da fonte","size");addField("Peso","weight",{select:["normal","bold"]});addField("Fonte","font",{select:["sans","serif","mono"]});addField("Alinhamento","align",{select:["start","middle","end"]});addField("Linha de base","baseline",{select:["alphabetic","middle","top"]});addField("Italic","italic",{checkbox:true});}
  if(n.type==="text")addField("Rotation (degrees, XNotes 90° steps)","rotate");
  addField("Tracejado [stroke, espaço]","dash",{wide:true,json:Array.isArray(n.dash)});
+ const fields=[...root.children].filter(child=>child.dataset.fieldKeys).map(element=>({element,keys:element.dataset.fieldKeys.split(",")}));
+ const sections=inspectorSections(n.type,fields);
+ root.replaceChildren();
+ for(const [id,label] of [["essential","ESSENTIAL · "+n.type.toUpperCase()],["additional","OTHER PROPERTIES"],["advanced","ADVANCED OPTIONS"]]){
+  if(!sections[id].length)continue;
+  const title=document.createElement("div");title.className="advanced-heading";title.textContent=label;
+  root.appendChild(title);
+  for(const field of sections[id])root.appendChild(field.element);
+ }
 }
 function commit(fn){
  try{
