@@ -648,6 +648,85 @@ try{
  assert(inspectorOrder.indexOf('axis')<inspectorOrder.indexOf('index'),'repeat axis precedes alias');
  assert(inspectorOrder.indexOf('period')<inspectorOrder.indexOf('stagger'),'repeat period precedes stagger');
  assert(inspectorOrder.some(x=>x.startsWith('ESSENTIAL'))&&inspectorOrder.some(x=>x.startsWith('ADVANCED')));
+ // Native visual vertex editor preserves untouched expressions and commits a single history change.
+ const vertexDoc={xtemplate:1,id:'test.vector.vertices',name:'Vector vertex test',items:[
+  {type:'polygon',points:[['W/4','30mm'],['90mm','30mm'],['80mm','90mm']],stroke:'ink',fill:'none'},
+ ]};
+ await compatibilityPage.$eval('#fileInput',(input,raw)=>{
+  const dt=new DataTransfer();dt.items.add(new File([raw],'vertices.xtemplate',{type:'application/json'}));
+  input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(vertexDoc));
+ await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Vector vertex test');
+ await compatibilityPage.$eval('.tree-item[data-path="items.0"]',e=>e.click());
+ await compatibilityPage.$$eval('#advancedInspector button',nodes=>nodes.find(x=>x.textContent==='Edit points')?.click());
+ assert.equal(await compatibilityPage.$$('#vector-overlay [data-vector-vertex]').then(a=>a.length),3);
+ const second=await compatibilityPage.$eval('#vector-overlay [data-vector-vertex="1"]',el=>{
+  const r=el.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};
+ });
+ await compatibilityPage.mouse.move(second.x,second.y);await compatibilityPage.mouse.down();
+ await compatibilityPage.mouse.move(second.x+22,second.y+15,{steps:8});await compatibilityPage.mouse.up();
+ const modifiedPolygon=JSON.parse(await compatibilityPage.$eval('#jsonEditor',el=>el.value)).items[0];
+ assert.equal(modifiedPolygon.points[0][0],'W/4','unmodified expression must survive vertex drag');
+ assert.notEqual(modifiedPolygon.points[1][0],'90mm','drag should persist vertex coordinate');
+ assert.equal(modifiedPolygon.points.length,3);
+ await compatibilityPage.keyboard.down('Control');await compatibilityPage.keyboard.press('z');await compatibilityPage.keyboard.up('Control');
+ const restoredPolygon=JSON.parse(await compatibilityPage.$eval('#jsonEditor',el=>el.value)).items[0];
+ assert.deepEqual(restoredPolygon.points,vertexDoc.items[0].points,'one Undo must undo vertex dragging');
+ // Hatch controls modify only XNotes-native fields, and SVG path editing keeps d grammar.
+ const nativeVectorDoc={xtemplate:1,id:'test.vector.hatch.path',name:'Hatch and path controls',items:[
+  {type:'hatch',angle:0,period:'4mm',offset:'0mm',stroke:'ink'},
+  {type:'path',x:'10mm',y:'10mm',w:'70mm',h:'70mm',viewBox:[0,0,100,100],d:'M 0 0 L 50 50 C 65 60 85 70 100 100'},
+ ]};
+ await compatibilityPage.$eval('#fileInput',(input,raw)=>{
+  const dt=new DataTransfer();dt.items.add(new File([raw],'hatch-path.xtemplate',{type:'application/json'}));input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(nativeVectorDoc));
+ await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Hatch and path controls');
+ await compatibilityPage.$eval('.tree-item[data-path="items.0"]',e=>e.click());
+ await compatibilityPage.$$eval('#advancedInspector button',nodes=>nodes.find(x=>x.textContent==='Edit hatch on canvas')?.click());
+ assert.equal(await compatibilityPage.$$('#hatch-editor-overlay [data-hatch-control]').then(a=>a.length),3);
+ await compatibilityPage.$eval('.tree-item[data-path="items.1"]',e=>e.click());
+ await compatibilityPage.$$eval('#advancedInspector button',nodes=>nodes.find(x=>x.textContent==='Edit SVG nodes')?.click());
+ assert.equal(await compatibilityPage.$$('#svg-path-overlay [data-svg-path-point]').then(a=>a.length),5);
+ const control=await compatibilityPage.$eval('#svg-path-overlay [data-svg-path-point="2"]',el=>{const r=el.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};});
+ await compatibilityPage.mouse.move(control.x,control.y);await compatibilityPage.mouse.down();await compatibilityPage.mouse.move(control.x+19,control.y+15,{steps:6});await compatibilityPage.mouse.up();
+ const changedPath=JSON.parse(await compatibilityPage.$eval('#jsonEditor',el=>el.value)).items[1].d;
+ assert(changedPath.startsWith('M 0 0 L 50 50 C '),'visual path edit must preserve unrelated commands');
+ assert.notEqual(changedPath,nativeVectorDoc.items[1].d,'visual path control must update d');
+ await compatibilityPage.$eval('.tree-item[data-path="items.0"]',e=>e.click());
+ await compatibilityPage.$$eval('#advancedInspector button',els=>els.find(e=>e.textContent==='Edit hatch on canvas')?.click());
+ const periodKnob=await compatibilityPage.$eval('#hatch-editor-overlay [data-hatch-control="period"]',el=>{
+  const r=el.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};
+ });
+ await compatibilityPage.mouse.move(periodKnob.x,periodKnob.y);await compatibilityPage.mouse.down();
+ await compatibilityPage.mouse.move(periodKnob.x,periodKnob.y+27,{steps:6});await compatibilityPage.mouse.up();
+ const changedPeriod=JSON.parse(await compatibilityPage.$eval('#jsonEditor',el=>el.value)).items[0].period;
+ assert.notEqual(changedPeriod,'4mm','hatch period drag must modify native period');
+ const repeatVectorDoc={xtemplate:1,id:'test.vector.repeat.group',name:'Vector nested repeat',items:[
+  {type:'group',x:'15mm',y:'20mm',w:'160mm',h:'160mm',children:[
+   {type:'repeat',axis:'y',period:'30mm',count:3,children:[
+    {type:'polyline',points:[['10mm','0mm'],['35mm','10mm']],stroke:'ink'},
+   ]},
+  ]},
+ ]};
+ await compatibilityPage.$eval('#fileInput',(input,raw)=>{
+  const dt=new DataTransfer();dt.items.add(new File([raw],'nested.xtemplate',{type:'application/json'}));input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(repeatVectorDoc));
+ await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Vector nested repeat');
+ const repeatedPath='items.0.children.0.children.0';
+ await compatibilityPage.$eval('.tree-item[data-path="'+repeatedPath+'"]',e=>e.click());
+ await compatibilityPage.$$eval('#advancedInspector button',els=>els.find(x=>x.textContent==='Edit points')?.click());
+ const repetitions=await compatibilityPage.$$('g[data-path="'+repeatedPath+'"] > polyline');
+ assert.equal(repetitions.length,3,'all instances of repeated polyline must be visible');
+ const repeatedHandle=await compatibilityPage.$eval('#vector-overlay [data-vector-vertex="1"]',el=>{
+  const r=el.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};
+ });
+ await compatibilityPage.mouse.move(repeatedHandle.x,repeatedHandle.y);await compatibilityPage.mouse.down();
+ await compatibilityPage.mouse.move(repeatedHandle.x+27,repeatedHandle.y+15,{steps:7});await compatibilityPage.mouse.up();
+ const nestedDoc=JSON.parse(await compatibilityPage.$eval('#jsonEditor',el=>el.value));
+ const movedNested=nestedDoc.items[0].children[0].children[0].points;
+ assert.equal(movedNested[0][0],'10mm');
+ assert.notEqual(movedNested[1][0],'35mm','repeat child point must be editable');
+ assert.equal(await compatibilityPage.$$('g[data-path="'+repeatedPath+'"] > polyline').then(x=>x.length),3,'editing shared model keeps all repeat instances');
  await compatibilityPage.close();
  assert.deepEqual(errors,[],'no errors for sparse multi-edit or repeated snapping');
  console.log('PASS: sparse property compatibility, repeated geometry guides and Settings toggle');

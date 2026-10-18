@@ -920,3 +920,26 @@
 /* Magnetic guides are an editor preference, not a template property. */
 .app-menu .settings-toggle{display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:14px;cursor:pointer}
 .app-menu .settings-toggle input[type=checkbox]{width:16px;height:16px;margin:0;flex:0 0 auto;accent-color:var(--accent,#7096dc);cursor:pointer}
+
+/* Native XNotes polygon/polyline editing: handles remain in document coordinates. */
+#vector-overlay .vector-edge{stroke:#4c87f4;stroke-width:.7;stroke-dasharray:2 1;fill:none;cursor:copy;pointer-events:stroke}
+#vector-overlay .vector-vertex{cursor:move;pointer-events:all}
+#vector-overlay .vector-vertex-dot{fill:#fff;stroke:#3777db;stroke-width:.65;pointer-events:none}
+#vector-overlay .vector-vertex.active .vector-vertex-dot{fill:#4c87f4;stroke:#fff}
+.vector-actions{display:flex;gap:5px;flex-wrap:wrap;margin:8px 0}
+.vector-actions button{padding:5px 8px;border:1px solid var(--border,#404858);border-radius:6px;background:var(--surface,#272c36);color:inherit;font-size:11px;cursor:pointer}
+.vector-coordinate-list{display:grid;gap:4px;max-height:270px;overflow:auto;margin-top:8px}
+.vector-point-row{display:grid;grid-template-columns:36px minmax(0,1fr) minmax(0,1fr);gap:6px;align-items:center;padding:4px;border-radius:5px}
+.vector-point-row.selected{background:rgba(83,132,226,.16)}
+.vector-point-row>button{font-size:11px;cursor:pointer}
+.vector-point-row label{display:flex;flex-direction:column;gap:2px;font-size:10px;min-width:0}
+.vector-point-row input{width:100%;min-width:0}
+
+#hatch-editor-overlay .hatch-helper{stroke:#3a82f6;stroke-width:.7;stroke-dasharray:1.5 1;pointer-events:none}
+#hatch-editor-overlay .hatch-handle{fill:#fff;stroke:#3979e0;stroke-width:1;cursor:crosshair}
+.hatch-slider{display:flex;align-items:center;gap:6px;font-size:11px;margin:9px 0}
+.hatch-slider input{flex:1;min-width:0}.hatch-slider output{min-width:38px;text-align:right;font-variant-numeric:tabular-nums}
+
+#svg-path-overlay .svg-path-handle{fill:#fff;stroke:#3c80eb;stroke-width:.8;cursor:move}
+#svg-path-overlay .svg-path-handle.control{fill:#e1b85c;stroke:#684b11}
+#svg-path-overlay .svg-path-guide{stroke:#9c80c6;stroke-width:.5;stroke-dasharray:1 1;pointer-events:none}
