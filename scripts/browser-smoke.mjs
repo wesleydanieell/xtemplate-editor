@@ -6,6 +6,8 @@ import { readFile } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { once } from 'node:events';
+import { existsSync, readdirSync } from 'node:fs';
+import { homedir } from 'node:os';
 
 const root=resolve(fileURLToPath(new URL('..', import.meta.url)));
 const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.json':'application/json','.xtemplate':'application/json'};
@@ -22,7 +24,9 @@ server.listen(0,'127.0.0.1');await once(server,'listening');
 const port=server.address().port;
 let browser;
 try{
- const executablePath=process.env.XTEMPLATE_BROWSER_PATH||'/usr/bin/google-chrome';
+ const candidates=[process.env.XTEMPLATE_BROWSER_PATH, '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/brave', '/usr/bin/brave-browser', '/opt/google/chrome/chrome', ...['chromium','chromium_headless_shell'].flatMap(kind=>{const base=resolve(homedir(),'.cache/ms-playwright'); try{return (readdirSync(base)).filter(name=>name.startsWith(kind+'-')).map(name=>resolve(base,name,kind==='chromium'?'chrome-linux64/chrome':'chrome-linux/headless_shell'));}catch{return [];} })];
+ const executablePath=candidates.find(path=>path&&existsSync(path));
+ if(!executablePath) throw new Error('No Chromium-based browser found; set XTEMPLATE_BROWSER_PATH to the browser executable');
  browser=await puppeteer.launch({executablePath,headless:true,args:['--no-sandbox','--disable-gpu']});
  const page=await browser.newPage();await page.setViewport({width:1440,height:900});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));

@@ -45,3 +45,16 @@ test("enforces the node count limit", () => {
 test("measures UTF-8 bytes rather than JavaScript character count", () => {
   assert.throws(() => validateTemplate({ ...valid(), name: "🧭".repeat(270_000) }), /1 MiB/);
 });
+
+// A non-destructive import/export must retain expressions, metadata, nested groups and repeats.
+test("all bundled templates round-trip through formatted JSON without semantic changes", async () => {
+  const dir = new URL("../examples/", import.meta.url);
+  const files = (await readdir(dir)).filter(name => name.endsWith(".xtemplate"));
+  for (const file of files) {
+    const original = JSON.parse(await readFile(new URL(file, dir), "utf8"));
+    const exported = JSON.stringify(original, null, 2) + "\n";
+    const imported = JSON.parse(exported);
+    assert.deepEqual(imported, original, `${file} lost JSON metadata or nested structure`);
+    assert.equal(validateTemplate(imported), true, `${file} became invalid after serialization`);
+  }
+});
