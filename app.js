@@ -11,8 +11,9 @@ import { variableChoices, completeExpression } from "./src/features/variable-com
 import { valueHint, variableTypeHint } from "./src/features/value-hints.js";
 import { LAYER_COLORS, readLayerColors, validLayerColor } from "./src/features/layer-colors.js";
 import { screenToDocumentPoint } from "./src/features/pointer-geometry.js";
+import { paintedBounds } from "./src/features/painted-bounds.js";
 import { repeatPositions } from "./src/features/repeat-layout.js";
-import { translate as matrixTranslate, scale as matrixScale, rotate as matrixRotate, around as matrixAround, multiply as matrixMultiply, inverse as matrixInverse, fromDOM as matrixFromDOM, transformBounds as matrixBounds, toSVG as matrixSVG } from "./src/features/affine-transform.js";
+import { translate as matrixTranslate, scale as matrixScale, rotate as matrixRotate, around as matrixAround, multiply as matrixMultiply, toSVG as matrixSVG } from "./src/features/affine-transform.js";
 import { resizePreviewTransform, rotationPreviewTransform, resizedBounds } from "./src/features/resize-preview.js";
 import { deleteSiblingNodes, duplicateSiblingNodes, getSiblingSelection as getTreeSiblingSelection, groupSiblingNodes, normalizePaths, sameParent, moveNode, nudgeSiblingNodes } from "./src/core/tree-operations.js";
 import { arrangeBounds } from "./src/features/arrange-selection.js";
@@ -806,25 +807,7 @@ $("expandTree").addEventListener("click",()=>{
 
 /** A node's actually painted SVG bounds, including nested group transforms and
  * each repeated instance, in page/document units rather than CSS pixels. */
-function paintedBounds(element){
- try{
-  // A clipped hatch draws long strokes outside its visible region. SVG
-  // getBBox ignores clipping, so prefer the local clipping rectangle.
-  const clipId=element.getAttribute('clip-path')?.match(/^url\(#([\w-]+)\)$/)?.[1];
-  const visibleClip=clipId?document.getElementById(clipId)?.querySelector('rect'):null;
-  // Transparent hitboxes and selection handles improve pointer interaction,
-  // but must not expand an alignment target beyond its painted geometry.
-  const visibleChildren=[...element.children].filter(child=>
-   typeof child.getBBox==='function' && child.tagName.toLowerCase()!=='defs' &&
-   !['svg-hitbox','svg-selection','transform-handle','rotation-stem','smart-guide','smart-guide-point'].some(name=>child.classList.contains(name)));
-  const source=visibleClip?element:(visibleChildren.length===1?visibleChildren[0]:element);
-  const bounds=visibleClip?visibleClip.getBBox():source.getBBox(),screen=source.getScreenCTM(),pageMatrix=paper.getScreenCTM();
-  if(!screen||!pageMatrix)return null;
-  const matrix=matrixMultiply(matrixInverse(matrixFromDOM(pageMatrix)),matrixFromDOM(screen));
-  const result=matrixBounds(matrix,{x:bounds.x,y:bounds.y,w:bounds.width,h:bounds.height});
-  return Object.values(result).every(Number.isFinite)?result:null;
- }catch{return null;}
-}
+
 function snapTargetsFor(excludedPaths=[]){
  const excluded=excludedPaths.map(nodeKey),targets=[];
  const related=candidate=>excluded.some(key=>candidate===key||candidate.startsWith(key+".")||key.startsWith(candidate+"."));
@@ -834,7 +817,7 @@ function snapTargetsFor(excludedPaths=[]){
  for(const element of paper.querySelectorAll('g[data-path]')){
   const candidate=element.dataset.path;
   if(related(candidate))continue;
-  const bounds=paintedBounds(element);
+  const bounds=paintedBounds(element,paper);
   if(bounds&&bounds.w>=0&&bounds.h>=0)targets.push({...bounds,kind:'object',path:candidate});
  }
  return targets;
@@ -907,7 +890,7 @@ paper.addEventListener("pointerdown",e=>{
  if(!n)return;
  // Snapshot painted geometry before select() replaces this SVG subtree;
  // when dragging a repeated child, this is the clicked instance's bounds.
- const visibleBounds=paintedBounds(g);
+ const visibleBounds=paintedBounds(g,paper);
  if(isRepeatedPath(path))focusedRepeatInstance={key,instance:Number(g.dataset.instance)||0};
  else focusedRepeatInstance=null;
  if(e.ctrlKey||e.metaKey||e.shiftKey){selectFromTree(path,e);return;}
