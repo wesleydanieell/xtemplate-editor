@@ -171,6 +171,10 @@ try{
   child:parseFloat(getComputedStyle(document.querySelector('[data-path="items.1"]')).paddingLeft),
  }));
  assert(nesting.child>=nesting.page+15,'root layers must be visually nested under Page');
+ assert.equal(await workspacePage.$eval('#transformRotate',el=>el.disabled),true,'non-text elements cannot be rotated in XNotes');
+ await workspacePage.click('[data-menu="insertMenu"]');
+ await workspacePage.click('#insertMenu [data-menu-action="insert-text"]');
+ assert.equal(await workspacePage.$eval('#transformRotate',el=>el.disabled),false,'text can rotate by quarter turns');
  await workspacePage.click('[data-rotation-preset="90"]');
  assert.equal(Number(await workspacePage.$eval('#transformRotate',el=>el.value)),90);
  const wheel=await workspacePage.$eval('#rotationWheel',el=>el.getBoundingClientRect().toJSON());
@@ -178,11 +182,11 @@ try{
  await workspacePage.mouse.move(cx,cy);await workspacePage.mouse.down();
  await workspacePage.mouse.move(cx+wheel.width*.35,cy,{steps:4});await workspacePage.mouse.up();
  assert.equal(Number(await workspacePage.$eval('#transformRotate',el=>el.value)),90);
- // Exact values remain possible even after coarse pointer adjustment.
+ // Non-quarter-turn input is normalized to the nearest XNotes-supported angle.
  await workspacePage.$eval('#transformRotate',input=>{
   input.value='-35.5';input.dispatchEvent(new Event('change',{bubbles:true}));
  });
- assert.equal(Number(await workspacePage.$eval('#transformRotate',el=>el.value)),-35.5);
+ assert.equal(Number(await workspacePage.$eval('#transformRotate',el=>el.value)),0);
  // Containers should have deliberate interior spacing, even in compact widths.
  const insets=await workspacePage.evaluate(()=>{
   const px=selector=>{

@@ -944,7 +944,7 @@ paper.addEventListener("pointermove",e=>{
   // stores only their difference, which each copy applies around its own center.
   const pivot=drag.bounds;
   const angle=Math.atan2(point.y-(pivot.y+pivot.h/2),point.x-(pivot.x+pivot.w/2))*180/Math.PI;
-  n.rotate=Math.round((Number(base.rotate)||0)+angle-drag.startAngle);
+  if(type==="text")n.rotate=Math.round(((Number(base.rotate)||0)+angle-drag.startAngle)/90)*90;
  }else{
   let left=g.x,right=g.x+g.w,top=g.y,bottom=g.y+g.h,h=drag.handle;
   if(h.includes("w"))left=Math.min(right-1,left+dx);if(h.includes("e"))right=Math.max(left+1,right+dx);if(h.includes("n"))top=Math.min(bottom-1,top+dy);if(h.includes("s"))bottom=Math.max(top+1,bottom+dy);
@@ -1131,10 +1131,12 @@ function transformRead(){
  if(!supported)return;
  const g=transformGeometry(n),type=n.type;
  const values={transformX:g.x,transformY:g.y,transformW:g.w,transformH:g.h,transformRotate:Number(n.rotate)||0,transformOpacity:Math.round((n.opacity===undefined?1:Number(n.opacity))*100)};
- const disabled={transformW:["text","vline"].includes(type),transformH:["text","hline"].includes(type)};
+ const disabled={transformW:["text","vline"].includes(type),transformH:["text","hline"].includes(type),transformRotate:type!=="text"};
+ const rotationControls=$("transformRotate").closest("label");
+ if(rotationControls)rotationControls.classList.toggle("hidden",type!=="text");
  if(type==="circle"||type==="dot")values.transformH=values.transformW;
  const rotationWheel=$("rotationWheel");
- if(rotationWheel){rotationWheel.style.setProperty("--rotation-angle",normalizeDialAngle(values.transformRotate)+"deg");rotationWheel.setAttribute("aria-valuenow",String(normalizeDialAngle(values.transformRotate)));}
+ if(rotationWheel){rotationWheel.disabled=type!=="text";rotationWheel.style.setProperty("--rotation-angle",normalizeDialAngle(values.transformRotate)+"deg");rotationWheel.setAttribute("aria-valuenow",String(normalizeDialAngle(values.transformRotate)));}
  $("transformOpacityValue").textContent=values.transformOpacity+"%";$("elementOpacityValue").textContent=values.transformOpacity+"%";
  for(const [id,v] of Object.entries(values)){const el=$(id);el.disabled=!!disabled[id];if(document.activeElement!==el)el.value=Number.isFinite(v)?Number(v.toFixed(2)):"";const slider=el.parentElement?.querySelector(".number-scrubber");if(slider&&document.activeElement!==slider)slider.value=Number.isFinite(v)?Math.max(Number(slider.min),Math.min(Number(slider.max),v)):0;}
  const repeated=selectedPath.some((part,i)=>part==="children"&&getAt(selectedPath.slice(0,i))?.type==="repeat");
@@ -1160,7 +1162,7 @@ document.querySelectorAll("[data-arrange-selection]").forEach(button=>button.add
 
 function applyTransformChange(n,key,value){
  const g=transformGeometry(n),type=n.type,box=parentBoxForPath(selectedPath),v=Number(value);
- if(key==="rotate"){n.rotate=v;return;}
+ if(key==="rotate"){if(type==="text")n.rotate=Math.round(v/90)*90;return;}
  if(key==="opacity"){n.opacity=Math.max(0,Math.min(1,v/100));return;}
  if(key==="x"||key==="y"){moveBy(n,key==="x"?v-g.x:0,key==="y"?v-g.y:0,box);return;}
  if(key==="w"||key==="h"){
@@ -1195,14 +1197,14 @@ if(rotationWheel){
  let wheelGesture=null;
  const previewAngle=angle=>{
   const node=getAt(selectedPath);
-  if(!node)return;
-  node.rotate=angle;$("transformRotate").value=String(angle);
+  if(!node||node.type!=="text")return;
+  node.rotate=Math.round(angle/90)*90;$("transformRotate").value=String(angle);
   rotationWheel.style.setProperty("--rotation-angle",normalizeDialAngle(angle)+"deg");
   rotationWheel.setAttribute("aria-valuenow",String(normalizeDialAngle(angle)));
   renderCanvas();
  };
  rotationWheel.addEventListener("pointerdown",e=>{
-  if(e.button!==0||!getAt(selectedPath))return;
+  if(e.button!==0||getAt(selectedPath)?.type!=="text")return;
   wheelGesture={id:e.pointerId,origin:Number(getAt(selectedPath).rotate)||0};
   rotationWheel.setPointerCapture(e.pointerId);e.preventDefault();
  });
@@ -1222,7 +1224,7 @@ if(rotationWheel){
  });
  rotationWheel.addEventListener("keydown",e=>{
   if(!["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Home"].includes(e.key))return;
-  const node=getAt(selectedPath);if(!node)return;
+  const node=getAt(selectedPath);if(node?.type!=="text")return;
   e.preventDefault();
   const step=e.shiftKey?0.1:1;
   const next=e.key==="Home"?0:Number((Number(node.rotate||0)+(e.key==="ArrowLeft"||e.key==="ArrowDown"?-step:step)).toFixed(2));
@@ -1237,7 +1239,7 @@ if(rotationWheel){
  });
 }
 document.querySelectorAll("[data-rotation-preset]").forEach(button=>button.addEventListener("click",()=>{
- const node=getAt(selectedPath);if(!node)return;
+ const node=getAt(selectedPath);if(node?.type!=="text")return;
  const value=Number(button.dataset.rotationPreset);
  commit(()=>applyTransformChange(node,"rotate",value));
 }));
