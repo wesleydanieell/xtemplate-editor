@@ -492,7 +492,11 @@ function renderPolygonControls(root,node){
  button('Insert after',()=>{
   const pts=readPointPairs(node.points),index=[...vectorSelection].at(-1)??pts.length-1,next=(index+1)%pts.length;
   const box=parentBoxForPath(selectedPath),a=pts[index],b=pts[next];
-  const pair=midpoint([evalN(a[0],box,'x'),evalN(a[1],box,'y')],[evalN(b[0],box,'x'),evalN(b[1],box,'y')]).map(v=>Number(v.toFixed(3))+'mm');
+  const current=[evalN(a[0],box,'x'),evalN(a[1],box,'y')],following=[evalN(b[0],box,'x'),evalN(b[1],box,'y')];
+  // A polyline is open: inserting after the final endpoint must extend it,
+  // rather than unexpectedly creating a segment back to the first vertex.
+  const candidate=node.type==='polyline'&&index===pts.length-1?[current[0]+10,current[1]]:midpoint(current,following);
+  const pair=candidate.map(v=>Number(v.toFixed(3))+'mm');
   const at=index+1;commit(()=>{node.points=addPoint(node.points,at,pair);});vectorSelection=new Set([at]);render();
  });
  button('Remove selected',()=>{
