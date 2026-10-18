@@ -11,6 +11,7 @@ import { valueHint, variableTypeHint } from "./src/features/value-hints.js";
 import { LAYER_COLORS, readLayerColors, validLayerColor } from "./src/features/layer-colors.js";
 import { screenToDocumentPoint } from "./src/features/pointer-geometry.js";
 import { repeatPositions } from "./src/features/repeat-layout.js";
+import { translate as matrixTranslate, scale as matrixScale, rotate as matrixRotate, around as matrixAround, multiply as matrixMultiply, inverse as matrixInverse, fromDOM as matrixFromDOM, transformBounds as matrixBounds, toSVG as matrixSVG } from "./src/features/affine-transform.js";
 import { resizePreviewTransform, rotationPreviewTransform, resizedBounds } from "./src/features/resize-preview.js";
 import { deleteSiblingNodes, duplicateSiblingNodes, getSiblingSelection as getTreeSiblingSelection, groupSiblingNodes, normalizePaths, sameParent, moveNode, nudgeSiblingNodes } from "./src/core/tree-operations.js";
 import { arrangeBounds } from "./src/features/arrange-selection.js";
@@ -301,9 +302,9 @@ case"vline":{const xx=box.x+evalN(n.x??0,box,"x");g.appendChild(svg("line",{...a
 case"rect":g.appendChild(svg("rect",{...attrs,x:box.x+x,y:box.y+y,width:w,height:h,rx:evalN(n.rx??0,box,"short")}));break;
 case"circle":case"ellipse":case"dot":{const cx=box.x+evalN(n.cx??0,box,"x"),cy=box.y+evalN(n.cy??0,box,"y"),rx=evalN(n.r??n.rx??"0.35mm",box,"short"),ry=type==="ellipse"?evalN(n.ry??"2mm",box,"short"):rx;const a={...attrs,cx,cy,rx,ry};if(type==="dot"){a.fill=resolveColor(n.fill||n.stroke||"ink");a.stroke="none";}g.appendChild(svg("ellipse",a));break;}
 case"polyline":case"polygon":{let pts=n.points;if(typeof pts==="string")pts=pts.trim().split(/[\s,]+/).map(Number);if(Array.isArray(pts)){const values=[];for(const p of pts){if(Array.isArray(p))values.push(...p);else values.push(p);}const points=[];for(let i=0;i+1<values.length;i+=2)points.push((box.x+evalN(values[i],box,"x"))+","+(box.y+evalN(values[i+1],box,"y")));g.appendChild(svg(type,{...attrs,points:points.join(" ")}));}break;}
-case"text":{const all=Array.isArray(n.text)?n.text:String(n.text??"");let text=Array.isArray(all)?all[Math.max(0,Math.min(all.length-1,Math.floor(evalN(n.select??"i",box,"plain"))))]||"":all;text=String(text).replace(/{{/g,"\u0001").replace(/}}/g,"\u0002").replace(/\{([^{}]+)\}/g,(_,expr)=>String(evalN(expr,box,"plain",0))).replace(/\u0001/g,"{").replace(/\u0002/g,"}");const tx=box.x+x,ty=box.y+y;const textAttrs={...attrs,x:tx,y:ty,fill:resolveColor(st.fill||st.stroke||"ink"),stroke:"none"};const t=svg("text",textAttrs);if(n.rotate!==undefined||st.rotate!==undefined)t.setAttribute("transform","rotate("+evalN(n.rotate??st.rotate,box,"plain")+" "+tx+" "+ty+")");t.textContent=text;g.appendChild(t);break;}
+case"text":{const all=Array.isArray(n.text)?n.text:String(n.text??"");let text=Array.isArray(all)?all[Math.max(0,Math.min(all.length-1,Math.floor(evalN(n.select??"i",box,"plain"))))]||"":all;text=String(text).replace(/{{/g,"\u0001").replace(/}}/g,"\u0002").replace(/\{([^{}]+)\}/g,(_,expr)=>String(evalN(expr,box,"plain",0))).replace(/\u0001/g,"{").replace(/\u0002/g,"}");const tx=box.x+x,ty=box.y+y;const textAttrs={...attrs,x:tx,y:ty,fill:resolveColor(st.fill||st.stroke||"ink"),stroke:"none"};const t=svg("text",textAttrs);if(n.rotate!==undefined||st.rotate!==undefined)t.setAttribute("transform",matrixSVG(matrixAround(matrixRotate(evalN(n.rotate??st.rotate,box,"plain")),tx,ty)));t.textContent=text;g.appendChild(t);break;}
 case"hatch":{const period=Math.max(.5,evalN(n.period,box,"short",4)),angle=evalN(n.angle??0,box,"plain"),offset=evalN(n.offset??0,box,"short"),theta=angle*Math.PI/180,dx=Math.cos(theta),dy=-Math.sin(theta),nx=Math.sin(theta),ny=Math.cos(theta),length=(n.extend?Math.hypot(pageSize[0],pageSize[1]):Math.hypot(box.w,box.h))*2;for(let k=-500;k<=500;k++){const d=k*period+offset,cx=box.x+box.w/2+nx*d,cy=box.y+box.h/2+ny*d;g.appendChild(svg("line",{...attrs,x1:cx-dx*length,y1:cy-dy*length,x2:cx+dx*length,y2:cy+dy*length}));if(d>length)break;}applyClip(g,n.extend?{x:0,y:0,w:pageSize[0],h:pageSize[1]}:box);break;}
-case"path":{if(typeof n.d==="string"){const vb=Array.isArray(n.viewBox)?n.viewBox:typeof n.viewBox==="string"?n.viewBox.split(/[\s,]+/).map(Number):null;let transform="translate("+box.x+" "+box.y+")";if(vb&&vb.length===4&&vb[2]>0&&vb[3]>0){let sx=w/vb[2],sy=h/vb[3],tx=box.x+x,ty=box.y+y;if(n.aspect!=="stretch"){const scale=Math.min(sx,sy);sx=sy=scale;tx+=(w-vb[2]*scale)/2;ty+=(h-vb[3]*scale)/2;}tx-=vb[0]*sx;ty-=vb[1]*sy;transform="translate("+tx+" "+ty+") scale("+sx+" "+sy+")";}g.appendChild(svg("path",{...attrs,d:n.d,transform}));}break;}
+case"path":{if(typeof n.d==="string"){const vb=Array.isArray(n.viewBox)?n.viewBox:typeof n.viewBox==="string"?n.viewBox.split(/[\s,]+/).map(Number):null;let transform=matrixSVG(matrixTranslate(box.x,box.y));if(vb&&vb.length===4&&vb[2]>0&&vb[3]>0){let sx=w/vb[2],sy=h/vb[3],tx=box.x+x,ty=box.y+y;if(n.aspect!=="stretch"){const scale=Math.min(sx,sy);sx=sy=scale;tx+=(w-vb[2]*scale)/2;ty+=(h-vb[3]*scale)/2;}tx-=vb[0]*sx;ty-=vb[1]*sy;transform=matrixSVG(matrixMultiply(matrixTranslate(tx,ty),matrixScale(sx,sy)));}g.appendChild(svg("path",{...attrs,d:n.d,transform}));}break;}
 }
 // A repeat is one rigid visual block: rotate the entire rendered collection
 // once around its common center, not each repeated child around a local pivot.
@@ -311,7 +312,7 @@ case"path":{if(typeof n.d==="string"){const vb=Array.isArray(n.viewBox)?n.viewBo
 const repeatFrame=type==="repeat"?(repeatFrameBounds.get(key)||selectionBounds(n,box)):null;
 if(n.rotate!==undefined&&type!=="text"){
  const rb=repeatFrame||selectionBounds(n,box);
- g.setAttribute("transform","rotate("+evalN(n.rotate,box,"plain")+" "+(rb.x+rb.w/2)+" "+(rb.y+rb.h/2)+")");
+ g.setAttribute("transform",matrixSVG(matrixAround(matrixRotate(evalN(n.rotate,box,"plain")),rb.x+rb.w/2,rb.y+rb.h/2)));
 }
 const repeatedDescendantSelected=type==="repeat"&&selectedPaths.some(p=>nodeKey(p).startsWith(key+"."));
 if(type==="repeat"&&(isSelected||repeatedDescendantSelected)&&repeatFrame){
@@ -818,12 +819,8 @@ function paintedBounds(element){
   const source=visibleClip?element:(visibleChildren.length===1?visibleChildren[0]:element);
   const bounds=visibleClip?visibleClip.getBBox():source.getBBox(),screen=source.getScreenCTM(),pageMatrix=paper.getScreenCTM();
   if(!screen||!pageMatrix)return null;
-  const matrix=pageMatrix.inverse().multiply(screen);
-  const corners=[[bounds.x,bounds.y],[bounds.x+bounds.width,bounds.y],
-    [bounds.x,bounds.y+bounds.height],[bounds.x+bounds.width,bounds.y+bounds.height]];
-  const vertices=corners.map(([x,y])=>({x:matrix.a*x+matrix.c*y+matrix.e,y:matrix.b*x+matrix.d*y+matrix.f}));
-  const xs=vertices.map(p=>p.x),ys=vertices.map(p=>p.y);
-  const result={x:Math.min(...xs),y:Math.min(...ys),w:Math.max(...xs)-Math.min(...xs),h:Math.max(...ys)-Math.min(...ys)};
+  const matrix=matrixMultiply(matrixInverse(matrixFromDOM(pageMatrix)),matrixFromDOM(screen));
+  const result=matrixBounds(matrix,{x:bounds.x,y:bounds.y,w:bounds.width,h:bounds.height});
   return Object.values(result).every(Number.isFinite)?result:null;
  }catch{return null;}
 }

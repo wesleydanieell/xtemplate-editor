@@ -599,7 +599,11 @@ try{
   transform:element.getAttribute('transform'),
   childTransforms:[...element.querySelectorAll('g[data-path="items.0.children.0"]')].map(el=>el.getAttribute('transform')),
  }));
- assert(result.transform.startsWith('rotate('),'repeat parent must own the rotation transform');
+ assert(result.transform.startsWith('matrix('),'repeat parent must own the rotation transform');
+ const values=result.transform.match(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/gi).map(Number);
+ assert.equal(values.length,6,'repeat rotation must use an affine 2D SVG matrix');
+ assert(Math.abs(values[0])<0.11 && Math.abs(values[1]-1)<0.11 && Math.abs(values[2]+1)<0.11 && Math.abs(values[3])<0.11,
+  'repeat matrix must represent a 90-degree in-plane rotation');
  assert(result.childTransforms.every(x=>!x),'repeat children should keep untransformed shared geometry');
  assert(await compatibilityPage.$$eval('g[data-path="items.0.children.1"] text',els=>els.every(el=>!el.getAttribute('transform'))),
   'text children must not inherit the parent repeat rotation a second time');
