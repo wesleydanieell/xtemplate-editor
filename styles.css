@@ -347,9 +347,7 @@
  .right-panel{min-width:0}
 }
 
-/* Only expose tools that support direct canvas interaction; other node types remain in Insert. */
-.canvas-tools .canvas-tool[data-tool="polygon"],
-.canvas-tools .canvas-tool[data-tool="curve"]{display:none!important}
+/* One Pen entry replaces independent Polygon, Curve and Line toolbar buttons. */
 
 .canvas-tools{overflow-x:hidden;scrollbar-width:none}
 .canvas-tools::-webkit-scrollbar{display:none}
@@ -455,7 +453,7 @@
 .context-menu:not(.hidden){max-height:min(calc(100vh - 16px),680px)}
 .canvas-tools>.canvas-tool[data-tool="select"]{order:0}
 .canvas-tools>.tool-separator{order:1}
-.canvas-tools>.canvas-tool[data-tool="line"]{order:2}
+.canvas-tools>.canvas-tool[data-tool="pen"]{order:2}
 .canvas-tools>.canvas-tool[data-tool="rect"]{order:3}
 .canvas-tools>.canvas-tool[data-tool="ellipse"]{order:4}
 .canvas-tools>.canvas-tool[data-tool="text"]{order:5}
@@ -943,3 +941,27 @@
 #svg-path-overlay .svg-path-handle{fill:#fff;stroke:#3c80eb;stroke-width:.8;cursor:move}
 #svg-path-overlay .svg-path-handle.control{fill:#e1b85c;stroke:#684b11}
 #svg-path-overlay .svg-path-guide{stroke:#9c80c6;stroke-width:.5;stroke-dasharray:1 1;pointer-events:none}
+
+.pen-mode-picker{position:absolute;z-index:30;top:52px;left:58px;width:220px;max-width:calc(100% - 68px);padding:11px;border:1px solid var(--ui-divider,#565c6b);border-radius:9px;background:var(--ui-panel,#252831);box-shadow:0 10px 28px #0006;color:var(--ui-text,#e1e6f0)}
+.pen-mode-picker.hidden{display:none}
+.pen-mode-picker label{display:block;letter-spacing:.08em;font-size:10px;font-weight:700;margin-bottom:7px}
+.pen-mode-picker select{width:100%;font-size:12px;padding:6px;border:1px solid #64718a;border-radius:5px;background:var(--ui-panel,#252831);color:inherit}
+.pen-mode-picker p{font-size:11px;line-height:1.45;color:var(--ui-muted,#abb6ca);margin:8px 0}
+.pen-mode-picker button{font-size:11px;background:transparent;color:inherit;border:1px solid #64718a;border-radius:5px;padding:5px 8px;cursor:pointer}
+.canvas-tools>.canvas-tool[data-tool="pen"]{color:#bfddff}
+.pen-preview-point{fill:#fff;stroke:#4786fa;stroke-width:.7;pointer-events:none}
+.contextual-element-tools{padding:9px 10px 11px;border-bottom:1px solid var(--ui-divider,#3b4250);margin-bottom:8px}
+.contextual-element-tools:empty{display:none}
+.contextual-element-tools .advanced-heading{margin-top:0}
+.contextual-element-tools .vector-actions{margin:6px 0 4px}
+.hatch-control-legend{font-size:11px;line-height:1.6;color:var(--ui-muted,#b4c0d6)}
+.hatch-helper-label{font-size:4px;font-weight:bold;paint-order:stroke;stroke:#fff;stroke-width:.6;pointer-events:none}
+#hatch-editor-overlay [data-hatch-control="angle"]{fill:#e3b451}
+#hatch-editor-overlay [data-hatch-control="period"]{fill:#88da94}
+#hatch-editor-overlay [data-hatch-control="offset"]{fill:#94b2ff}
+
+#svg-path-overlay .svg-path-handle.selected{fill:#4d88ec;stroke:#fff;stroke-width:1.1}
+
+#svg-path-overlay .svg-path-node{cursor:move;pointer-events:all}
+#svg-path-overlay .svg-path-hit{pointer-events:all}
+#svg-path-overlay .svg-path-handle{pointer-events:none}

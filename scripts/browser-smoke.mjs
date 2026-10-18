@@ -658,7 +658,7 @@ try{
  },JSON.stringify(vertexDoc));
  await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Vector vertex test');
  await compatibilityPage.$eval('.tree-item[data-path="items.0"]',e=>e.click());
- await compatibilityPage.$$eval('#advancedInspector button',nodes=>nodes.find(x=>x.textContent==='Edit points')?.click());
+ await compatibilityPage.$$eval('#contextualElementTools button',nodes=>nodes.find(x=>x.textContent==='Edit points')?.click());
  assert.equal(await compatibilityPage.$$('#vector-overlay [data-vector-vertex]').then(a=>a.length),3);
  const second=await compatibilityPage.$eval('#vector-overlay [data-vector-vertex="1"]',el=>{
   const r=el.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};
@@ -682,10 +682,10 @@ try{
  },JSON.stringify(nativeVectorDoc));
  await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Hatch and path controls');
  await compatibilityPage.$eval('.tree-item[data-path="items.0"]',e=>e.click());
- await compatibilityPage.$$eval('#advancedInspector button',nodes=>nodes.find(x=>x.textContent==='Edit hatch on canvas')?.click());
+ await compatibilityPage.$$eval('#contextualElementTools button',nodes=>nodes.find(x=>x.textContent==='Adjust on canvas')?.click());
  assert.equal(await compatibilityPage.$$('#hatch-editor-overlay [data-hatch-control]').then(a=>a.length),3);
  await compatibilityPage.$eval('.tree-item[data-path="items.1"]',e=>e.click());
- await compatibilityPage.$$eval('#advancedInspector button',nodes=>nodes.find(x=>x.textContent==='Edit SVG nodes')?.click());
+ await compatibilityPage.$$eval('#contextualElementTools button',nodes=>nodes.find(x=>x.textContent==='Edit SVG nodes')?.click());
  assert.equal(await compatibilityPage.$$('#svg-path-overlay [data-svg-path-point]').then(a=>a.length),5);
  const control=await compatibilityPage.$eval('#svg-path-overlay [data-svg-path-point="2"]',el=>{const r=el.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};});
  await compatibilityPage.mouse.move(control.x,control.y);await compatibilityPage.mouse.down();await compatibilityPage.mouse.move(control.x+19,control.y+15,{steps:6});await compatibilityPage.mouse.up();
@@ -693,7 +693,7 @@ try{
  assert(changedPath.startsWith('M 0 0 L 50 50 C '),'visual path edit must preserve unrelated commands');
  assert.notEqual(changedPath,nativeVectorDoc.items[1].d,'visual path control must update d');
  await compatibilityPage.$eval('.tree-item[data-path="items.0"]',e=>e.click());
- await compatibilityPage.$$eval('#advancedInspector button',els=>els.find(e=>e.textContent==='Edit hatch on canvas')?.click());
+ await compatibilityPage.$$eval('#contextualElementTools button',els=>els.find(e=>e.textContent==='Adjust on canvas')?.click());
  const periodKnob=await compatibilityPage.$eval('#hatch-editor-overlay [data-hatch-control="period"]',el=>{
   const r=el.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};
  });
@@ -714,7 +714,7 @@ try{
  await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Vector nested repeat');
  const repeatedPath='items.0.children.0.children.0';
  await compatibilityPage.$eval('.tree-item[data-path="'+repeatedPath+'"]',e=>e.click());
- await compatibilityPage.$$eval('#advancedInspector button',els=>els.find(x=>x.textContent==='Edit points')?.click());
+ await compatibilityPage.$$eval('#contextualElementTools button',els=>els.find(x=>x.textContent==='Edit points')?.click());
  const repetitions=await compatibilityPage.$$('g[data-path="'+repeatedPath+'"] > polyline');
  assert.equal(repetitions.length,3,'all instances of repeated polyline must be visible');
  const repeatedHandle=await compatibilityPage.$eval('#vector-overlay [data-vector-vertex="1"]',el=>{
@@ -727,6 +727,86 @@ try{
  assert.equal(movedNested[0][0],'10mm');
  assert.notEqual(movedNested[1][0],'35mm','repeat child point must be editable');
  assert.equal(await compatibilityPage.$$('g[data-path="'+repeatedPath+'"] > polyline').then(x=>x.length),3,'editing shared model keeps all repeat instances');
+ // Pen tool: one toolbar button, four native creation modes, fine-editing and object deletion.
+ const penDoc={xtemplate:1,id:'test.pen.unified',name:'Pen unified test',items:[]};
+ await compatibilityPage.$eval('#fileInput',(input,raw)=>{
+  const dt=new DataTransfer();dt.items.add(new File([raw],'pen.xtemplate',{type:'application/json'}));input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(penDoc));
+ await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Pen unified test');
+ const screenPos=async (x,y)=>compatibilityPage.evaluate(([x,y])=>{
+  const svg=document.querySelector('#paper'),p=svg.createSVGPoint();p.x=x;p.y=y;const q=p.matrixTransform(svg.getScreenCTM());return{x:q.x,y:q.y};
+ },[x,y]);
+ const clickDocument=async(x,y)=>{const p=await screenPos(x,y);await compatibilityPage.mouse.click(p.x,p.y);};
+ const usePen=async mode=>{await compatibilityPage.click('.canvas-tool[data-tool="pen"]');await compatibilityPage.select('#penMode',mode);};
+ const getPenItems=()=>compatibilityPage.$eval('#jsonEditor',el=>JSON.parse(el.value).items);
+ await usePen('line');
+ assert.equal(await compatibilityPage.$eval('#penModePicker',el=>el.classList.contains('hidden')),false);
+ await clickDocument(25,36);await clickDocument(80,61);
+ assert.equal((await getPenItems()).at(-1).type,'line','Pen Line must produce XNotes native line');
+ await usePen('polyline');
+ await clickDocument(30,120);await clickDocument(65,130);await clickDocument(78,166);
+ await compatibilityPage.keyboard.press('Enter');
+ assert.equal((await getPenItems()).at(-1).type,'polyline');
+ assert.equal((await getPenItems()).at(-1).points.length,3);
+ await usePen('polygon');
+ await clickDocument(25,190);await clickDocument(72,191);await clickDocument(76,230);await clickDocument(30,234);
+ await compatibilityPage.keyboard.press('Enter');
+ assert.equal((await getPenItems()).at(-1).type,'polygon');
+ assert.equal((await getPenItems()).at(-1).points.length,4);
+ await compatibilityPage.keyboard.press('Backspace');
+ assert.equal((await getPenItems()).at(-1).points.length,3,'Backspace removes selected vertex, not whole polygon');
+ await compatibilityPage.keyboard.press('Delete');
+ assert.equal(await compatibilityPage.$eval('#confirmModal',el=>el.classList.contains('hidden')),false,'Delete requests deleting whole element');
+ await compatibilityPage.click('#acceptConfirmBtn');
+ assert.equal((await getPenItems()).length,2,'Delete removes whole polygon');
+ await usePen('path');
+ await clickDocument(110,80);await clickDocument(145,106);await clickDocument(155,145);
+ await compatibilityPage.keyboard.press('Enter');
+ assert.equal((await getPenItems()).at(-1).type,'path');
+ assert((await getPenItems()).at(-1).d.includes('C '));
+ const svgNodeAlignment=await compatibilityPage.evaluate(()=>{
+  const path=document.querySelector('g[data-path="items.2"] > path');
+  const handle=document.querySelector('#svg-path-overlay [data-svg-path-point="3"] circle.svg-path-hit');
+  const d=JSON.parse(document.querySelector('#jsonEditor').value).items.at(-1).d;
+  const tokens=d.match(/[-+]?(?:\d*\.)?\d+/g).map(Number);
+  const x=tokens[6],y=tokens[7]; // M x,y + C x1,y1,x2,y2,endX,endY
+  const pt=path.ownerSVGElement.createSVGPoint();pt.x=x;pt.y=y;
+  const shapeScreen=pt.matrixTransform(path.getScreenCTM());
+  const r=handle.getBoundingClientRect();
+  return {distance:Math.hypot(shapeScreen.x-(r.x+r.width/2),shapeScreen.y-(r.y+r.height/2)),x,y};
+ });
+ assert(svgNodeAlignment.distance<3,`SVG path nodes must match the rendered Bézier after Enter (${svgNodeAlignment.distance}px)`);
+ const pathBeforeNudge=(await getPenItems()).at(-1).d;
+ const penNode=await compatibilityPage.$eval('#svg-path-overlay [data-svg-path-point="2"]',el=>{
+  const r=el.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};
+ });
+ await compatibilityPage.mouse.click(penNode.x,penNode.y);
+ await compatibilityPage.keyboard.press('ArrowRight');
+ const pathAfterNudge=(await getPenItems()).at(-1).d;
+ assert.notEqual(pathAfterNudge,pathBeforeNudge,'arrow nudge should update only selected SVG path node');
+ await compatibilityPage.keyboard.down('Control');await compatibilityPage.keyboard.press('z');await compatibilityPage.keyboard.up('Control');
+ assert.equal((await getPenItems()).at(-1).d,pathBeforeNudge,'path nudge must be undoable');
+ assert.equal(await compatibilityPage.$eval('#penModePicker',el=>el.classList.contains('hidden')),true,'Pen selector hidden while using V');
+ // While authoring Bézier curves, clicking the most recent anchor retracts
+ // its tangent instead of ending the path or inserting an overlapping point.
+ await usePen('path');
+ const a=await screenPos(55,215),b=await screenPos(94,222);
+ await compatibilityPage.mouse.click(a.x,a.y);
+ await compatibilityPage.mouse.move(b.x,b.y);await compatibilityPage.mouse.down();
+ await compatibilityPage.mouse.move(b.x+17,b.y-12,{steps:7});await compatibilityPage.mouse.up();
+ await compatibilityPage.mouse.click(b.x,b.y); // retract outgoing tangent at last anchor
+ await clickDocument(132,236);
+ await compatibilityPage.keyboard.press('Enter');
+ const cornerPath=(await getPenItems()).at(-1);
+ assert.equal(cornerPath.type,'path');
+ const coords=cornerPath.d.match(/[-+]?(?:\d*\.)?\d+/g).map(Number);
+ assert(Math.hypot(coords[4]-coords[6],coords[5]-coords[7])>1,
+  'clicking last anchor must preserve the incoming Bézier tangent of the preceding curve');
+ assert(Math.abs(coords[8]-coords[6])<.001&&Math.abs(coords[9]-coords[7])<.001,
+  'clicking last anchor must reset only the next segment outgoing tangent');
+ const tangentPairs=await compatibilityPage.$$eval('#svg-path-overlay [data-path-tangent]',els=>els.map(e=>({side:e.dataset.pathTangent,collapsed:e.dataset.collapsedTangent==='true'})));
+ assert(tangentPairs.some(x=>x.side==='incoming'&&!x.collapsed),'incoming tangent remains a visible independent handle');
+ assert(tangentPairs.some(x=>x.side==='outgoing'&&x.collapsed),'reset outgoing tangent remains an accessible collapsed handle');
  await compatibilityPage.close();
  assert.deepEqual(errors,[],'no errors for sparse multi-edit or repeated snapping');
  console.log('PASS: sparse property compatibility, repeated geometry guides and Settings toggle');
