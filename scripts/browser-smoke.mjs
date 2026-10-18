@@ -522,14 +522,14 @@ try{
  assert.equal((await compatibilityPage.$$(repeatedHline)).length,4,'all four horizontal lines must render');
  await compatibilityPage.$eval('.tree-item[data-path="items.0.children.0"]',el=>el.dispatchEvent(new MouseEvent('click',{bubbles:true})));
  // A repeated child keeps only its two endpoint resize handles, focused on
- // one copy; the outer repeat block owns the single rotation control.
+ // one copy; XNotes-compatible repeat geometry has no rotation control.
  const childHandles=await compatibilityPage.$$eval(repeatedHline,nodes=>nodes.map(n=>n.querySelectorAll('[data-handle]').length));
  assert.equal(childHandles.filter(x=>x>0).length,1,'one repeat copy may have resize handles');
  assert.equal(childHandles.reduce((a,b)=>a+b,0),2,'hline keeps only two endpoint resize handles');
  assert.equal(await compatibilityPage.$$eval(repeatedHline,nodes=>nodes.reduce((count,n)=>count+n.querySelectorAll('[data-handle="rotate"]').length,0)),0,
   'repeat copies do not each rotate individually');
- assert.equal(await compatibilityPage.$eval('g[data-path="items.0"]',n=>n.querySelectorAll(':scope > [data-handle="rotate"]').length),1,
-  'repeat must show one rotation handle for its entire bounds');
+ assert.equal(await compatibilityPage.$eval('g[data-path="items.0"]',n=>n.querySelectorAll(':scope > [data-handle="rotate"]').length),0,
+  'repeat must not offer rotation unsupported by XNotes');
  const thirdCopy=await compatibilityPage.$$eval(repeatedHline+' .svg-hitbox',nodes=>{
   const r=nodes[2].getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};
  });
@@ -561,66 +561,25 @@ try{
  const afterHorizontal=JSON.parse(await compatibilityPage.$eval('#jsonEditor',el=>el.value));
  assert(Math.abs(parseFloat(afterHorizontal.items[1].y)-40)<0.25,
   `repeat hline should snap y=40: ${afterHorizontal.items[1].y}`);
- // Rigid rotation of repeated lines around the *whole collection* center.
- // Distances between endpoints and line spacing must be preserved.
- const rotateDoc={xtemplate:1,id:'test.repeat.rotate.block',name:'Repeat block rotation',params:{},items:[
-  {type:'repeat',axis:'y',period:'20mm',count:4,children:[
-   {type:'hline',x1:'40mm',x2:'120mm',y:'0mm',stroke:'ink'},
-   {type:'text',text:'Text',x:'42mm',y:'10mm',fill:'ink'},
-  ]},
+ // Android renders repeat geometry without rotation; inherited rotation affects text only.
+ const nativeDoc={xtemplate:1,id:'test.xnotes.native',name:'Native rotation',items:[
+   {type:'repeat',axis:'y',period:'20mm',count:4,rotate:90,children:[
+    {type:'hline',x1:'40mm',x2:'120mm',y:'0mm',stroke:'ink'},
+    {type:'text',text:'Text',x:'42mm',y:'10mm',fill:'ink'},
+   ]},
  ]};
  await compatibilityPage.$eval('#fileInput',(input,raw)=>{
-  const transfer=new DataTransfer();transfer.items.add(new File([raw],'rotation.xtemplate',{type:'application/json'}));
+  const transfer=new DataTransfer();transfer.items.add(new File([raw],'native.xtemplate',{type:'application/json'}));
   input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
- },JSON.stringify(rotateDoc));
- await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Repeat block rotation');
- const copyPath='g[data-path="items.0.children.0"]';
- assert.equal((await compatibilityPage.$$(copyPath)).length,4);
- await compatibilityPage.$eval('.tree-item[data-path="items.0"]',n=>n.dispatchEvent(new MouseEvent('click',{bubbles:true})));
- const beforeGeometry=await compatibilityPage.evaluate(()=>{
-  const lines=[...document.querySelectorAll('g[data-path="items.0.children.0"] > line')];
-  return lines.map(line=>({x1:+line.getAttribute('x1'),x2:+line.getAttribute('x2'),y:+line.getAttribute('y1')}));
- });
- const pivot=await compatibilityPage.$eval('g[data-path="items.0"]',element=>{
-  const frame=element.querySelector(':scope > .repeat-selection').getBoundingClientRect();
-  const handle=element.querySelector(':scope > [data-handle="rotate"]').getBoundingClientRect();
-  return{cx:frame.left+frame.width/2,cy:frame.top+frame.height/2,
-   hx:handle.left+handle.width/2,hy:handle.top+handle.height/2};
- });
- const r=Math.hypot(pivot.hx-pivot.cx,pivot.hy-pivot.cy);
- await compatibilityPage.mouse.move(pivot.hx,pivot.hy);
- await compatibilityPage.mouse.down();
- await compatibilityPage.mouse.move(pivot.cx+r,pivot.cy,{steps:14});
- await compatibilityPage.mouse.up();
- const rotated=JSON.parse(await compatibilityPage.$eval('#jsonEditor',el=>el.value));
- assert(Math.abs(rotated.items[0].rotate-90)<6,`repeat should rotate the entire block 90°: ${rotated.items[0].rotate}`);
- assert.equal(rotated.items[0].children[0].rotate,undefined,'rotation must not be written to child hline');
- const result=await compatibilityPage.$eval('g[data-path="items.0"]',element=>({
-  transform:element.getAttribute('transform'),
-  childTransforms:[...element.querySelectorAll('g[data-path="items.0.children.0"]')].map(el=>el.getAttribute('transform')),
- }));
- assert(result.transform.startsWith('matrix('),'repeat parent must own the rotation transform');
- const values=result.transform.match(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/gi).map(Number);
- assert.equal(values.length,6,'repeat rotation must use an affine 2D SVG matrix');
- assert(Math.abs(values[0])<0.11 && Math.abs(values[1]-1)<0.11 && Math.abs(values[2]+1)<0.11 && Math.abs(values[3])<0.11,
-  'repeat matrix must represent a 90-degree in-plane rotation');
- assert(result.childTransforms.every(x=>!x),'repeat children should keep untransformed shared geometry');
- assert(await compatibilityPage.$$eval('g[data-path="items.0.children.1"] text',els=>els.every(el=>!el.getAttribute('transform'))),
-  'text children must not inherit the parent repeat rotation a second time');
- const afterGeometry=await compatibilityPage.evaluate(()=>{
-  const lines=[...document.querySelectorAll('g[data-path="items.0.children.0"] > line')];
-  return lines.map(line=>{
-   const paper=document.querySelector('#paper');const m=paper.getScreenCTM().inverse().multiply(line.getScreenCTM());const x1=+line.getAttribute('x1'),x2=+line.getAttribute('x2'),y=+line.getAttribute('y1');
-   return {a:{x:m.a*x1+m.c*y+m.e,y:m.b*x1+m.d*y+m.f},
-    b:{x:m.a*x2+m.c*y+m.e,y:m.b*x2+m.d*y+m.f}};
-  });
- });
- assert.equal(afterGeometry.length,4);
- for(const line of afterGeometry)assert(Math.abs(Math.hypot(line.b.x-line.a.x,line.b.y-line.a.y)-80)<0.1,
-  'rigid 90-degree group rotation must preserve line length');
- for(let i=1;i<afterGeometry.length;i++)assert(Math.abs(Math.hypot(afterGeometry[i].a.x-afterGeometry[i-1].a.x,afterGeometry[i].a.y-afterGeometry[i-1].a.y)-20)<0.1,
-  'rigid group rotation must preserve repeat spacing');
- assert.equal(beforeGeometry.length,4);
+ },JSON.stringify(nativeDoc));
+ await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Native rotation');
+ assert.equal(await compatibilityPage.$eval('g[data-path="items.0"]',n=>n.getAttribute('transform')),null,
+  'XNotes repeat geometry must not rotate merely from a rotate style field');
+ assert.equal(await compatibilityPage.$$eval('g[data-path="items.0.children.0"]',nodes=>nodes.length),4);
+ assert(await compatibilityPage.$$eval('g[data-path="items.0.children.1"] text',nodes=>nodes.every(n=>n.getAttribute('transform')?.startsWith('matrix('))),
+  'inherited quarter-turn rotation must be applied to text glyphs');
+ const roundTrip=JSON.parse(await compatibilityPage.$eval('#jsonEditor',el=>el.value));
+ assert.equal(roundTrip.items[0].rotate,90,'existing imported keys must be preserved');
  await compatibilityPage.close();
  assert.deepEqual(errors,[],'no errors for sparse multi-edit or repeated snapping');
  console.log('PASS: sparse property compatibility, repeated geometry guides and Settings toggle');

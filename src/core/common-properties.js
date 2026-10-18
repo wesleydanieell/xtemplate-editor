@@ -8,10 +8,10 @@ export const EDITABLE_PROPERTIES = Object.freeze([
   "x", "y", "w", "h", "rx", "cx", "cy", "r", "ry", "points",
   "d", "viewBox", "aspect", "angle", "offset", "select", "x1", "y1", "x2", "y2",
 ]);
-const STYLE = ["stroke", "fill", "strokeWidth", "opacity", "rotate", "dash"];
-const LINE_STYLE = ["stroke", "strokeWidth", "opacity", "rotate", "dash"];
-const DOT_STYLE = ["fill", "stroke", "opacity", "rotate"];
-const TEXT_DRAW_STYLE = ["fill", "stroke", "opacity", "rotate"];
+const STYLE = ["stroke", "fill", "strokeWidth", "opacity", "dash"];
+const LINE_STYLE = ["stroke", "strokeWidth", "opacity", "dash"];
+const DOT_STYLE = ["fill", "stroke", "opacity"];
+const TEXT_DRAW_STYLE = ["fill", "stroke", "opacity"];
 const TEXT_STYLE = ["font", "size", "weight", "italic", "align", "baseline"];
 const XYWH = ["x", "y", "w", "h"];
 const TYPE_PROPERTIES = Object.freeze({

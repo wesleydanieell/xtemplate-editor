@@ -4,14 +4,14 @@ import { sharedEditableProperties, supportsEditableProperty, editablePropertyVal
 
 test("same sparse horizontal lines expose all supported coordinates and style",()=>{
  const keys=sharedEditableProperties([{type:"hline",y:"5mm"},{type:"hline",stroke:"ink"}]);
- for(const key of ["y","x1","x2","stroke","strokeWidth","opacity","dash","rotate"])assert(keys.includes(key),key);
+ for(const key of ["y","x1","x2","stroke","strokeWidth","opacity","dash"])assert(keys.includes(key),key);
  assert(!keys.includes("x")&&!keys.includes("y1")&&!keys.includes("period")&&!keys.includes("fill"));
  assert.equal(editablePropertyValue({type:"hline"},"x2"),"100%");
  assert.equal(editablePropertyValue({type:"hline"},"x1"),"0mm");
 });
 test("mixed types expose capabilities intersection, not explicit-key intersection",()=>{
  const keys=sharedEditableProperties([{type:"rect",stroke:"ink"},{type:"line",opacity:.7}]);
- assert(keys.includes("stroke")&&keys.includes("opacity")&&keys.includes("rotate"));
+ assert(keys.includes("stroke")&&keys.includes("opacity")&&!keys.includes("rotate"));
  assert(!keys.includes("x")&&!keys.includes("x1")&&!keys.includes("fillOpacity"));
 });
 test("same sparse repeat nodes expose optional repeat settings",()=>{
