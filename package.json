@@ -1,6 +1,6 @@
 {
   "name": "xtemplate-studio",
-  "version": "0.1.0-alpha.4",
+  "version": "0.1.0-alpha.5",
   "private": false,
   "type": "module",
   "description": "Editor visual local e offline de templates .xtemplate para XNotes Android",

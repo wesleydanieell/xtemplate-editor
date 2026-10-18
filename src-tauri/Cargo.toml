@@ -1,6 +1,6 @@
 [package]
 name = "xtemplate-studio"
-version = "0.1.0-alpha.4"
+version = "0.1.0-alpha.5"
 description = "Offline XTemplate visual editor for XNotes Android"
 authors = ["XTemplate Studio contributors"]
 license = "MIT"
