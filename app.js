@@ -5,7 +5,7 @@ import { createDefaultNode } from "./src/core/template-schema.js";
 import { evalExpr, mm } from "./src/core/expressions.js";
 import { createHistory } from "./src/core/history.js";
 import { anchoredPan, nextZoomLevel } from "./src/features/zoom.js";
-import { calculateSnap, calculateObjectSnap } from "./src/features/snapping.js";
+import { calculateSnap, calculateObjectSnap, calculateResizeSnap } from "./src/features/snapping.js";
 import { rotationFromPointer, normalizeDialAngle } from "./src/features/rotation-wheel.js";
 import { variableChoices, completeExpression } from "./src/features/variable-completion.js";
 import { valueHint, variableTypeHint } from "./src/features/value-hints.js";
@@ -821,6 +821,11 @@ function snapToGuides(proposed,excludedPaths=[],targets=null){
  const rect=paper.getBoundingClientRect(),toleranceX=7*pageSize[0]/Math.max(1,rect.width),toleranceY=7*pageSize[1]/Math.max(1,rect.height);
  return calculateObjectSnap(proposed,targets||snapTargetsFor(excludedPaths),{w:pageSize[0],h:pageSize[1]},toleranceX,toleranceY);
 }
+function snappedResizeBounds(bounds,handle,excludedPaths=[],targets=null){
+ if(!magneticGuidesEnabled)return{bounds,guides:{x:null,y:null},segments:{x:null,y:null}};
+ const rect=paper.getBoundingClientRect(),tx=7*pageSize[0]/Math.max(1,rect.width),ty=7*pageSize[1]/Math.max(1,rect.height);
+ return calculateResizeSnap(bounds,handle,targets||snapTargetsFor(excludedPaths),{w:pageSize[0],h:pageSize[1]},tx,ty);
+}
 function clearSmartGuides(){smartGuides={x:null,y:null};smartGuideSegments={x:null,y:null};}
 function renderSmartGuideOverlay(){
  paper.querySelectorAll(".smart-guide,.smart-guide-point").forEach(el=>el.remove());
@@ -919,13 +924,14 @@ paper.addEventListener("pointermove",e=>{
   // Group children use their own repeat period/count. Do not scale the painted SVG:
   // modify the *container box* and rebuild its layout instead, preserving cell spacing.
   const original=drag.modelBounds||drag.bounds;
-  const next=resizedBounds(original,drag.handle,dx,dy);
+  const snap=snappedResizeBounds(resizedBounds(original,drag.handle,dx,dy),drag.handle,[drag.path],drag.snapTargets);
+  const next=snap.bounds;smartGuides=snap.guides;smartGuideSegments=snap.segments;
   const node=getAt(drag.path),box=drag.parentBox,fmt=value=>Number(value.toFixed(3))+"mm";
   if(!node)return;
   node.x=fmt(next.x-box.x);node.y=fmt(next.y-box.y);
   node.w=fmt(next.w);node.h=fmt(next.h);
   drag.previewBounds=next;
-  renderCanvas();
+  renderCanvas();renderSmartGuideOverlay();
   updateResizePreviewFields(drag);
   return;
  }
@@ -1004,7 +1010,7 @@ paper.addEventListener("pointerup",e=>{
    const angle=Math.atan2(endPoint.y-(g.y+g.h/2),endPoint.x-(g.x+g.w/2))*180/Math.PI;
    node.rotate=Math.round((Number(state.origin.rotate)||0)+angle-state.startAngle);
   }else{
-   const resized=resizedBounds(g,state.handle,dx,dy);
+   const resized=snappedResizeBounds(resizedBounds(g,state.handle,dx,dy),state.handle,[state.path],state.snapTargets).bounds;
    node.x=fmt(resized.x-box.x);node.y=fmt(resized.y-box.y);node.w=fmt(resized.w);node.h=fmt(resized.h);
   }
  }
