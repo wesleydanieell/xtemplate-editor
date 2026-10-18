@@ -896,7 +896,7 @@ paper.addEventListener("pointerdown",e=>{
  const items=(multi?selectedPaths.map(p=>p.slice()):[path.slice()]).map(p=>({path:p,origin:clone(getAt(p)),bounds:transformGeometry(getAt(p),p),parentBox:clone(parentBoxForPath(p)),repeated:isRepeatedPath(p)}));
  const repeatRect=n.type==="repeat"?g.querySelector(':scope > .repeat-selection'):null;
  const repeatBounds=repeatRect?{x:Number(repeatRect.getAttribute('x')),y:Number(repeatRect.getAttribute('y')),w:Number(repeatRect.getAttribute('width')),h:Number(repeatRect.getAttribute('height'))}:null;
- const bounds=repeatBounds||(multi?(unionBounds(items)||geometry):(visibleBounds||geometry));if(!bounds)return;
+ const bounds=repeatBounds||(multi?(unionBounds(items)||geometry):(handle&&n.type==="group"?geometry:(visibleBounds||geometry)));if(!bounds)return;
  const point=pagePoint(e),snapTargets=snapTargetsFor(items.map(item=>item.path)),previewTransforms=captureDragTransforms(items.map(item=>item.path));
  drag={pointerId:e.pointerId,path,mode:handle?"transform":"move",handle,modelBounds:geometry,startX:e.clientX,startY:e.clientY,startPoint:point,parentBox:clone(parentBox),bounds,origin:clone(n),items,moved:false,repeated:isRepeatedPath(path),snapTargets,previewTransforms,lastDelta:{dx:0,dy:0},startAngle:Math.atan2(point.y-(bounds.y+bounds.h/2),point.x-(bounds.x+bounds.w/2))*180/Math.PI};
  try{paper.setPointerCapture(e.pointerId);}catch{}e.preventDefault();
@@ -916,17 +916,16 @@ paper.addEventListener("pointermove",e=>{
   return;
  }
  if(drag.mode==="transform"&&drag.origin.type==="group"){
-  const g=drag.bounds,previewItem=drag.previewTransforms.find(item=>item.element.dataset.path===nodeKey(drag.path));
-  if(!previewItem)return;
-  const element=previewItem.element,baseTransform=previewItem.transform||"";
-  if(drag.handle==="rotate"){
-   const angle=Math.atan2(point.y-(g.y+g.h/2),point.x-(g.x+g.w/2))*180/Math.PI-drag.startAngle;
-   element.setAttribute("transform",rotationPreviewTransform(angle,g.x+g.w/2,g.y+g.h/2,baseTransform));
-  }else{
-   const preview=resizePreviewTransform(g,drag.handle,dx,dy,baseTransform);
-   element.setAttribute("transform",preview.transform);
-   drag.previewBounds=preview;
-  }
+  // Group children use their own repeat period/count. Do not scale the painted SVG:
+  // modify the *container box* and rebuild its layout instead, preserving cell spacing.
+  const original=drag.modelBounds||drag.bounds;
+  const next=resizedBounds(original,drag.handle,dx,dy);
+  const node=getAt(drag.path),box=drag.parentBox,fmt=value=>Number(value.toFixed(3))+"mm";
+  if(!node)return;
+  node.x=fmt(next.x-box.x);node.y=fmt(next.y-box.y);
+  node.w=fmt(next.w);node.h=fmt(next.h);
+  drag.previewBounds=next;
+  renderCanvas();
   updateResizePreviewFields(drag);
   return;
  }

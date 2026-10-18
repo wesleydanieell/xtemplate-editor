@@ -584,6 +584,56 @@ try{
   'inherited quarter-turn rotation must be applied to text glyphs');
  const roundTrip=JSON.parse(await compatibilityPage.$eval('#jsonEditor',el=>el.value));
  assert.equal(roundTrip.items[0].rotate,90,'existing imported keys must be preserved');
+ // Resizing a group must recalculate repeated cells rather than stretch the SVG.
+ const resizeDoc={xtemplate:1,id:'test.resize.repeat',name:'Repeat resize anchoring',items:[
+  {type:'group',x:'20mm',y:'20mm',w:'100mm',h:'100mm',children:[
+   {type:'repeat',axis:'y',period:'10mm',children:[{type:'hline',y:'0mm'}]},
+   {type:'repeat',axis:'x',period:'10mm',children:[{type:'vline',x:'0mm'}]},
+  ]},
+ ]};
+ await compatibilityPage.$eval('#fileInput',(input,raw)=>{
+  const dt=new DataTransfer();dt.items.add(new File([raw],'resize.xtemplate',{type:'application/json'}));
+  input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(resizeDoc));
+ await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Repeat resize anchoring');
+ await compatibilityPage.$eval('.tree-item[data-path="items.0"]',e=>e.click());
+ const sampleRepeat=()=>compatibilityPage.evaluate(()=>({
+  horizontal:[...document.querySelectorAll('g[data-path="items.0.children.0.children.0"] > line')].map(x=>+x.getAttribute('y1')),
+  vertical:[...document.querySelectorAll('g[data-path="items.0.children.1.children.0"] > line')].map(x=>+x.getAttribute('x1')),
+  group:JSON.parse(document.querySelector('#jsonEditor').value).items[0],
+ }));
+ const initialRepeat=await sampleRepeat();
+ assert(initialRepeat.horizontal.length>=8 && initialRepeat.vertical.length>=8);
+ const dragGroupEdge=async(side,dx,dy)=>{
+  const handle=await compatibilityPage.$eval(`g[data-path="items.0"] > [data-handle="${side}"]`,el=>{
+   const r=el.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};
+  });
+  await compatibilityPage.mouse.move(handle.x,handle.y);
+  await compatibilityPage.mouse.down();
+  await compatibilityPage.mouse.move(handle.x+dx,handle.y+dy,{steps:10});
+  const during=await sampleRepeat();
+  await compatibilityPage.mouse.up();
+  return {during,after:await sampleRepeat()};
+ };
+ const down=await dragGroupEdge('s',0,40);
+ assert(down.during.horizontal.length>initialRepeat.horizontal.length,'height expansion must add repeat lines during drag');
+ assert(Math.abs(down.during.horizontal[1]-down.during.horizontal[0]-10)<.01,'height drag must preserve repeat period');
+ assert.equal(down.during.group.y,initialRepeat.group.y,'south edge must anchor top during preview');
+ assert(Math.abs(parseFloat(down.after.group.y)-20)<.01,'south edge must anchor top on commit');
+ const across=await dragGroupEdge('e',40,0);
+ assert(across.during.vertical.length>initialRepeat.vertical.length,'width expansion must add repeat columns during drag');
+ assert(Math.abs(across.during.vertical[1]-across.during.vertical[0]-10)<.01,'width drag must preserve repeat period');
+ assert(Math.abs(parseFloat(across.after.group.x)-20)<.01,'east edge must anchor left on commit');
+ const beforeTop=await sampleRepeat();
+ const top=await dragGroupEdge('n',0,20);
+ assert(Math.abs((parseFloat(top.after.group.y)+parseFloat(top.after.group.h))-
+  (parseFloat(beforeTop.group.y)+parseFloat(beforeTop.group.h)))<.01,'north edge must anchor bottom');
+ assert(Math.abs(top.during.horizontal[1]-top.during.horizontal[0]-10)<.01,'north resize must not stretch y repeat spacing');
+ const beforeLeft=await sampleRepeat();
+ const left=await dragGroupEdge('w',20,0);
+ assert(Math.abs((parseFloat(left.after.group.x)+parseFloat(left.after.group.w))-
+  (parseFloat(beforeLeft.group.x)+parseFloat(beforeLeft.group.w)))<.01,'west edge must anchor right');
+ assert(Math.abs(left.during.vertical[1]-left.during.vertical[0]-10)<.01,'west resize must not stretch x repeat spacing');
  await compatibilityPage.close();
  assert.deepEqual(errors,[],'no errors for sparse multi-edit or repeated snapping');
  console.log('PASS: sparse property compatibility, repeated geometry guides and Settings toggle');
