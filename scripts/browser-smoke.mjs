@@ -1,6 +1,7 @@
 /** Browser regressions for canvas selection/movement, using a locally served editor. */
 import puppeteer from 'puppeteer-core';
 import assert from 'node:assert/strict';
+import { editablePathNodes } from '../src/features/vector/svg-path.js';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
@@ -807,6 +808,52 @@ try{
  const tangentPairs=await compatibilityPage.$$eval('#svg-path-overlay [data-path-tangent]',els=>els.map(e=>({side:e.dataset.pathTangent,collapsed:e.dataset.collapsedTangent==='true'})));
  assert(tangentPairs.some(x=>x.side==='incoming'&&!x.collapsed),'incoming tangent remains a visible independent handle');
  assert(tangentPairs.some(x=>x.side==='outgoing'&&x.collapsed),'reset outgoing tangent remains an accessible collapsed handle');
+ // An intermediate anchor must expose *two* separately clickable handles.
+ // The incoming tangent is the second C control of the preceding segment;
+ // the outgoing tangent is the first C control of the next segment.
+ const middleHandles=await compatibilityPage.evaluate(()=>{
+  const read=index=>{
+   const group=document.querySelector('#svg-path-overlay [data-svg-path-point="'+index+'"]');
+   const r=group.querySelector('circle.svg-path-hit').getBoundingClientRect();
+   return {x:r.x+r.width/2,y:r.y+r.height/2,side:group.dataset.pathTangent,collapsed:group.dataset.collapsedTangent==='true'};
+  };
+  const incoming=read(2),outgoing=read(4),anchor=read(3);
+  const pick=p=>document.elementFromPoint(p.x,p.y)?.closest('[data-svg-path-point]')?.dataset.svgPathPoint;
+  return {incoming,outgoing,anchor,incomingPick:pick(incoming),outgoingPick:pick(outgoing)};
+ });
+ assert.equal(middleHandles.incoming.side,'incoming');
+ assert.equal(middleHandles.outgoing.side,'outgoing');
+ assert(Math.hypot(middleHandles.incoming.x-middleHandles.outgoing.x,middleHandles.incoming.y-middleHandles.outgoing.y)>18,
+  'both Bézier tangents must appear independently, separated in screen pixels');
+ assert.equal(middleHandles.incomingPick,'2','incoming tangent must be independently mouse targetable');
+ assert.equal(middleHandles.outgoingPick,'4','outgoing tangent must be independently mouse targetable');
+ const beforeTangentEdit=editablePathNodes((await getPenItems()).at(-1).d).nodes;
+ const dragTangent=async(h,dx,dy)=>{
+  await compatibilityPage.mouse.move(h.x,h.y);await compatibilityPage.mouse.down();
+  await compatibilityPage.mouse.move(h.x+dx,h.y+dy,{steps:6});await compatibilityPage.mouse.up();
+ };
+ await dragTangent(middleHandles.outgoing,17,9);
+ let afterTangentEdit=editablePathNodes((await getPenItems()).at(-1).d).nodes;
+ assert(Math.hypot(afterTangentEdit[4].x-beforeTangentEdit[4].x,afterTangentEdit[4].y-beforeTangentEdit[4].y)>0.5,
+  'collapsed outgoing tangent must be extendable after Enter');
+ assert.equal(afterTangentEdit[2].x,beforeTangentEdit[2].x,'outgoing drag preserves incoming X');
+ assert.equal(afterTangentEdit[2].y,beforeTangentEdit[2].y,'outgoing drag preserves incoming Y');
+ await compatibilityPage.keyboard.down('Control');await compatibilityPage.keyboard.press('z');await compatibilityPage.keyboard.up('Control');
+ const afterUndo=editablePathNodes((await getPenItems()).at(-1).d).nodes;
+ assert.equal(afterUndo[4].x,beforeTangentEdit[4].x,'one undo restores original outgoing handle');
+ // Undo currently clears the document selection; reselect the restored node
+ // before testing the second independent handle.
+ const lastIndex=(await getPenItems()).length-1;
+ await compatibilityPage.$eval('.tree-item[data-path="items.'+lastIndex+'"]',el=>el.click());
+ const incomingAgain=await compatibilityPage.$eval('#svg-path-overlay [data-svg-path-point="2"] circle.svg-path-hit',el=>{
+  const r=el.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};
+ });
+ await dragTangent(incomingAgain,-16,12);
+ afterTangentEdit=editablePathNodes((await getPenItems()).at(-1).d).nodes;
+ assert(Math.hypot(afterTangentEdit[2].x-beforeTangentEdit[2].x,afterTangentEdit[2].y-beforeTangentEdit[2].y)>0.5,
+  'incoming tangent remains independently adjustable');
+ assert.equal(afterTangentEdit[4].x,beforeTangentEdit[4].x,'incoming drag preserves outgoing X');
+ assert.equal(afterTangentEdit[4].y,beforeTangentEdit[4].y,'incoming drag preserves outgoing Y');
  await compatibilityPage.close();
  assert.deepEqual(errors,[],'no errors for sparse multi-edit or repeated snapping');
  console.log('PASS: sparse property compatibility, repeated geometry guides and Settings toggle');

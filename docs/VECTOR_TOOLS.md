@@ -60,8 +60,10 @@ in a single contour. It exposes anchors and Bézier control points, direct coord
 line insertion, safe segment deletion, nudge controls and opening/closing the contour.
 After finishing with **Enter**, cubic segments show independent **incoming** and
 **outgoing** handles attached to the relevant anchors. A collapsed handle is
-shown with a small offset marker so it can still be grabbed; dragging it changes
-only that curve's native `d` control point. Intermediate anchors have two
+shown with an approximately 20px editor-only offset marker so it can still be
+grabbed even when the current zoom is small. **Orange means incoming; blue means
+outgoing.** The offset marker does not move the actual geometry or change exported
+values; dragging it changes only that curve's native `d` control point. Intermediate anchors have two
 handles when adjoining cubic segments exist; open-path endpoints only have the
 control points defined by their neighboring segment in XNotes SVG syntax.
 Moving a point replaces only its original numeric
@@ -76,7 +78,13 @@ Bézier segment conversion remain planned work.
 ## Compatibility and limitations
 
 - Do not use SVG `transform` fields in `.xtemplate`: XNotes currently applies `rotate` only to text glyphs.
-- Geometry is rendered using browser SVG for previews. Parity with Android's clipping, fill rules,
-  expression evaluator and path parser still needs device-level comparison tests.
+- Android `SvgPathData.parse` reads native `C` into `VectorSeg.Cubic(c1,c2,end)`, and
+  `TemplateEval.path` scales/positions the resulting contours using native `viewBox`,
+  `x/y/w/h` and `aspect`. Both tangent coordinates are therefore exportable without
+  extensions. The **handles themselves are an editor-only UI**, not visible in XNotes.
+  Android flattens cubics into segments for rendering, so exact browser pixel-for-pixel
+  raster parity is not expected. On-device visual comparison remains to be completed.
+- Geometry is rendered using browser SVG for previews. Parity with Android's clipping,
+  fill rules and expression evaluator still needs device-level comparison tests.
 - For smooth large-template editing, optimization of Hatch/repeat rendering is still planned.
 - The tools do not introduce any new JSON keys or template format extensions.

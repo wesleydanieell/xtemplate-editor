@@ -367,17 +367,29 @@ function renderPathOverlay(){
  for(const [i,p] of parsed.nodes.entries()){
   const real=pathDocumentPoint(shape,p.x,p.y),relation=byIndex.get(i),anchor=relation?parsed.nodes[relation.anchorIndex]:null;
   const anchorPos=anchor?pathDocumentPoint(shape,anchor.x,anchor.y):null;
-  const collapsed=!!anchorPos&&Math.hypot(real.x-anchorPos.x,real.y-anchorPos.y)<.5;
-  // A zero-length tangent still needs a grab point: a small offset marker
-  // indicates its presence. Drag deltas are relative to the original control.
-  const pos=collapsed?{x:real.x+(relation.side==='incoming'?-3:3),y:real.y-3}:real;
+  // Editor-only display: collapsed tangents still exist in SVG C data, but
+  // coincide with their anchor. A 3mm marker (previous behavior) fell *inside*
+  // the anchor's hit target at common zoom levels and appeared to be missing.
+  // Position both collapsed handles at opposite 20px screen-space offsets.
+  const pageScreen=paper.getScreenCTM(),pxPerUnit=pageScreen?Math.max(.01,Math.hypot(pageScreen.a,pageScreen.b)):2;
+  const visualOffset=20/pxPerUnit;
+  const collapsed=!!anchorPos&&Math.hypot(real.x-anchorPos.x,real.y-anchorPos.y)<Math.max(.12,2/pxPerUnit);
+  const offsetDirection=relation?.side==='incoming'?-1:1;
+  const pos=collapsed?{x:anchorPos.x+visualOffset*offsetDirection,y:anchorPos.y-visualOffset*.4}:real;
+  // The indicator is not a new geometry point: dragging uses the unchanged
+  // authored control plus the cursor delta, preserving XNotes coordinates.
+  if(collapsed&&anchorPos){group.appendChild(svg('line',{
+   class:'svg-path-guide collapsed-guide','data-collapsed-guide':relation.side,
+   x1:anchorPos.x,y1:anchorPos.y,x2:pos.x,y2:pos.y
+  }));}
   const handle=svg('g',{'data-svg-path-point':i,class:'svg-path-node',
    ...(relation?{'data-path-tangent':relation.side}:{}),
    ...(collapsed?{'data-collapsed-tangent':'true'}:{})});
-  handle.appendChild(svg('circle',{cx:pos.x,cy:pos.y,r:4.2,class:'svg-path-hit',fill:'transparent',stroke:'none'}));
-  handle.appendChild(svg('circle',{cx:pos.x,cy:pos.y,r:p.role==='control'?1.75:2.25,
-   class:'svg-path-handle '+p.role+(pathPointSelection===i?' selected':'')}));
-  const tooltip=svg('title',{});tooltip.textContent=`${relation?relation.side+' Bézier tangent':p.role==='anchor'?'Anchor':'Control'} ${i+1}${collapsed?' (collapsed)':''} · Arrows: fine adjustment`;
+  const targetRadius=Math.max(2.7,9/pxPerUnit);
+  handle.appendChild(svg('circle',{cx:pos.x,cy:pos.y,r:targetRadius,class:'svg-path-hit',fill:'transparent',stroke:'none'}));
+  handle.appendChild(svg('circle',{cx:pos.x,cy:pos.y,r:Math.max(1.4,(p.role==='control'?4.5:5)/pxPerUnit),
+   class:'svg-path-handle '+p.role+(relation?' '+relation.side:'')+(collapsed?' collapsed':'')+(pathPointSelection===i?' selected':'')}));
+  const tooltip=svg('title',{});tooltip.textContent=`${relation?relation.side+' Bézier tangent':p.role==='anchor'?'Anchor':'Control'} ${i+1}${collapsed?' (retracted; drag to extend)':''} · Arrows: fine adjustment`;
   handle.appendChild(tooltip);group.appendChild(handle);
  }
  paper.appendChild(group);
@@ -395,7 +407,7 @@ function renderSvgPathControls(root,node){
   catch(e){toast(e.message);}
  });
  button(parsed.closed?'Open path':'Close path',()=>commit(()=>{node.d=toggleSvgClosed(node.d);}));
- const note=document.createElement('p');note.className='inspector-tip';note.textContent='Visual handles support absolute M, L, C and Q commands. Relative commands, arcs and shorthand remain unchanged in the advanced d editor.';root.appendChild(note);
+ const note=document.createElement('p');note.className='inspector-tip';note.textContent='Bézier handles: orange = incoming, blue = outgoing. At intermediate cubic anchors, both controls are independently editable. Retracted controls have separated dashed markers; the exported XNotes path remains unchanged until you drag them. Complex SVG commands remain available in the d field.';root.appendChild(note);
  if(pathCurrent()!==node)return;
  const list=document.createElement('div');list.className='vector-coordinate-list';root.appendChild(list);
  parsed.nodes.forEach((pt,i)=>{

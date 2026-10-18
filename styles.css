@@ -965,3 +965,11 @@
 #svg-path-overlay .svg-path-node{cursor:move;pointer-events:all}
 #svg-path-overlay .svg-path-hit{pointer-events:all}
 #svg-path-overlay .svg-path-handle{pointer-events:none}
+
+/* In/out cubic controls remain distinct at any zoom, including when retracted. */
+#svg-path-overlay .svg-path-handle.control.incoming{fill:#f7b24a;stroke:#6b4314}
+#svg-path-overlay .svg-path-handle.control.outgoing{fill:#56c6f4;stroke:#195a86}
+#svg-path-overlay .svg-path-handle.control.collapsed{stroke-dasharray:1.2 .6;stroke-width:1}
+#svg-path-overlay .svg-path-guide.collapsed-guide{stroke:#598ab9;stroke-width:.7;stroke-dasharray:1.2 1;pointer-events:none}
+#svg-path-overlay .svg-path-node:focus-within .svg-path-handle,
+#svg-path-overlay .svg-path-node:hover .svg-path-handle{stroke-width:1.4}
