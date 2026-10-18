@@ -634,6 +634,20 @@ try{
  assert(Math.abs((parseFloat(left.after.group.x)+parseFloat(left.after.group.w))-
   (parseFloat(beforeLeft.group.x)+parseFloat(beforeLeft.group.w)))<.01,'west edge must anchor right');
  assert(Math.abs(left.during.vertical[1]-left.during.vertical[0]-10)<.01,'west resize must not stretch x repeat spacing');
+ // Element inspector orders native properties by type without removing fields.
+ const priorityDoc={xtemplate:1,id:'test.inspector.priority',name:'Priority inspector',items:[
+  {type:'repeat',axis:'y',period:'8mm',count:4,fit:'repeat',index:'row',stagger:'1mm',children:[{type:'hline'}]},
+ ]};
+ await compatibilityPage.$eval('#fileInput',(input,raw)=>{
+  const dt=new DataTransfer();dt.items.add(new File([raw],'priority.xtemplate',{type:'application/json'}));
+  input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(priorityDoc));
+ await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Priority inspector');
+ await compatibilityPage.$eval('.tree-item[data-path="items.0"]',e=>e.click());
+ const inspectorOrder=await compatibilityPage.$$eval('#advancedInspector > *',els=>els.map(el=>el.dataset.fieldKeys||el.textContent.trim()));
+ assert(inspectorOrder.indexOf('axis')<inspectorOrder.indexOf('index'),'repeat axis precedes alias');
+ assert(inspectorOrder.indexOf('period')<inspectorOrder.indexOf('stagger'),'repeat period precedes stagger');
+ assert(inspectorOrder.some(x=>x.startsWith('ESSENTIAL'))&&inspectorOrder.some(x=>x.startsWith('ADVANCED')));
  await compatibilityPage.close();
  assert.deepEqual(errors,[],'no errors for sparse multi-edit or repeated snapping');
  console.log('PASS: sparse property compatibility, repeated geometry guides and Settings toggle');
