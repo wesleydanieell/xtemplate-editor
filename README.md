@@ -241,6 +241,13 @@ Ao selecionar um elemento filho de `repeat`, o editor mostra as alças de transf
 
 **Rotação do conjunto:** um único controle de rotação aparece na **moldura exterior do `repeat`**, acima do conteúdo. Girá-lo aplica uma transformação rígida bidimensional à **face inteira**, em torno do centro comum: o comprimento das linhas e a distância entre cópias permanecem iguais, como ao girar um quadrado de frente. O ângulo é armazenado na propriedade `rotate` do nó `repeat`, **sem** adicionar `rotate` aos seus filhos. Os filhos selecionados mantêm alças de redimensionamento somente na instância ativa; clicar em outra cópia transfere essas alças, mas nunca cria outra rotação independente. Textos filhos também não herdam uma segunda rotação do pai. Essa separação evita o efeito de inclinação/perspectiva visto ao girar linhas individualmente.
 
+### Blank documents by default
+
+The Studio opens with an empty `.xtemplate`: `items: []` and `params: {}`.
+**File → New template** also creates an empty document, without predefined
+layers, variables or a forced license. Bundled examples remain accessible
+from **Insert → Example templates** and the optional examples panel.
+
 ### Experimental vector tools
 
 The Element inspector now provides visual editing for Polygon/Polyline vertices, Hatch pattern settings, and a safe SVG Path node subset. For supported features, limits and Android compatibility notes, see [Vector Tools](docs/VECTOR_TOOLS.md).
