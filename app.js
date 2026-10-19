@@ -2287,7 +2287,39 @@ function insertDrawnNode(type,a,b,points){
 }
 function renderDrawPreview(){let p=paper.querySelector("#draw-preview");if(!drawState){p?.remove();return;}if(!p){p=svg("g",{id:"draw-preview","pointer-events":"none"});paper.appendChild(p);}p.replaceChildren();const a=drawState.start,b=drawState.current,x=Math.min(a.x,b.x),y=Math.min(a.y,b.y),w=Math.max(.3,Math.abs(b.x-a.x)),h=Math.max(.3,Math.abs(b.y-a.y));if(drawState.tool==="rect")p.appendChild(svg("rect",{x,y,width:w,height:h,fill:"#6485f522",stroke:"#6485f5","stroke-width":.6,"stroke-dasharray":"2 1"}));else if(drawState.tool==="ellipse")p.appendChild(svg("ellipse",{cx:x+w/2,cy:y+h/2,rx:w/2,ry:h/2,fill:"#6485f522",stroke:"#6485f5","stroke-width":.6,"stroke-dasharray":"2 1"}));else if(drawState.tool==="polygon")p.appendChild(svg("polygon",{points:polygonVertices(a,b,5).map(v=>v.x+","+v.y).join(" "),fill:"#6485f522",stroke:"#6485f5","stroke-width":.6,"stroke-dasharray":"2 1"}));else p.appendChild(svg("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:"#6485f5","stroke-width":.8,"stroke-dasharray":"2 1"}));}
 function addPattern(type){const spacing=type==="grid"?"5mm":"8mm",line={type:"repeat",axis:type==="grid"?"xy":"y",period:spacing,fit:"space",children:type==="grid"?[{type:"hline",y:"100%",stroke:"#b5c5df",strokeWidth:"0.15mm"},{type:"vline",x:"100%",stroke:"#b5c5df",strokeWidth:"0.15mm"}]:[{type:"hline",y:"100%",stroke:"#9eb8df",strokeWidth:"0.2mm"}]},node={type:"group",inset:"10mm",children:[line]};const items=doc.items||(doc.items=[]);items.push(node);const path=["items",items.length-1];selectedPath=path;selectedPaths=[path];commit(()=>{});setInspectorTab("properties");toast(type==="grid"?"Grid inserted — adjust the period in properties.":"Ruled lines inserted — adjust spacing in properties.");setActiveTool("select");}
-toolButtons.forEach(b=>b.addEventListener("click",()=>{const tool=b.dataset.tool;if(tool==="pen"&&activeTool==="pen"){$("penMode").focus();return;}if(tool==="group"){toast("Para criar um grupo, selecione elements e use Agrupar no menu contextual.");return;}if(tool==="ruled"||tool==="grid"){addPattern(tool);return;}setActiveTool(tool);if(tool==="pan")toast("Click and drag to pan the page; Space + drag also works.");else if(["rect","ellipse","polygon","line"].includes(tool))toast("Click and drag on the page to draw.");else if(tool==="pen")toast("Pen: choose Line, Polyline, Polygon or SVG Path. Enter finishes; Esc cancels.");}));
+toolButtons.forEach(b=>b.addEventListener("click",()=>{const tool=b.dataset.tool;if(tool==="pen"&&activeTool==="pen"){$("penMode").focus();return;}if(tool==="group"){toast("Para criar um grupo, selecione elements e use Agrupar no menu contextual.");return;}if(tool==="ruled"||tool==="grid"){addPattern(tool);return;}setActiveTool(tool);if(tool==="pan")toast("Click and drag to pan the page; Space + drag also works.");else if(["rect","ellipse","polygon","line"].includes(tool))toast("Drag on the page or outside pasteboard to draw.");else if(tool==="pen")toast("Pen: choose Line, Polyline, Polygon or SVG Path. Enter finishes; Esc cancels.");}));
+function startShapeDrawing(e,captureTarget){
+ const pt=pagePoint(e);
+ drawState={tool:activeTool,start:pt,current:pt,points:[pt],pointerId:e.pointerId};
+ captureTarget.setPointerCapture(e.pointerId);
+ renderDrawPreview();
+}
+function updateShapeDrawing(e){
+ if(!drawState||drawState.pointerId!==e.pointerId)return;
+ drawState.current=pagePoint(e);
+ if(e.shiftKey&&["rect","ellipse"].includes(drawState.tool)){
+  const dx=drawState.current.x-drawState.start.x,dy=drawState.current.y-drawState.start.y;
+  const side=Math.max(Math.abs(dx),Math.abs(dy));
+  drawState.current={x:drawState.start.x+Math.sign(dx||1)*side,y:drawState.start.y+Math.sign(dy||1)*side};
+ }
+ renderDrawPreview();
+}
+// Paper and surrounding pasteboard share a single gesture lifecycle. The
+// capture target is the surface on which the drag began, so crossing the
+// paper boundary never interrupts creation of a native rect/ellipse.
+canvas.addEventListener('pointerdown',e=>{
+ if(!pasteboardVisible||spaceDown||activeTool==='pan'||e.button!==0)return;
+ if(!['rect','ellipse'].includes(activeTool)||!isPasteboardPointer(e))return;
+ e.preventDefault();e.stopPropagation();startShapeDrawing(e,canvas);
+});
+canvas.addEventListener('pointermove',e=>{
+ if(drawState?.pointerId===e.pointerId)updateShapeDrawing(e);
+});
+canvas.addEventListener('pointerup',e=>finishDrawing(e));
+canvas.addEventListener('pointercancel',e=>{
+ if(drawState?.pointerId!==e.pointerId)return;
+ drawState=null;renderDrawPreview();
+});
 paper.addEventListener("pointerdown",e=>{
  if(spaceDown||activeTool==="pan")return;
  if(e.button!==0)return;
@@ -2301,9 +2333,9 @@ paper.addEventListener("pointerdown",e=>{
  }
  if(!["rect","ellipse","polygon","line"].includes(activeTool))return;
  e.preventDefault();e.stopPropagation();
- const pt=pagePoint(e);drawState={tool:activeTool,start:pt,current:pt,points:[pt],pointerId:e.pointerId};paper.setPointerCapture(e.pointerId);renderDrawPreview();
+ startShapeDrawing(e,paper);
 });
-paper.addEventListener("pointermove",e=>{if(!drawState||drawState.pointerId!==e.pointerId)return;drawState.current=pagePoint(e);if(e.shiftKey&&["rect","ellipse"].includes(drawState.tool)){const dx=drawState.current.x-drawState.start.x,dy=drawState.current.y-drawState.start.y,side=Math.max(Math.abs(dx),Math.abs(dy));drawState.current={x:drawState.start.x+Math.sign(dx||1)*side,y:drawState.start.y+Math.sign(dy||1)*side};}renderDrawPreview();});
+paper.addEventListener("pointermove",e=>updateShapeDrawing(e));
 function finishDrawing(e){if(!drawState||drawState.pointerId!==e.pointerId)return;const d=drawState;drawState=null;renderDrawPreview();if(Math.hypot(d.current.x-d.start.x,d.current.y-d.start.y)<1){toast("Drag to set the element dimensions.");return;}insertDrawnNode(d.tool,d.start,d.current,d.points);setActiveTool("select");}
 paper.addEventListener("pointerup",finishDrawing);
 paper.addEventListener("pointercancel",()=>{drawState=null;renderDrawPreview();});

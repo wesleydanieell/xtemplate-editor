@@ -53,10 +53,14 @@ Currently the first repeated instance provides the coordinate context for expres
 
 ## Drawing outside the page (pasteboard)
 
-Pen points and the selected Polygon/Polyline/SVG Path vertex handles can now be placed
+Pen points, **Rectangle / Ellipse corners**, and the selected Polygon/Polyline/SVG Path
+vertex handles can now be placed
 outside the A4/A5/Letter paper boundary, using **negative coordinates** or positions
-greater than the page width/height. Click on the dark pasteboard next to the sheet,
-then continue the curve across the page. Panning and zoom preserve the correct
+greater than the page width/height. To create a cover background, select Rectangle
+(R) or Ellipse (O), start dragging on the dark pasteboard outside the page, and
+end the drag on either side of the sheet. **Shift** constrains the bounding box
+to a square/circle, even when the drag crosses the page boundary. Click outside
+with Pen to continue curves across the page. Panning and zoom preserve the correct
 coordinate conversions. The page outline marks the actual paper edges.
 
 The canvas footer offers an **Outside visible / Page preview** toggle. The first

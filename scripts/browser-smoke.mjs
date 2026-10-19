@@ -75,6 +75,43 @@ try{
  assert.match(await blankPage.$eval('#exportSummary',el=>el.textContent),/0 elements/);
  assert.match(await blankPage.$eval('#exportSummary',el=>el.textContent),/Variables0/);
  await blankPage.click('#exportTemplateModal [data-close-modal="exportTemplateModal"]');
+ // Native Rectangle/Ellipse drawing may start outside either page edge.
+ const screenPoint=async(x,y)=>blankPage.evaluate(([x,y])=>{
+  const svg=document.querySelector('#paper'),pt=svg.createSVGPoint();pt.x=x;pt.y=y;
+  const result=pt.matrixTransform(svg.getScreenCTM());return {x:result.x,y:result.y};
+ },[x,y]);
+ const dragShape=async(tool,from,to,shift=false)=>{
+  await blankPage.click(`.canvas-tool[data-tool="${tool}"]`);
+  const a=await screenPoint(...from),b=await screenPoint(...to);
+  const pageBounds=await blankPage.$eval('#paper',el=>el.getBoundingClientRect().toJSON());
+  assert(a.x<pageBounds.left||a.x>pageBounds.right,'shape drag must begin in pasteboard outside actual sheet');
+  await blankPage.mouse.move(a.x,a.y);
+  if(shift)await blankPage.keyboard.down('Shift');
+  await blankPage.mouse.down();await blankPage.mouse.move(b.x,b.y,{steps:9});await blankPage.mouse.up();
+  if(shift)await blankPage.keyboard.up('Shift');
+ };
+ await dragShape('rect',[234,35],[92,157]);
+ let drawn=JSON.parse(await blankPage.$eval('#jsonEditor',el=>el.value));
+ assert.equal(drawn.items.length,1);
+ assert.equal(drawn.items[0].type,'rect');
+ assert.equal(drawn.items[0].x,'92mm');
+ assert.equal(drawn.items[0].w,'142mm','rectangle extends beyond right page edge without changing sheet');
+ assert.deepEqual(drawn.params,{},'drawing shapes does not add variables');
+ await dragShape('ellipse',[-16,175],[65,115],true);
+ drawn=JSON.parse(await blankPage.$eval('#jsonEditor',el=>el.value));
+ assert.equal(drawn.items[1].type,'ellipse');
+ assert(Number.parseFloat(drawn.items[1].cx)-Number.parseFloat(drawn.items[1].rx)<0,
+  'ellipse should extend into negative X outside sheet');
+ assert(Math.abs(Number.parseFloat(drawn.items[1].rx)-Number.parseFloat(drawn.items[1].ry))<0.01,
+  'Shift constrains off-page ellipse to a circle');
+ assert.deepEqual(drawn.params,{});
+ assert.equal(await blankPage.$eval('#paper',el=>el.getAttribute('viewBox')),'0 0 210 297',
+  'dragging off page must not alter paper dimensions');
+ await blankPage.click('#togglePasteboard');
+ assert.equal(await blankPage.$eval('#paper',el=>getComputedStyle(el).overflow),'hidden',
+  'page preview clips outside portions but keeps authored geometry');
+ assert.equal(JSON.parse(await blankPage.$eval('#jsonEditor',el=>el.value)).items.length,2);
+ await blankPage.click('#togglePasteboard');
  // Examples remain available through the separate picker on demand.
  blankPage.once('dialog',d=>d.accept());
  await blankPage.select('#topExample','ruled.xtemplate');
