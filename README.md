@@ -248,6 +248,11 @@ The Studio opens with an empty `.xtemplate`: `items: []` and `params: {}`.
 layers, variables or a forced license. Bundled examples remain accessible
 from **Insert → Example templates** and the optional examples panel.
 
+The page and surrounding pasteboard remain available for composing covers.
+Rectangle and Ellipse can start outside the page edges (R/O then drag);
+Shift constrains them to squares/circles. The **Outside visible / Page preview**
+toggle lets you edit outside the sheet or inspect the Android-style clipping.
+
 ### Experimental vector tools
 
 The Element inspector now provides visual editing for Polygon/Polyline vertices, Hatch pattern settings, and a safe SVG Path node subset. For supported features, limits and Android compatibility notes, see [Vector Tools](docs/VECTOR_TOOLS.md).
