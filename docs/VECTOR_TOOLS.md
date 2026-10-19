@@ -43,6 +43,28 @@ Nested `group` coordinates are evaluated using the parent container. Editing a p
 `repeat` changes the *shared source node*, so all repeated copies change, not only the selected copy.
 Currently the first repeated instance provides the coordinate context for expression baking.
 
+## Mirror / Flip Geometry
+
+The **Element** inspector exposes **Flip Horizontal** and **Flip Vertical** for native
+`line`, `polyline`, `polygon` and compatible `path` shapes. These operations
+reflect the selected geometry around its own coordinate extrema without adding
+SVG `transform` or unsupported `.xtemplate` attributes. SVG Path operations
+reflect anchors **and both cubic Bézier control points** in the native `d` data;
+unchanged commands and the other axis are preserved. For unsupported complex SVG
+paths, the editor refuses the operation without rewriting `d`.
+
+For Polyline, Polygon and Line, the operation changes only the selected coordinate
+axis. Imported expressions on that axis require explicit consent before baking
+their currently evaluated values into `mm`; expressions on the other axis remain
+untouched. A nested shape uses its own parent coordinate context. In a `repeat`,
+the operation changes the shared source node and therefore every instance.
+
+Rectangles, circles, dots and ellipses are symmetric about their own centers, so
+flipping them individually would have no visible effect. Mirroring arbitrary
+mixed groups and text is not exposed, because XNotes does not support an SVG
+transform attribute on its template geometry and would need controlled conversion
+of every child, text and inherited expression. These limitations are intentional.
+
 ## Hatch
 
 Select a Hatch from Structure and use the **Hatch quick controls** at the **top of Element**.

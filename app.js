@@ -17,6 +17,7 @@ import { inspectorSections } from "./src/features/inspector-priority.js";
 import { readPointPairs, requiresBake, replacePointCoordinate, addPoint, removePoint, reversePoints, midpoint, alignPoints, distributePoints } from "./src/features/vector/points.js";
 import { editablePathNodes, replaceSvgPathPoint, appendSvgLine, toggleSvgClosed, removeSvgPathAnchor, pathHandleConnections } from "./src/features/vector/svg-path.js";
 import { PEN_MODES,createPenNode,snapPenAngle,penIncoming,penOutgoing,penPathData,resetOutgoingTangent } from "./src/features/vector/pen-model.js";
+import { FLIPPABLE_TYPES, flipNativeNode, flipNeedsExpressionConfirmation } from "./src/features/vector/flip-geometry.js";
 import { translate as matrixTranslate, scale as matrixScale, rotate as matrixRotate, around as matrixAround, multiply as matrixMultiply, toSVG as matrixSVG } from "./src/features/affine-transform.js";
 import { resizePreviewTransform, rotationPreviewTransform, resizedBounds } from "./src/features/resize-preview.js";
 import { deleteSiblingNodes, duplicateSiblingNodes, getSiblingSelection as getTreeSiblingSelection, groupSiblingNodes, normalizePaths, sameParent, moveNode, nudgeSiblingNodes } from "./src/core/tree-operations.js";
@@ -549,6 +550,38 @@ function writeVectorDelta(original,indices,dx,dy,box){
  }
  return points;
 }
+function renderFlipControls(root,node){
+ if(!FLIPPABLE_TYPES.includes(node.type))return;
+ const head=document.createElement('div');head.className='advanced-heading';head.textContent='MIRROR · GEOMETRY';root.appendChild(head);
+ const actions=document.createElement('div');actions.className='vector-actions vector-flip-actions';root.appendChild(actions);
+ for(const [axis,label,title] of [
+  ['horizontal','Flip Horizontal','Mirror left ↔ right about the shape center'],
+  ['vertical','Flip Vertical','Mirror top ↕ bottom about the shape center']
+ ]){
+  const button=document.createElement('button');button.type='button';button.textContent=label;button.title=title;
+  button.dataset.flipAxis=axis;
+  button.addEventListener('click',()=>{
+   try{
+    const box=parentBoxForPath(selectedPath);
+    const needsApproval=flipNeedsExpressionConfirmation(node,axis);
+    if(needsApproval&&!confirm('This mirror operation will replace expression coordinates on the mirrored axis with evaluated millimeter values. Other coordinates and attributes will remain intact. Continue?'))return;
+    const updated=flipNativeNode(node,axis,{
+     context:box,
+     evaluate:(value,coordinateAxis,parent)=>evalN(value,parent,coordinateAxis,NaN),
+     allowExpressionBake:needsApproval
+    }).node;
+    commit(()=>{Object.assign(node,updated);});
+    if(isRepeatedPath(selectedPath))toast('The shared node was mirrored; all repeated copies were updated.');
+   }catch(error){toast(error.message);}
+  });
+  actions.appendChild(button);
+ }
+ const description=document.createElement('p');description.className='inspector-tip';
+ description.textContent=node.type==='path'
+  ?'Mirrors native SVG anchors and Bézier controls. Unsupported SVG commands remain unchanged.'
+  :'Mirrors only geometry on the chosen axis; style and other coordinates are preserved.';
+ root.appendChild(description);
+}
 function renderPolygonControls(root,node){
  const title=document.createElement('div');title.className='advanced-heading';title.textContent='VERTEX EDITING';root.appendChild(title);
  const actions=document.createElement('div');actions.className='vector-actions';root.appendChild(actions);
@@ -985,6 +1018,7 @@ function renderAdvanced(n){
   for(const field of sections[id])root.appendChild(field.element);
  }
  const contextual=$("contextualElementTools");contextual.replaceChildren();
+ renderFlipControls(contextual,n);
  if(['polygon','polyline'].includes(n.type))renderPolygonControls(contextual,n);
  if(n.type==='hatch')renderHatchControls(contextual,n);
  if(n.type==='path')renderSvgPathControls(contextual,n);

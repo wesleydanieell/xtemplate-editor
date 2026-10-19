@@ -854,6 +854,55 @@ try{
   'incoming tangent remains independently adjustable');
  assert.equal(afterTangentEdit[4].x,beforeTangentEdit[4].x,'incoming drag preserves outgoing X');
  assert.equal(afterTangentEdit[4].y,beforeTangentEdit[4].y,'incoming drag preserves outgoing Y');
+ // Mirroring must rewrite only XNotes-native coordinates, including curves,
+ // preserving styles, other axis expressions, nested group and repeat layout.
+ const flipDoc={xtemplate:1,id:'test.flip.native',name:'Native mirror tests',items:[
+  {type:'line',x1:'15mm',y1:'10mm',x2:'45mm',y2:'35mm',stroke:'#aa1133'},
+  {type:'polygon',points:[['10mm','8mm'],['60mm','12mm'],['25mm','50mm']],stroke:'ink',fill:'#aabbcc'},
+  {type:'group',x:'20mm',y:'30mm',w:'120mm',h:'100mm',children:[
+   {type:'repeat',axis:'x',period:'35mm',count:2,children:[
+    {type:'polyline',points:[['5mm','0mm'],['W/2','20mm'],['30mm','40mm']],stroke:'ink'}
+   ]}
+  ]},
+  {type:'path',x:'30mm',y:'50mm',w:'80mm',h:'60mm',viewBox:[0,0,100,80],d:'M 0 0 C 20 15 60 20 90 70',stroke:'#446688'}
+ ]};
+ await compatibilityPage.$eval('#fileInput',(input,raw)=>{
+  const dt=new DataTransfer();dt.items.add(new File([raw],'mirror.xtemplate',{type:'application/json'}));
+  input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(flipDoc));
+ await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Native mirror tests');
+ const getFlipItems=()=>compatibilityPage.$eval('#jsonEditor',el=>JSON.parse(el.value).items);
+ const flip=async axis=>compatibilityPage.click(`#contextualElementTools [data-flip-axis="${axis}"]`);
+ await compatibilityPage.$eval('.tree-item[data-path="items.0"]',e=>e.click());
+ assert.equal(await compatibilityPage.$$('#contextualElementTools [data-flip-axis]').then(x=>x.length),2);
+ await flip('horizontal');
+ assert.deepEqual((await getFlipItems())[0],{...flipDoc.items[0],x1:'45mm',x2:'15mm'},'line horizontal flip only affects native X coordinates');
+ await compatibilityPage.keyboard.down('Control');await compatibilityPage.keyboard.press('z');await compatibilityPage.keyboard.up('Control');
+ assert.deepEqual((await getFlipItems())[0],flipDoc.items[0],'flip must be undoable');
+ await compatibilityPage.$eval('.tree-item[data-path="items.1"]',e=>e.click());
+ await flip('vertical');
+ assert.deepEqual((await getFlipItems())[1].points,[['10mm','50mm'],['60mm','46mm'],['25mm','8mm']]);
+ assert.equal((await getFlipItems())[1].fill,'#aabbcc','fill preserved during mirror');
+ await compatibilityPage.$eval('.tree-item[data-path="items.3"]',e=>e.click());
+ await flip('horizontal');
+ assert.equal((await getFlipItems())[3].d,'M 90 0 C 70 15 30 20 0 70','SVG cubic anchors and controls flipped natively');
+ assert.deepEqual((await getFlipItems())[3].viewBox,[0,0,100,80]);
+ const flippedRepeatPath='items.2.children.0.children.0';
+ await compatibilityPage.$eval('.tree-item[data-path="'+flippedRepeatPath+'"]',e=>e.click());
+ const beforeRepeat=(await getFlipItems())[2].children[0].children[0];
+ assert.equal(beforeRepeat.points[1][0],'W/2');
+ let accepted=false;
+ // An earlier suite handler already accepts native confirm dialogs.
+ compatibilityPage.once('dialog',()=>{accepted=true;});
+ await flip('horizontal');
+ assert.equal(accepted,true,'mirroring expressions requires explicit user confirmation');
+ const afterRepeat=(await getFlipItems())[2].children[0].children[0];
+ assert.equal(afterRepeat.points[0][0],'30mm');
+ assert.equal(afterRepeat.points[2][0],'5mm');
+ assert.deepEqual(afterRepeat.points.map(p=>p[1]),['0mm','20mm','40mm'],'unaffected axis is never flattened');
+ assert.equal((await compatibilityPage.$$('g[data-path="'+flippedRepeatPath+'"] > polyline')).length,2,'repeated shapes share the new mirrored node');
+ assert.equal(afterRepeat.type,'polyline');
+ assert.deepEqual(Object.keys(afterRepeat).sort(),Object.keys(beforeRepeat).sort(),'mirroring must not invent unsupported XNotes keys');
  await compatibilityPage.close();
  assert.deepEqual(errors,[],'no errors for sparse multi-edit or repeated snapping');
  console.log('PASS: sparse property compatibility, repeated geometry guides and Settings toggle');

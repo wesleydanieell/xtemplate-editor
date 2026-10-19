@@ -973,3 +973,7 @@
 #svg-path-overlay .svg-path-guide.collapsed-guide{stroke:#598ab9;stroke-width:.7;stroke-dasharray:1.2 1;pointer-events:none}
 #svg-path-overlay .svg-path-node:focus-within .svg-path-handle,
 #svg-path-overlay .svg-path-node:hover .svg-path-handle{stroke-width:1.4}
+
+/* Mirror actions are native geometry operations, not nonportable SVG transforms. */
+.vector-flip-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.vector-flip-actions button{min-height:29px;font-weight:600;white-space:normal}
