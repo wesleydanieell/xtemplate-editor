@@ -15,7 +15,8 @@ import { paintedBounds } from "./src/features/painted-bounds.js";
 import { repeatPositions } from "./src/features/repeat-layout.js";
 import { inspectorSections } from "./src/features/inspector-priority.js";
 import { readPointPairs, requiresBake, replacePointCoordinate, addPoint, removePoint, reversePoints, midpoint, alignPoints, distributePoints } from "./src/features/vector/points.js";
-import { editablePathNodes, replaceSvgPathPoint, appendSvgLine, toggleSvgClosed } from "./src/features/vector/svg-path.js";
+import { editablePathNodes, replaceSvgPathPoint, appendSvgLine, toggleSvgClosed, removeSvgPathAnchor, pathHandleConnections } from "./src/features/vector/svg-path.js";
+import { PEN_MODES,createPenNode,snapPenAngle,penIncoming,penOutgoing,penPathData,resetOutgoingTangent } from "./src/features/vector/pen-model.js";
 import { translate as matrixTranslate, scale as matrixScale, rotate as matrixRotate, around as matrixAround, multiply as matrixMultiply, toSVG as matrixSVG } from "./src/features/affine-transform.js";
 import { resizePreviewTransform, rotationPreviewTransform, resizedBounds } from "./src/features/resize-preview.js";
 import { deleteSiblingNodes, duplicateSiblingNodes, getSiblingSelection as getTreeSiblingSelection, groupSiblingNodes, normalizePaths, sameParent, moveNode, nudgeSiblingNodes } from "./src/core/tree-operations.js";
@@ -41,7 +42,8 @@ let smartGuides={x:null,y:null},smartGuideSegments={x:null,y:null};
 let focusedRepeatInstance=null;
 let vectorEditPath=null,vectorSelection=new Set(),vectorDrag=null;
 let hatchEditPath=null,hatchDrag=null;
-let pathEditPath=null,pathDrag=null;
+let pathEditPath=null,pathDrag=null,pathPointSelection=-1;
+function resetVectorEditors(){vectorEditPath=null;vectorSelection.clear();vectorDrag=null;hatchEditPath=null;hatchDrag=null;pathEditPath=null;pathDrag=null;pathPointSelection=-1;}
 const renderInstanceCounts=new Map();
 const repeatFrameBounds=new Map();
 function unionRepeatBounds(a,b){if(!a)return{...b};return{x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.max(a.x+a.w,b.x+b.w)-Math.min(a.x,b.x),h:Math.max(a.y+a.h,b.y+b.h)-Math.min(a.y,b.y)};}
@@ -331,30 +333,64 @@ return g;}
 function selectionBounds(n,b){const t=n.type,x=b.x+evalN(n.x??0,b,"x"),y=b.y+evalN(n.y??0,b,"y"),w=evalN(n.w??"100%",b,"x",b.w),h=evalN(n.h??"100%",b,"y",b.h);if(t==="hline"){const x1=evalN(n.x1??0,b,"x"),x2=evalN(n.x2??"100%",b,"x");return{x:b.x+Math.min(x1,x2),y:b.y+evalN(n.y??0,b,"y"),w:Math.abs(x2-x1),h:0.6};}if(t==="vline"){const y1=evalN(n.y1??0,b,"y"),y2=evalN(n.y2??"100%",b,"y");return{x:b.x+evalN(n.x??0,b,"x"),y:b.y+Math.min(y1,y2),w:0.6,h:Math.abs(y2-y1)};}if(t==="line"){const x1=evalN(n.x1??0,b,"x"),y1=evalN(n.y1??0,b,"y"),x2=evalN(n.x2??0,b,"x"),y2=evalN(n.y2??0,b,"y");return{x:b.x+Math.min(x1,x2),y:b.y+Math.min(y1,y2),w:Math.abs(x2-x1),h:Math.abs(y2-y1)};}if(t==="text")return{x,y,w:Math.max(10,String(n.text||"").length*1.8),h:5};if(t==="ellipse"){const rx=evalN(n.rx??"15mm",b,"short"),ry=evalN(n.ry??"8mm",b,"short");return{x:b.x+evalN(n.cx??0,b,"x")-rx,y:b.y+evalN(n.cy??0,b,"y")-ry,w:2*rx,h:2*ry};}if(["circle","dot"].includes(t)){const r=evalN(n.r??"0.35mm",b,"short");return{x:b.x+evalN(n.cx??0,b,"x")-r,y:b.y+evalN(n.cy??0,b,"y")-r,w:2*r,h:2*r};}if(["polyline","polygon"].includes(t)){let values=n.points;if(typeof values==="string")values=values.trim().split(/[\s,]+/).map(Number);if(Array.isArray(values)){const flat=values.flat(Infinity),xs=[],ys=[];for(let i=0;i+1<flat.length;i+=2){xs.push(b.x+evalN(flat[i],b,"x"));ys.push(b.y+evalN(flat[i+1],b,"y"));}if(xs.length)return{x:Math.min(...xs),y:Math.min(...ys),w:Math.max(...xs)-Math.min(...xs),h:Math.max(...ys)-Math.min(...ys)};}}return{x,y,w,h};}
 function pathCurrent(){return selectedPath&&nodeKey(selectedPath)===pathEditPath&&selectedPaths.length===1&&getAt(selectedPath)?.type==='path'?getAt(selectedPath):null;}
 function pathShape(){const key=pathEditPath;return [...paper.querySelectorAll('g[data-path="'+key+'"]')].map(g=>g.querySelector(':scope > path')).find(Boolean);}
+/** Map the authored path's local coordinates to *page viewBox units*, not CSS pixels.
+ * shape.getCTM() can include the outer SVG viewBox scale: that caused handles to
+ * drift away from their curves when completing a path or changing zoom. */
+function pathToPageMatrix(shape){
+ const root=paper.getScreenCTM(),element=shape.getScreenCTM();
+ return root&&element?root.inverse().multiply(element):null;
+}
 function pathDocumentPoint(shape,x,y){
- const m=shape.getCTM();if(!m)return {x,y};const p=paper.createSVGPoint();p.x=x;p.y=y;const out=p.matrixTransform(m);return{x:out.x,y:out.y};
+ const m=pathToPageMatrix(shape);if(!m)return {x,y};const p=paper.createSVGPoint();p.x=x;p.y=y;
+ const out=p.matrixTransform(m);return{x:out.x,y:out.y};
 }
 function pathLocalPoint(shape,point){
- const m=shape.getCTM();if(!m)return point;const p=paper.createSVGPoint();p.x=point.x;p.y=point.y;const out=p.matrixTransform(m.inverse());return{x:out.x,y:out.y};
+ const m=pathToPageMatrix(shape);if(!m)return point;const p=paper.createSVGPoint();p.x=point.x;p.y=point.y;
+ const out=p.matrixTransform(m.inverse());return{x:out.x,y:out.y};
 }
 function renderPathOverlay(){
  paper.querySelector('#svg-path-overlay')?.remove();const node=pathCurrent();if(!node)return;
  const shape=pathShape();if(!shape)return;
  let parsed;try{parsed=editablePathNodes(node.d);}catch{return;}
  const group=svg('g',{id:'svg-path-overlay'});
- for(const [i,p] of parsed.nodes.entries()){
-  const pos=pathDocumentPoint(shape,p.x,p.y);
-  const handle=svg('circle',{'data-svg-path-point':i,cx:pos.x,cy:pos.y,r:p.role==='control'?1.65:2.2,class:'svg-path-handle '+p.role});
-  group.appendChild(handle);
+ const connections=pathHandleConnections(parsed);
+ const byIndex=new Map(connections.map(c=>[c.index,c]));
+ // Connect each tangent to the anchor it actually controls, not both to the
+ // segment endpoint (which made Bézier handles look disconnected after Enter).
+ for(const relation of connections){
+  const p=parsed.nodes[relation.index],anchor=parsed.nodes[relation.anchorIndex];
+  if(!p||!anchor)continue;
+  const c=pathDocumentPoint(shape,p.x,p.y),a=pathDocumentPoint(shape,anchor.x,anchor.y);
+  group.appendChild(svg('line',{class:'svg-path-guide','data-path-handle-side':relation.side,
+   x1:a.x,y1:a.y,x2:c.x,y2:c.y}));
  }
- // Bézier guide stems clarify which point controls each curve.
- for(const segment of parsed.segments){
-  if(!['C','Q'].includes(segment.command))continue;
-  const pts=segment.points,anchor=pathDocumentPoint(shape,pts.at(-1).x,pts.at(-1).y);
-  for(const control of pts.slice(0,-1)){
-   const c=pathDocumentPoint(shape,control.x,control.y);
-   group.insertBefore(svg('line',{class:'svg-path-guide',x1:c.x,y1:c.y,x2:anchor.x,y2:anchor.y}),group.firstChild);
-  }
+ for(const [i,p] of parsed.nodes.entries()){
+  const real=pathDocumentPoint(shape,p.x,p.y),relation=byIndex.get(i),anchor=relation?parsed.nodes[relation.anchorIndex]:null;
+  const anchorPos=anchor?pathDocumentPoint(shape,anchor.x,anchor.y):null;
+  // Editor-only display: collapsed tangents still exist in SVG C data, but
+  // coincide with their anchor. A 3mm marker (previous behavior) fell *inside*
+  // the anchor's hit target at common zoom levels and appeared to be missing.
+  // Position both collapsed handles at opposite 20px screen-space offsets.
+  const pageScreen=paper.getScreenCTM(),pxPerUnit=pageScreen?Math.max(.01,Math.hypot(pageScreen.a,pageScreen.b)):2;
+  const visualOffset=20/pxPerUnit;
+  const collapsed=!!anchorPos&&Math.hypot(real.x-anchorPos.x,real.y-anchorPos.y)<Math.max(.12,2/pxPerUnit);
+  const offsetDirection=relation?.side==='incoming'?-1:1;
+  const pos=collapsed?{x:anchorPos.x+visualOffset*offsetDirection,y:anchorPos.y-visualOffset*.4}:real;
+  // The indicator is not a new geometry point: dragging uses the unchanged
+  // authored control plus the cursor delta, preserving XNotes coordinates.
+  if(collapsed&&anchorPos){group.appendChild(svg('line',{
+   class:'svg-path-guide collapsed-guide','data-collapsed-guide':relation.side,
+   x1:anchorPos.x,y1:anchorPos.y,x2:pos.x,y2:pos.y
+  }));}
+  const handle=svg('g',{'data-svg-path-point':i,class:'svg-path-node',
+   ...(relation?{'data-path-tangent':relation.side}:{}),
+   ...(collapsed?{'data-collapsed-tangent':'true'}:{})});
+  const targetRadius=Math.max(2.7,9/pxPerUnit);
+  handle.appendChild(svg('circle',{cx:pos.x,cy:pos.y,r:targetRadius,class:'svg-path-hit',fill:'transparent',stroke:'none'}));
+  handle.appendChild(svg('circle',{cx:pos.x,cy:pos.y,r:Math.max(1.4,(p.role==='control'?4.5:5)/pxPerUnit),
+   class:'svg-path-handle '+p.role+(relation?' '+relation.side:'')+(collapsed?' collapsed':'')+(pathPointSelection===i?' selected':'')}));
+  const tooltip=svg('title',{});tooltip.textContent=`${relation?relation.side+' Bézier tangent':p.role==='anchor'?'Anchor':'Control'} ${i+1}${collapsed?' (retracted; drag to extend)':''} · Arrows: fine adjustment`;
+  handle.appendChild(tooltip);group.appendChild(handle);
  }
  paper.appendChild(group);
 }
@@ -364,14 +400,19 @@ function renderSvgPathControls(root,node){
  if(!parsed){const note=document.createElement('p');note.className='inspector-tip';note.textContent='Visual editing is read-only for this path: '+reason+'. Use the original d field above. No normalization or data loss occurs.';root.appendChild(note);return;}
  const buttons=document.createElement('div');buttons.className='vector-actions';root.appendChild(buttons);
  const button=(label,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.addEventListener('click',fn);buttons.appendChild(b);};
- button(pathCurrent()===node?'Done editing':'Edit SVG nodes',()=>{pathEditPath=pathCurrent()===node?null:nodeKey(selectedPath);render();});
+ button(pathCurrent()===node?'Done editing':'Edit SVG nodes',()=>{pathEditPath=pathCurrent()===node?null:nodeKey(selectedPath);pathPointSelection=-1;render();});
  button('Add line',()=>{const last=parsed.nodes.at(-1);commit(()=>{node.d=appendSvgLine(node.d,last.x+10,last.y+10);});});
+ button('Remove selected node',()=>{
+  try{const next=removeSvgPathAnchor(node.d,pathPointSelection);commit(()=>{node.d=next;});pathPointSelection=-1;render();}
+  catch(e){toast(e.message);}
+ });
  button(parsed.closed?'Open path':'Close path',()=>commit(()=>{node.d=toggleSvgClosed(node.d);}));
- const note=document.createElement('p');note.className='inspector-tip';note.textContent='Visual handles support absolute M, L, C and Q commands. Relative commands, arcs and shorthand remain unchanged in the advanced d editor.';root.appendChild(note);
+ const note=document.createElement('p');note.className='inspector-tip';note.textContent='Bézier handles: orange = incoming, blue = outgoing. At intermediate cubic anchors, both controls are independently editable. Retracted controls have separated dashed markers; the exported XNotes path remains unchanged until you drag them. Complex SVG commands remain available in the d field.';root.appendChild(note);
  if(pathCurrent()!==node)return;
  const list=document.createElement('div');list.className='vector-coordinate-list';root.appendChild(list);
  parsed.nodes.forEach((pt,i)=>{
-  const row=document.createElement('div');row.className='vector-point-row';
+  const row=document.createElement('div');row.className='vector-point-row'+(pathPointSelection===i?' selected':'');
+  row.addEventListener('click',e=>{if(e.target.closest('input'))return;pathPointSelection=i;render();});
   const index=document.createElement('span');index.textContent=pt.role==='control'?'C'+(i+1):'#'+(i+1);row.appendChild(index);
   for(const axis of ['x','y']){
    const label=document.createElement('label');label.textContent=axis.toUpperCase();const field=document.createElement('input');field.type='number';field.step='0.1';field.value=pt[axis];
@@ -392,37 +433,68 @@ function renderHatchOverlay(){
  const box=parentBoxForPath(selectedPath),p=hatchParameters(node,box),a=p.angle*Math.PI/180,
  tangent={x:Math.cos(a),y:-Math.sin(a)},normal={x:Math.sin(a),y:Math.cos(a)};
  const g=svg('g',{id:'hatch-editor-overlay'});
- const handles=[['angle',p.cx+24*tangent.x,p.cy+24*tangent.y],['period',p.cx+p.period*normal.x,p.cy+p.period*normal.y],['offset',p.cx+(p.offset+12)*normal.x,p.cy+(p.offset+12)*normal.y]];
- for(const [kind,x,y] of handles){
-  g.appendChild(svg('line',{class:'hatch-helper',x1:p.cx,y1:p.cy,x2:x,y2:y}));
-  g.appendChild(svg('circle',{class:'hatch-handle','data-hatch-control':kind,cx:x,cy:y,r:2.7}));
+ // Independent lanes keep handles recognizable even at small periods/offsets.
+ const handles=[
+  {kind:'angle',x:p.cx+27*tangent.x,y:p.cy+27*tangent.y,origin:{x:p.cx,y:p.cy},label:'ANGLE '+Number(p.angle.toFixed(1))+'°'},
+  {kind:'period',x:p.cx+p.period*normal.x,y:p.cy+p.period*normal.y,origin:{x:p.cx,y:p.cy},label:'SPACING '+Number(p.period.toFixed(2))+' mm'},
+  {kind:'offset',x:p.cx-20*tangent.x+p.offset*normal.x,y:p.cy-20*tangent.y+p.offset*normal.y,origin:{x:p.cx-20*tangent.x,y:p.cy-20*tangent.y},label:'OFFSET '+Number(p.offset.toFixed(2))+' mm'}
+ ];
+ for(const {kind,x,y,origin,label} of handles){
+  g.appendChild(svg('line',{class:'hatch-helper',x1:origin.x,y1:origin.y,x2:x,y2:y}));
+  const handle=svg('circle',{class:'hatch-handle','data-hatch-control':kind,cx:x,cy:y,r:2.9});
+  const title=svg('title',{});title.textContent=label+' · drag to adjust';handle.appendChild(title);g.appendChild(handle);
+  const text=svg('text',{class:'hatch-helper-label',x:x+3.8,y:y-3.8});text.textContent=label;g.appendChild(text);
  }
+ g.appendChild(svg('circle',{cx:p.cx,cy:p.cy,r:1.1,fill:'#466fde','pointer-events':'none'}));
  paper.appendChild(g);
 }
 function renderHatchControls(root,node){
- const title=document.createElement('div');title.className='advanced-heading';title.textContent='HATCH PATTERN';root.appendChild(title);
+ const title=document.createElement('div');title.className='advanced-heading';title.textContent='HATCH · QUICK CONTROLS';root.appendChild(title);
  const controls=document.createElement('div');controls.className='vector-actions';root.appendChild(controls);
- const btn=(label,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.addEventListener('click',fn);controls.appendChild(b);};
- btn(hatchCurrent()===node?'Done editing':'Edit hatch on canvas',()=>{hatchEditPath=hatchCurrent()===node?null:nodeKey(selectedPath);render();});
- const box=parentBoxForPath(selectedPath),value=hatchParameters(node,box);
- for(const [key,min,max,step] of [['angle',-180,180,1],['period',.5,30,.25],['offset',-30,30,.25]]){
-  const row=document.createElement('label');row.className='hatch-slider';row.textContent=key+' ';
-  const slider=document.createElement('input');slider.type='range';slider.min=min;slider.max=max;slider.step=step;slider.value=String(value[key]);
-  const number=document.createElement('output');number.textContent=String(Number(value[key].toFixed(2)));
+ const btn=(label,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.addEventListener('click',fn);controls.appendChild(b);return b;};
+ btn(hatchCurrent()===node?'Hide canvas handles':'Adjust on canvas',()=>{hatchEditPath=hatchCurrent()===node?null:nodeKey(selectedPath);render();});
+ const help=document.createElement('p');help.className='hatch-control-legend';help.textContent='Gold: direction · Green: spacing · Blue: offset. Drag a handle; hold Shift for 15° angle steps.';root.appendChild(help);
+ const box=parentBoxForPath(selectedPath),values=hatchParameters(node,box);
+ for(const [key,label,min,max,step,unit] of [['angle','Angle',-180,180,1,'°'],['period','Spacing',.5,30,.25,'mm'],['offset','Offset',-30,30,.25,'mm']]){
+  const row=document.createElement('label');row.className='hatch-slider';row.textContent=label+' ';
+  const slider=document.createElement('input');slider.type='range';slider.min=min;slider.max=max;slider.step=step;slider.value=String(Math.min(max,Math.max(min,values[key])));
+  const output=document.createElement('output');output.textContent=Number(values[key].toFixed(2))+unit;
+  let approved=false,initial=null;
+  const ensureApproval=()=>{
+   if(approved)return true;
+   if(requiresBake(node[key]??0)&&!confirm('This Hatch property uses an expression. Replace only this value with a fixed number?'))return false;
+   initial=clone(node);approved=true;return true;
+  };
+  slider.addEventListener('pointerdown',event=>{if(!ensureApproval())event.preventDefault();});
   slider.addEventListener('input',()=>{
-   const numberValue=Number(slider.value);number.textContent=String(numberValue);
-   node[key]=key==='angle'?numberValue:numberValue+'mm';renderCanvas();
+   if(!ensureApproval()){slider.value=String(values[key]);return;}
+   const value=Number(slider.value);output.textContent=value+unit;
+   node[key]=key==='angle'?value:value+'mm';renderCanvas();
   });
-  slider.addEventListener('change',()=>commit(()=>{node[key]=key==='angle'?Number(slider.value):slider.value+'mm';}));
-  row.append(slider,number);root.appendChild(row);
+  slider.addEventListener('change',()=>{
+   if(!approved)return;
+   const value=Number(slider.value),base=initial?.[key];
+   if(JSON.stringify(base)!==JSON.stringify(node[key]))commit(()=>{});else render();
+   approved=false;initial=null;
+  });
+  row.append(slider,output);root.appendChild(row);
  }
- const preset=document.createElement('div');preset.className='vector-actions';root.appendChild(preset);
- for(const [name,angle] of [['—',0],['|',90],['/',45],['\\',-45]]){
-  const b=document.createElement('button');b.type='button';b.textContent=name+' '+angle+'°';b.title='Hatch angle preset';
-  b.addEventListener('click',()=>commit(()=>{node.angle=angle;}));preset.appendChild(b);
+ const presets=document.createElement('div');presets.className='vector-actions';root.appendChild(presets);
+ for(const [name,angle] of [['Horizontal',0],['Vertical',90],['Diagonal /',45],['Diagonal \\',-45]]){
+  const b=document.createElement('button');b.type='button';b.textContent=name;b.title='Angle '+angle+'°';
+  b.addEventListener('click',()=>{
+   if(requiresBake(node.angle??0)&&!confirm('Replace the angle expression with a fixed preset?'))return;
+   commit(()=>{node.angle=angle;});
+  });presets.appendChild(b);
  }
- for(const spacing of [2,4,8]){const b=document.createElement('button');b.type='button';b.textContent=spacing+'mm spacing';b.addEventListener('click',()=>commit(()=>{node.period=spacing+'mm';}));preset.appendChild(b);}
- const note=document.createElement('p');note.className='inspector-tip';note.textContent='Hatch supports angle, period, offset and extend. The preview does not introduce any unsupported SVG-only properties.';root.appendChild(note);
+ for(const spacing of [2,4,8]){
+  const b=document.createElement('button');b.type='button';b.textContent=spacing+' mm';b.title='Spacing preset';
+  b.addEventListener('click',()=>{
+   if(requiresBake(node.period??0)&&!confirm('Replace the spacing expression with a fixed preset?'))return;
+   commit(()=>{node.period=spacing+'mm';});
+  });presets.appendChild(b);
+ }
+ const note=document.createElement('p');note.className='inspector-tip';note.textContent='Native XNotes fields only. Advanced: extend and expressions below.';root.appendChild(note);
 }
 function vectorCurrent(){
  const key=selectedPath?nodeKey(selectedPath):null;
@@ -484,7 +556,7 @@ function renderPolygonControls(root,node){
  const active=vectorCurrent()===node;
  button(active?'Done editing':'Edit points',()=>{
   if(active){vectorEditPath=null;vectorSelection.clear();}
-  else{vectorEditPath=nodeKey(selectedPath);vectorSelection=new Set([0]);}
+  else{vectorEditPath=nodeKey(selectedPath);vectorSelection.clear();}
   render();
  });
  if(!active)return;
@@ -784,7 +856,10 @@ function showFilePropertiesDialog(){
  $("metaName").focus();
 }
 function renderInspector(){
+ let contextual=$("contextualElementTools");
+ if(!contextual){contextual=document.createElement('div');contextual.id='contextualElementTools';contextual.className='contextual-element-tools';$("elementInspector").prepend(contextual);}
  const n=getAt(selectedPath),has=!!n,multi=selectedPaths.length>1;
+ if(!has||multi||n?.type==='page')contextual.replaceChildren();
  if(n?.type!=="page"&&$("filePropertiesModal").classList.contains("hidden"))placeDocumentFields(false);
  let multiRoot=$("multiPropertyInspector");
  if(!multiRoot){multiRoot=document.createElement("div");multiRoot.id="multiPropertyInspector";$("elementInspector").before(multiRoot);}
@@ -909,9 +984,10 @@ function renderAdvanced(n){
   root.appendChild(title);
   for(const field of sections[id])root.appendChild(field.element);
  }
- if(['polygon','polyline'].includes(n.type))renderPolygonControls(root,n);
- if(n.type==='hatch')renderHatchControls(root,n);
- if(n.type==='path')renderSvgPathControls(root,n);
+ const contextual=$("contextualElementTools");contextual.replaceChildren();
+ if(['polygon','polyline'].includes(n.type))renderPolygonControls(contextual,n);
+ if(n.type==='hatch')renderHatchControls(contextual,n);
+ if(n.type==='path')renderSvgPathControls(contextual,n);
 }
 function commit(fn){
  try{
@@ -1139,7 +1215,12 @@ const draggableTypes=new Set(["group","rect","path","text","ellipse","circle","d
 paper.addEventListener("pointerdown",e=>{
  if(activeTool==='select'&&e.button===0&&pathCurrent()){
   const handle=e.target.closest('[data-svg-path-point]');if(handle){
-   pathDrag={pointerId:e.pointerId,path:selectedPath.slice(),pointIndex:Number(handle.dataset.svgPathPoint),origin:clone(pathCurrent())};
+   if(document.activeElement?.matches('select,button'))document.activeElement.blur();
+   pathPointSelection=Number(handle.dataset.svgPathPoint);
+   const shape=pathShape(),pt=editablePathNodes(pathCurrent().d).nodes[pathPointSelection];
+   pathDrag={pointerId:e.pointerId,path:selectedPath.slice(),pointIndex:pathPointSelection,
+    origin:clone(pathCurrent()),startLocal:shape?pathLocalPoint(shape,pagePoint(e)):null,
+    originalPoint:{x:pt.x,y:pt.y}};
    paper.setPointerCapture(e.pointerId);e.preventDefault();e.stopPropagation();return;
   }
  }
@@ -1168,7 +1249,19 @@ paper.addEventListener("pointerdown",e=>{
   }
   if(edge){e.preventDefault();e.stopPropagation();return;}
  }
- if(activeTool==="curve"){e.preventDefault();e.stopImmediatePropagation();handlePenPointerDown(e);return;}
+ if(activeTool==="pen"){
+  const hit=e.target.closest('g[data-path]');
+  if(hit&&!curveState){
+   const hitPath=toPath(hit.dataset.path),hitNode=getAt(hitPath);
+   if(hitNode&&hitNode.type===penMode&&['polygon','polyline','path'].includes(penMode)){
+    select(hitPath);
+    if(penMode==='path'){pathEditPath=nodeKey(hitPath);pathPointSelection=-1;}
+    else {vectorEditPath=nodeKey(hitPath);vectorSelection.clear();}
+    setActiveTool('select');render();e.preventDefault();e.stopImmediatePropagation();return;
+   }
+  }
+  e.preventDefault();e.stopImmediatePropagation();handlePenPointerDown(e);return;
+ }
  if(activeTool!=="select"||e.button!==0)return;
  // render() replaces SVG descendants; stop this event before the outer canvas
  // sees a detached target and incorrectly clears the freshly made selection.
@@ -1201,7 +1294,8 @@ paper.addEventListener("pointermove",e=>{
   const st=pathDrag,n=getAt(st.path),parsed=editablePathNodes(st.origin.d),pt=parsed.nodes[st.pointIndex],shape=pathShape();
   if(!shape)return;
   const local=pathLocalPoint(shape,pagePoint(e));
-  n.d=replaceSvgPathPoint(st.origin.d,pt,local.x,local.y);
+  const start=st.startLocal||st.originalPoint;
+  n.d=replaceSvgPathPoint(st.origin.d,pt,st.originalPoint.x+local.x-start.x,st.originalPoint.y+local.y-start.y);
   renderCanvas();e.preventDefault();return;
  }
  if(hatchDrag?.pointerId===e.pointerId){
@@ -1213,7 +1307,7 @@ paper.addEventListener("pointermove",e=>{
    n.angle=Number(angle.toFixed(2));
   }else{const rad=params.angle*Math.PI/180,normal=x*Math.sin(rad)+y*Math.cos(rad);
    if(state.key==='period')n.period=Math.max(.5,Number(Math.abs(normal).toFixed(2)))+'mm';
-   if(state.key==='offset')n.offset=Number((normal-12).toFixed(2))+'mm';
+   if(state.key==='offset')n.offset=Number(normal.toFixed(2))+'mm';
   }
   renderCanvas();e.preventDefault();return;
  }
@@ -1221,13 +1315,20 @@ paper.addEventListener("pointermove",e=>{
   const dragState=vectorDrag,now=pagePoint(e),d={dx:now.x-dragState.start.x,dy:now.y-dragState.start.y};
   if(Math.hypot(d.dx,d.dy)<.15&&!dragState.moved)return;
   const anchor=dragState.activePoints[dragState.indices[0]];
-  if(anchor){const snap=snapToGuides({x:anchor.x+d.dx,y:anchor.y+d.dy,w:0,h:0},[dragState.path],dragState.targets);
+  if(anchor&&!e.altKey){const snap=snapToGuides({x:anchor.x+d.dx,y:anchor.y+d.dy,w:0,h:0},[dragState.path],dragState.targets);
    d.dx+=snap.dx;d.dy+=snap.dy;smartGuides=snap.guides;smartGuideSegments=snap.segments;
-  }
+  }else{clearSmartGuides();}
   dragState.moved=true;dragState.lastDelta=d;
   previewVectorPoints(dragState,d.dx,d.dy);renderSmartGuideOverlay();e.preventDefault();return;
  }
- if(curveState&&curveState.pointerId===e.pointerId){const p=curveState.points[curveState.activeIndex];if(p){const pt=pagePoint(e);p.hx=pt.x-p.x;p.hy=pt.y-p.y;renderPenPreview();}e.stopImmediatePropagation();return;}
+ if(curveState&&activeTool==='pen'){
+  const state=curveState,pt=pagePoint(e),last=state.points.at(-1);
+  if(state.pointerId===e.pointerId&&state.mode==='path'){
+   if(last){const dx=pt.x-last.x,dy=pt.y-last.y;
+    last.outHx=dx;last.outHy=dy;last.inHx=-dx;last.inHy=-dy;}
+  }else if(state.pointerId===null){state.hover=e.shiftKey&&last?snapPenAngle(last,pt):pt;}
+  renderPenPreview();e.stopImmediatePropagation();return;
+ }
  if(marqueeState&&marqueeState.pointerId===e.pointerId){marqueeState.current=pagePoint(e);const a=marqueeState.start,b=marqueeState.current,el=paper.querySelector("#marquee-selection");if(el){el.setAttribute("x",Math.min(a.x,b.x));el.setAttribute("y",Math.min(a.y,b.y));el.setAttribute("width",Math.abs(b.x-a.x));el.setAttribute("height",Math.abs(b.y-a.y));}return;}
  if(!drag||drag.pointerId!==e.pointerId)return;
  if(!drag.moved&&Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)<3)return;
@@ -1379,8 +1480,8 @@ paper.addEventListener('dblclick',e=>{
 });
 paper.addEventListener("pointercancel",e=>cancelCanvasGesture(e));
 paper.addEventListener("lostpointercapture",e=>cancelCanvasGesture(e));
-$("openBtn").addEventListener("click",()=>$("fileInput").click());$("fileInput").addEventListener("change",async e=>{const f=e.target.files?.[0];if(!f)return;if(dirty&&!confirm("There are unsaved changes. Open another file anyway?")){e.target.value="";return;}try{if(f.size>1048576)throw Error("File exceeds 1 MiB.");const parsed=JSON.parse(await f.text());validate(parsed);doc=parsed;selectedPath=null;selectedPaths=[];setDirty(false);loadLayerColors();resetHistory();previewValues={};initializePreviewValues();syncJson();render();document.querySelectorAll(".template-card").forEach(b=>b.classList.remove("active"));toast("Template loaded.");setStatus("File opened: "+f.name);}catch(err){toast("Could not open: "+err.message);}e.target.value="";});
-document.querySelectorAll(".template-card").forEach(b=>b.addEventListener("click",()=>{const key=b.dataset.template;if(dirty&&!confirm("Descartar alterações não exportadas e abrir este modelo?"))return;doc=clone(samples[key]);selectedPath=null;selectedPaths=[];loadLayerColors();resetHistory();previewValues={};initializePreviewValues();setDirty(false);syncJson();render();document.querySelectorAll(".template-card").forEach(x=>x.classList.toggle("active",x===b));}));
+$("openBtn").addEventListener("click",()=>$("fileInput").click());$("fileInput").addEventListener("change",async e=>{const f=e.target.files?.[0];if(!f)return;if(dirty&&!confirm("There are unsaved changes. Open another file anyway?")){e.target.value="";return;}try{if(f.size>1048576)throw Error("File exceeds 1 MiB.");const parsed=JSON.parse(await f.text());validate(parsed);doc=parsed;resetVectorEditors();selectedPath=null;selectedPaths=[];setDirty(false);loadLayerColors();resetHistory();previewValues={};initializePreviewValues();syncJson();render();document.querySelectorAll(".template-card").forEach(b=>b.classList.remove("active"));toast("Template loaded.");setStatus("File opened: "+f.name);}catch(err){toast("Could not open: "+err.message);}e.target.value="";});
+document.querySelectorAll(".template-card").forEach(b=>b.addEventListener("click",()=>{const key=b.dataset.template;if(dirty&&!confirm("Descartar alterações não exportadas e abrir este modelo?"))return;doc=clone(samples[key]);resetVectorEditors();selectedPath=null;selectedPaths=[];loadLayerColors();resetHistory();previewValues={};initializePreviewValues();setDirty(false);syncJson();render();document.querySelectorAll(".template-card").forEach(x=>x.classList.toggle("active",x===b));}));
 $("paperSize").addEventListener("change",e=>{pageSize=SIZES[e.target.value]||SIZES.a4;wrap.style.aspectRatio=pageSize[0]+"/"+pageSize[1];render();});
 $("filePageSize").addEventListener("change",e=>{
  $("paperSize").value=e.target.value;
@@ -1831,7 +1932,7 @@ $("newTemplateForm").addEventListener("submit",e=>{
  const size=$("newTemplatePaper").value||"a4";doc={xtemplate:1,id,name,description:$("newTemplateDescription").value.trim(),author:$("newTemplateAuthor").value.trim(),license:$("newTemplateLicense")?.value.trim()||"MIT",version:$("newTemplateVersion")?.value.trim()||undefined,tags:($("newTemplateTags")?.value||"").split(",").map(v=>v.trim()).filter(Boolean),params:{},items:[]};
  for(const key of ["author","version"])if(!doc[key])delete doc[key];if(!doc.description)delete doc.description;
  pageSize=SIZES[size]||SIZES.a4;$("paperSize").value=size;wrap.style.aspectRatio=pageSize[0]+"/"+pageSize[1];$("inkColor").value=$("quickInkColor").value=$("newTemplateInk").value;$("accentColor").value=$("quickAccentColor").value=$("newTemplateAccent").value;
- selectedPath=["__page__"];selectedPaths=[selectedPath.slice()];previewValues={};resetLayerColors();saveLayerColors();resetHistory();initializePreviewValues();setDirty(true);syncJson();render();setInspectorTab("properties");closeModal("newTemplateModal");toast("New template created.");
+ resetVectorEditors();selectedPath=["__page__"];selectedPaths=[selectedPath.slice()];previewValues={};resetLayerColors();saveLayerColors();resetHistory();initializePreviewValues();setDirty(true);syncJson();render();setInspectorTab("properties");closeModal("newTemplateModal");toast("New template created.");
 });
 function prepareExport(){
  try{const current=JSON.parse(jsonEditor.value);validate(current);doc=current;}catch(error){setValidation("error","JSON inválido");toast("Correct the JSON errors before exporting: "+error.message);return;}
@@ -1928,7 +2029,7 @@ document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;hideContextMe
 async function loadOfficialExample(file,source){
  if(!file)return;
  if(dirty&&!confirm("Descartar alterações não exportadas e abrir este exemplo?")){if(source)source.value="";return;}
- try{const res=await fetch("./examples/"+encodeURIComponent(file));if(!res.ok)throw Error("Example not found.");const parsed=JSON.parse(await res.text());validate(parsed);doc=parsed;selectedPath=null;selectedPaths=[];collapsedTree.clear();loadLayerColors();resetHistory();previewValues={};initializePreviewValues();setDirty(false);syncJson();render();document.querySelectorAll(".template-card").forEach(b=>b.classList.remove("active"));toast("Template loaded.");setStatus("Template: "+file);}
+ try{const res=await fetch("./examples/"+encodeURIComponent(file));if(!res.ok)throw Error("Example not found.");const parsed=JSON.parse(await res.text());validate(parsed);doc=parsed;resetVectorEditors();selectedPath=null;selectedPaths=[];collapsedTree.clear();loadLayerColors();resetHistory();previewValues={};initializePreviewValues();setDirty(false);syncJson();render();document.querySelectorAll(".template-card").forEach(b=>b.classList.remove("active"));toast("Template loaded.");setStatus("Template: "+file);}
  catch(err){toast("Could not open template: "+err.message);}
  if(source)source.value="";
 }
@@ -1979,8 +2080,22 @@ canvas.addEventListener("pointerup",finishPan);
 canvas.addEventListener("pointercancel",finishPan);
 canvas.addEventListener("lostpointercapture",finishPan);
 const toolButtons=[...document.querySelectorAll(".canvas-tool")];
-let activeTool="select",drawState=null,curveState=null;
-function setActiveTool(tool){activeTool=tool;toolButtons.forEach(b=>{const active=b.dataset.tool===tool;b.classList.toggle("active",active);b.setAttribute("aria-pressed",String(active));});paper.style.cursor=tool==="select"?"default":tool==="pan"?"grab":tool==="text"?"text":"crosshair";}
+let activeTool="select",drawState=null,curveState=null,penMode="path";
+function updatePenPicker(){
+ const picker=$("penModePicker");picker.classList.toggle("hidden",activeTool!=="pen");
+ $("penMode").value=penMode;
+ const descriptions={line:"Click two points. Shift constrains the direction to 45°.",polyline:"Click vertices; Enter or double-click finishes an open line.",polygon:"Click at least three vertices; click the first point or press Enter to close.",path:"Click for straight nodes, drag for Bézier handles. Enter or double-click finishes."};
+ $("penModeHint").textContent=descriptions[penMode];
+}
+function setActiveTool(tool){
+ if(tool==="line"||tool==="polygon"||tool==="curve"){penMode=tool==="curve"?"path":tool;tool="pen";}
+ if(tool!=="pen"&&curveState){curveState=null;renderPenPreview();}
+ activeTool=tool;toolButtons.forEach(b=>{const active=b.dataset.tool===tool;b.classList.toggle("active",active);b.setAttribute("aria-pressed",String(active));});
+ paper.style.cursor=tool==="select"?"default":tool==="pan"?"grab":tool==="text"?"text":"crosshair";
+ updatePenPicker();
+}
+$("penMode").addEventListener("change",e=>{if(!PEN_MODES.includes(e.target.value))return;penMode=e.target.value;curveState=null;renderPenPreview();setActiveTool("pen");});
+$("penCancel").addEventListener("click",()=>{curveState=null;renderPenPreview();setActiveTool("select");});
 function pagePoint(e){
  let toLocal=null;
  try{
@@ -1991,50 +2106,74 @@ function pagePoint(e){
 }
 function handlePenPointerDown(e){
  if(e.button!==0)return;
- const pt=pagePoint(e);
- if(!curveState)curveState={points:[],pointerId:null,activeIndex:-1,closed:false};
+ if(document.activeElement?.matches('select,button'))document.activeElement.blur();
+ let pt=pagePoint(e);
+ if(magneticGuidesEnabled&&!e.altKey){
+  const snap=snapToGuides({x:pt.x,y:pt.y,w:0,h:0},[],null);
+  pt={x:pt.x+snap.dx,y:pt.y+snap.dy};smartGuides=snap.guides;smartGuideSegments=snap.segments;
+ }
+ if(!curveState)curveState={points:[],pointerId:null,activeIndex:-1,closed:false,mode:penMode};
  const state=curveState,first=state.points[0],last=state.points.at(-1);
- const hitRadius=Math.max(2.5,5*pageSize[0]/paper.getBoundingClientRect().width);
- if(last&&state.points.length>=2&&Math.hypot(pt.x-last.x,pt.y-last.y)<hitRadius){finishPenPath();return;}
- if(first&&state.points.length>=3&&Math.hypot(pt.x-first.x,pt.y-first.y)<hitRadius){
+ const hitRadius=Math.max(2,7*pageSize[0]/paper.getBoundingClientRect().width);
+ if(first&&state.points.length>=3&&['polygon','path'].includes(state.mode)&&Math.hypot(pt.x-first.x,pt.y-first.y)<hitRadius){
   state.closed=true;finishPenPath();return;
  }
- state.points.push({x:pt.x,y:pt.y,hx:0,hy:0});state.activeIndex=state.points.length-1;state.pointerId=e.pointerId;
+ if(last&&state.mode==='path'&&Math.hypot(pt.x-last.x,pt.y-last.y)<hitRadius){
+  // Illustrator-like "click last anchor" gesture: retract the outgoing tangent.
+  // Keep the anchor and all preceding geometry; the next segment becomes a corner.
+  state.points=resetOutgoingTangent(state.points);state.hover=null;renderPenPreview();
+  toast('Outgoing tangent reset; preceding curve preserved. Click to continue.');return;
+ }
+ if(last&&state.points.length>=2&&Math.hypot(pt.x-last.x,pt.y-last.y)<hitRadius){finishPenPath();return;}
+ if(e.shiftKey&&last)pt=snapPenAngle(last,pt);
+ state.points.push({x:pt.x,y:pt.y,inHx:0,inHy:0,outHx:0,outHy:0});
+ state.activeIndex=state.points.length-1;state.pointerId=e.pointerId;
+ if(state.mode==='line'&&state.points.length===2){finishPenPath();return;}
  paper.setPointerCapture(e.pointerId);renderPenPreview();
 }
-function penPathData(points,closed=false,offsetX=0,offsetY=0){
- if(!points.length)return "";
- const f=v=>Number(v.toFixed(2)),p=points[0];let d=`M ${f(p.x-offsetX)} ${f(p.y-offsetY)}`;
- for(let i=1;i<points.length;i++){
-  const a=points[i-1],b=points[i];
-  d+=` C ${f(a.x+a.hx-offsetX)} ${f(a.y+a.hy-offsetY)} ${f(b.x-b.hx-offsetX)} ${f(b.y-b.hy-offsetY)} ${f(b.x-offsetX)} ${f(b.y-offsetY)}`;
- }
- if(closed&&points.length>2){const a=points.at(-1),b=points[0];d+=` C ${f(a.x+a.hx-offsetX)} ${f(a.y+a.hy-offsetY)} ${f(b.x-b.hx-offsetX)} ${f(b.y-b.hy-offsetY)} ${f(b.x-offsetX)} ${f(b.y-offsetY)} Z`;}
- return d;
-}
 function renderPenPreview(){
- let layer=paper.querySelector("#pen-preview");if(!curveState){layer?.remove();return;}
- if(!layer){layer=svg("g",{id:"pen-preview","pointer-events":"none"});paper.appendChild(layer);}layer.replaceChildren();
- const pts=curveState.points;if(!pts.length)return;
- layer.appendChild(svg("path",{d:penPathData(pts,curveState.closed),fill:"none",stroke:"#6485f5","stroke-width":.65,"stroke-linecap":"round","stroke-linejoin":"round"}));
+ let layer=paper.querySelector('#pen-preview');if(!curveState){layer?.remove();return;}
+ if(!layer){layer=svg('g',{id:'pen-preview','pointer-events':'none'});paper.appendChild(layer);}layer.replaceChildren();
+ const {points:pts,mode,hover,closed}=curveState;if(!pts.length)return;
+ const projection=hover&&pts.length?{...hover}:null;
+ const previewPts=projection?[...pts,projection]:pts;
+ if(mode==='path')layer.appendChild(svg('path',{d:penPathData(previewPts,closed),fill:'none',stroke:'#6485f5','stroke-width':.65,'stroke-linejoin':'round'}));
+ else if(mode==='polygon')layer.appendChild(svg('polygon',{points:previewPts.map(p=>p.x+','+p.y).join(' '),fill:'#6485f51a',stroke:'#6485f5','stroke-width':.7,'stroke-dasharray':'2 1'}));
+ else layer.appendChild(svg('polyline',{points:previewPts.map(p=>p.x+','+p.y).join(' '),fill:'none',stroke:'#6485f5','stroke-width':.7,'stroke-dasharray':'2 1'}));
  pts.forEach((p,i)=>{
-  if(Math.hypot(p.hx,p.hy)>.15){layer.appendChild(svg("line",{x1:p.x-p.hx,y1:p.y-p.hy,x2:p.x+p.hx,y2:p.y+p.hy,stroke:"#6485f5","stroke-width":.45,"stroke-dasharray":"1.5 1"}));layer.appendChild(svg("circle",{cx:p.x-p.hx,cy:p.y-p.hy,r:.85,fill:"#fff",stroke:"#6485f5","stroke-width":.45}));layer.appendChild(svg("circle",{cx:p.x+p.hx,cy:p.y+p.hy,r:.85,fill:"#fff",stroke:"#6485f5","stroke-width":.45}));
+  if(mode==='path'){
+   const vectors=[['incoming',penIncoming(p)],['outgoing',penOutgoing(p)]];
+   for(const [side,v] of vectors){
+    if(Math.hypot(v.x,v.y)<.15)continue;
+    const target={x:p.x+v.x,y:p.y+v.y};
+    layer.appendChild(svg('line',{x1:p.x,y1:p.y,x2:target.x,y2:target.y,stroke:'#6485f5','stroke-width':.5,'stroke-dasharray':'1.5 1'}));
+    layer.appendChild(svg('circle',{cx:target.x,cy:target.y,r:1.15,fill:side==='incoming'?'#f4cc86':'#85d3f4',stroke:'#6485f5','stroke-width':.5}));
+   }
   }
-  layer.appendChild(svg("rect",{x:p.x-.85,y:p.y-.85,width:1.7,height:1.7,fill:i===pts.length-1?"#6485f5":"#fff",stroke:"#6485f5","stroke-width":.5}));
+  layer.appendChild(svg('circle',{cx:p.x,cy:p.y,r:1.25,class:'pen-preview-point',fill:i===pts.length-1?'#6485f5':'#fff'}));
  });
 }
 function finishPenPath(){
- if(!curveState)return;const state=curveState;curveState=null;renderPenPreview();
- if(state.points.length<2){toast("The pen needs at least two points. Click to add points and drag to create curves.");return;}
- const {parent,parentPath,box}=insertionContext(),pts=state.points.map(p=>({...p,x:p.x-box.x,y:p.y-box.y})),coords=[];
- for(const p of pts)coords.push(p.x,p.y,p.x+p.hx,p.y+p.hy,p.x-p.hx,p.y-p.hy);
- const minX=Math.min(...coords.filter((_,i)=>i%2===0)),minY=Math.min(...coords.filter((_,i)=>i%2===1)),maxX=Math.max(...coords.filter((_,i)=>i%2===0)),maxY=Math.max(...coords.filter((_,i)=>i%2===1));
- const x=minX,y=minY,w=Math.max(1,maxX-minX),h=Math.max(1,maxY-minY),f=v=>Number(v.toFixed(2))+"mm";
- const n={type:"path",x:f(x),y:f(y),w:f(w),h:f(h),viewBox:[0,0,w,h],d:penPathData(pts,state.closed,x,y),stroke:"ink",fill:"none",strokeWidth:"0.5mm"};
- const arr=parent?parent.children:(doc.items||(doc.items=[]));arr.push(n);
- selectedPath=parent?parentPath.concat(["children",arr.length-1]):["items",arr.length-1];selectedPaths=[selectedPath.slice()];commit(()=>{});setInspectorTab("properties");setActiveTool("select");
+ if(!curveState)return;
+ const state=curveState;curveState=null;renderPenPreview();clearSmartGuides();renderSmartGuideOverlay();
+ const needed=state.mode==='polygon'?3:2;
+ if(state.points.length<needed){toast(`${state.mode} needs at least ${needed} points.`);return;}
+ try{
+  const {parent,parentPath,box}=insertionContext();
+  const node=createPenNode(state.mode,state.points,box,state.mode==='polygon'||state.closed);
+  const arr=parent?parent.children:(doc.items||(doc.items=[]));arr.push(node);
+  selectedPath=parent?parentPath.concat(['children',arr.length-1]):['items',arr.length-1];selectedPaths=[selectedPath.slice()];
+  commit(()=>{});setInspectorTab('properties');
+  if(['polygon','polyline'].includes(state.mode)){vectorEditPath=nodeKey(selectedPath);vectorSelection=new Set([state.points.length-1]);}
+  else if(state.mode==='path')pathEditPath=nodeKey(selectedPath);
+  setActiveTool('select');render();
+ }catch(error){toast(error.message);}
 }
-paper.addEventListener("dblclick",e=>{if(activeTool!=="curve"||!curveState)return;e.preventDefault();const pts=curveState.points;if(pts.length>1&&Math.hypot(pts.at(-1).x-pts.at(-2).x,pts.at(-1).y-pts.at(-2).y)<1.5)pts.pop();finishPenPath();});
+paper.addEventListener('dblclick',e=>{
+ if(activeTool!=='pen'||!curveState)return;e.preventDefault();
+ const pts=curveState.points;if(pts.length>2&&Math.hypot(pts.at(-1).x-pts.at(-2).x,pts.at(-1).y-pts.at(-2).y)<1.5)pts.pop();
+ finishPenPath();
+});
 function polygonVertices(a,b,sides=5){
  const left=Math.min(a.x,b.x),top=Math.min(a.y,b.y),w=Math.max(.3,Math.abs(b.x-a.x)),h=Math.max(.3,Math.abs(b.y-a.y));
  return Array.from({length:sides},(_,i)=>{const angle=-Math.PI/2+i*2*Math.PI/sides;return{x:left+w/2+Math.cos(angle)*w/2,y:top+h/2+Math.sin(angle)*h/2};});
@@ -2062,7 +2201,7 @@ function insertDrawnNode(type,a,b,points){
 }
 function renderDrawPreview(){let p=paper.querySelector("#draw-preview");if(!drawState){p?.remove();return;}if(!p){p=svg("g",{id:"draw-preview","pointer-events":"none"});paper.appendChild(p);}p.replaceChildren();const a=drawState.start,b=drawState.current,x=Math.min(a.x,b.x),y=Math.min(a.y,b.y),w=Math.max(.3,Math.abs(b.x-a.x)),h=Math.max(.3,Math.abs(b.y-a.y));if(drawState.tool==="rect")p.appendChild(svg("rect",{x,y,width:w,height:h,fill:"#6485f522",stroke:"#6485f5","stroke-width":.6,"stroke-dasharray":"2 1"}));else if(drawState.tool==="ellipse")p.appendChild(svg("ellipse",{cx:x+w/2,cy:y+h/2,rx:w/2,ry:h/2,fill:"#6485f522",stroke:"#6485f5","stroke-width":.6,"stroke-dasharray":"2 1"}));else if(drawState.tool==="polygon")p.appendChild(svg("polygon",{points:polygonVertices(a,b,5).map(v=>v.x+","+v.y).join(" "),fill:"#6485f522",stroke:"#6485f5","stroke-width":.6,"stroke-dasharray":"2 1"}));else p.appendChild(svg("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:"#6485f5","stroke-width":.8,"stroke-dasharray":"2 1"}));}
 function addPattern(type){const spacing=type==="grid"?"5mm":"8mm",line={type:"repeat",axis:type==="grid"?"xy":"y",period:spacing,fit:"space",children:type==="grid"?[{type:"hline",y:"100%",stroke:"#b5c5df",strokeWidth:"0.15mm"},{type:"vline",x:"100%",stroke:"#b5c5df",strokeWidth:"0.15mm"}]:[{type:"hline",y:"100%",stroke:"#9eb8df",strokeWidth:"0.2mm"}]},node={type:"group",inset:"10mm",children:[line]};const items=doc.items||(doc.items=[]);items.push(node);const path=["items",items.length-1];selectedPath=path;selectedPaths=[path];commit(()=>{});setInspectorTab("properties");toast(type==="grid"?"Grid inserted — adjust the period in properties.":"Ruled lines inserted — adjust spacing in properties.");setActiveTool("select");}
-toolButtons.forEach(b=>b.addEventListener("click",()=>{const tool=b.dataset.tool;if(tool==="group"){toast("Para criar um grupo, selecione elements e use Agrupar no menu contextual.");return;}if(tool==="ruled"||tool==="grid"){addPattern(tool);return;}setActiveTool(tool);if(tool==="pan")toast("Click and drag to pan the page; Space + drag also works.");else if(["rect","ellipse","polygon","line"].includes(tool))toast("Click and drag on the page to draw.");else if(tool==="curve")toast("Pen: click to add points, drag to create handles, and press Enter or double-click to finish.");}));
+toolButtons.forEach(b=>b.addEventListener("click",()=>{const tool=b.dataset.tool;if(tool==="pen"&&activeTool==="pen"){$("penMode").focus();return;}if(tool==="group"){toast("Para criar um grupo, selecione elements e use Agrupar no menu contextual.");return;}if(tool==="ruled"||tool==="grid"){addPattern(tool);return;}setActiveTool(tool);if(tool==="pan")toast("Click and drag to pan the page; Space + drag also works.");else if(["rect","ellipse","polygon","line"].includes(tool))toast("Click and drag on the page to draw.");else if(tool==="pen")toast("Pen: choose Line, Polyline, Polygon or SVG Path. Enter finishes; Esc cancels.");}));
 paper.addEventListener("pointerdown",e=>{
  if(spaceDown||activeTool==="pan")return;
  if(e.button!==0)return;
@@ -2083,24 +2222,46 @@ function finishDrawing(e){if(!drawState||drawState.pointerId!==e.pointerId)retur
 paper.addEventListener("pointerup",finishDrawing);
 paper.addEventListener("pointercancel",()=>{drawState=null;renderDrawPreview();});
 // Additional editor shortcuts. Inputs retain normal text-editing behavior.
-window.addEventListener("keydown",e=>{const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)||document.activeElement.isContentEditable;if(activeTool==="curve"&&curveState&&!typing&&e.key==="Backspace"){e.preventDefault();if(curveState.pointerId!==null)return;curveState.points.pop();curveState.activeIndex=curveState.points.length-1;if(!curveState.points.length){curveState=null;toast("Path cleared.");}renderPenPreview();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){if(typing)return;e.preventDefault();if(e.shiftKey)redo();else undo();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="y"){if(typing)return;e.preventDefault();redo();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="n"){e.preventDefault();$("newBtn").click();}if(typing)return;
- if(vectorCurrent()&&['Delete','Backspace'].includes(e.key)){
+window.addEventListener("keydown",e=>{const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)||document.activeElement.isContentEditable;if(activeTool==="pen"&&curveState&&!typing&&e.key==="Backspace"){e.preventDefault();if(curveState.pointerId!==null)return;curveState.points.pop();curveState.activeIndex=curveState.points.length-1;if(!curveState.points.length){curveState=null;toast("Path cleared.");}renderPenPreview();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){if(typing)return;e.preventDefault();if(e.shiftKey)redo();else undo();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="y"){if(typing)return;e.preventDefault();redo();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="n"){e.preventDefault();$("newBtn").click();}if(typing)return;
+ if(vectorCurrent()&&e.key==='Backspace'){
   e.preventDefault();
   try{
-   const n=vectorCurrent(),indices=[...vectorSelection].sort((a,b)=>b-a);let pairs=readPointPairs(n.points);
+   const n=vectorCurrent(),indices=[...vectorSelection].sort((a,b)=>b-a);if(!indices.length)return;let pairs=readPointPairs(n.points);
    for(const index of indices)pairs=removePoint(pairs,index,n.type==='polygon');
    commit(()=>{n.points=pairs;});vectorSelection=new Set([Math.min(indices.at(-1)??0,pairs.length-1)]);render();
   }catch(err){toast(err.message);}
   return;
  }
  if(vectorCurrent()&&e.key==='Escape'){vectorEditPath=null;vectorSelection.clear();render();return;}
+ if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)&&!e.ctrlKey&&!e.metaKey){
+  const step=e.altKey?.1:e.shiftKey?5:.5;
+  const dx=e.key==='ArrowLeft'?-step:e.key==='ArrowRight'?step:0,
+   dy=e.key==='ArrowUp'?-step:e.key==='ArrowDown'?step:0;
+  if(vectorCurrent()&&vectorSelection.size){
+   e.preventDefault();const node=vectorCurrent(),indices=[...vectorSelection];
+   if(!approveVectorBake(node,indices))return;
+   const box=parentBoxForPath(selectedPath);
+   commit(()=>{node.points=writeVectorDelta(node,indices,dx,dy,box);});return;
+  }
+  if(pathCurrent()&&pathPointSelection>=0){
+   e.preventDefault();const node=pathCurrent();
+   try{const point=editablePathNodes(node.d).nodes[pathPointSelection];
+    if(point)commit(()=>{node.d=replaceSvgPathPoint(node.d,point,point.x+dx,point.y+dy);});}
+   catch(err){toast(err.message);}return;
+  }
+ }
+ if(pathCurrent()&&e.key==='Backspace'&&pathPointSelection>=0){
+  e.preventDefault();const node=pathCurrent();
+  try{const next=removeSvgPathAnchor(node.d,pathPointSelection);commit(()=>{node.d=next;});pathPointSelection=-1;render();}
+  catch(err){toast(err.message);}return;
+ }
  if(selectedPath&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(e.key)){
   const n=getAt(selectedPath);
   if(n&&draggableTypes.has(n.type)){e.preventDefault();const step=e.shiftKey?10:1,dx=e.key==="ArrowLeft"?-step:e.key==="ArrowRight"?step:0,dy=e.key==="ArrowUp"?-step:e.key==="ArrowDown"?step:0,paths=selectedPaths.length>1?selectedPaths:[selectedPath];
    for(const path of paths){const target=getAt(path);if(target&&draggableTypes.has(target.type))moveBy(target,dx,dy,parentBoxForPath(path));}
    commit(()=>{});
   }return;
- }if(!e.ctrlKey&&!e.metaKey&&!e.altKey){const key=e.key.toLowerCase(),tools={v:"select",r:"rect",o:"ellipse",p:"polygon",c:"curve",l:"line",t:"text"};if(tools[key]){setActiveTool(tools[key]);return;}}if(e.key==="Insert"){e.preventDefault();openStructureAddMenu();}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="d"&&selectedPath){e.preventDefault();$("duplicateElement").click();}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="g"&&selectedPaths.length>1){e.preventDefault();groupSelection();}if(e.key==="Delete"||e.key==="Backspace"){if(selectedPath&&selectedPath[0]!=="__page__"){e.preventDefault();$("deleteElement").click();}}if(e.key==="Enter"&&activeTool==="curve"&&curveState){e.preventDefault();finishPenPath();return;}if(e.key==="Escape"){if(curveState){curveState=null;renderPenPreview();toast("Traçado cancelado.");return;}hideContextMenu();}if(e.altKey&&["ArrowUp","ArrowDown"].includes(e.key)&&selectedPath){e.preventDefault();moveSelectedLayer(e.key==="ArrowUp"?"up":"down");return;}});
+ }if(!e.ctrlKey&&!e.metaKey&&!e.altKey){const key=e.key.toLowerCase(),tools={v:"select",r:"rect",o:"ellipse",p:"pen",c:"curve",l:"line",t:"text"};if(tools[key]){setActiveTool(tools[key]);return;}}if(e.key==="Insert"){e.preventDefault();openStructureAddMenu();}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="d"&&selectedPath){e.preventDefault();$("duplicateElement").click();}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="g"&&selectedPaths.length>1){e.preventDefault();groupSelection();}if(e.key==="Delete"||e.key==="Backspace"){if(selectedPath&&selectedPath[0]!=="__page__"){e.preventDefault();$("deleteElement").click();}}if(e.key==="Enter"&&activeTool==="pen"&&curveState){e.preventDefault();finishPenPath();return;}if(e.key==="Escape"){if(curveState){curveState=null;renderPenPreview();clearSmartGuides();renderSmartGuideOverlay();toast("Drawing cancelled.");return;}hideContextMenu();}if(e.altKey&&["ArrowUp","ArrowDown"].includes(e.key)&&selectedPath){e.preventDefault();moveSelectedLayer(e.key==="ArrowUp"?"up":"down");return;}});
 
 createAlignmentTools({
   getContext(){
