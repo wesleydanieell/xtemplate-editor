@@ -2,13 +2,13 @@
 
 Local, offline, standalone editor for creating and customizing `.xtemplate` do XNotes Android.
 
-## Primeira versão alpha — v0.1.0-alpha.1
+## Versão atual — v0.1.0-alpha.6
 
-Esta é uma **versão de testes**. O aplicativo funciona localmente no navegador, sem servidor externo e sem conta. Não é necessário instalar dependências de JavaScript.
+Esta é uma **pré-release alpha** (ainda não beta/estável), local e offline, para criação de templates XNotes. O editor está disponível em **Windows x64 (.exe/.msi)**, **Linux x86_64 (.AppImage)** e como **ZIP web portátil**. Consulte [as notas desta versão](RELEASE_NOTES.md) e as [Releases](https://github.com/wesleydanieell/xtemplate-editor/releases) para baixar os arquivos. O aplicativo não exige conta nem conexão com serviços externos para editar templates.
 
 ### Instalação (Linux)
 
-1. Baixe `XTemplate-Studio-v0.1.0-alpha.1.zip` na seção **Releases** do GitHub e extraia o arquivo.
+1. Baixe o arquivo `XTemplate-Studio-v0.1.0-alpha.6.zip` em **Releases** e extraia-o.
 2. Abra a pasta `XTemplate-Studio` e execute `./start.sh` (Python 3 e um navegador instalados).
 3. Acesse `http://127.0.0.1:8765/` se o navegador não abrir automaticamente.
 4. Para encerrar um servidor iniciado pelo script, execute `./stop.sh`.
@@ -19,7 +19,7 @@ No Windows e no macOS, a aplicação web pode ser servida localmente com Python 
 
 - A pré-visualização SVG pode diferir do XNotes Android em fontes, hachuras, expressões avançadas e elementos complexos. Sempre valide o `.xtemplate` exportado no XNotes.
 - O editor não oferece sincronização em nuvem nem salvamento automático persistente: **exporte o arquivo antes de sair ou abrir outro modelo**.
-- Não há instalador nativo para Windows, macOS ou Android. A distribuição é um arquivo ZIP portátil.
+- Há instaladores desktop para Windows e Linux; não há aplicativo nativo do Studio para macOS ou Android nesta versão.
 
 ## Aplicativo Linux (AppImage) — alpha.2
 
@@ -47,7 +47,7 @@ npm ci
 npm run desktop:build:windows
 ```
 
-Os instaladores serão gerados em `src-tauri/target/release/bundle/nsis/` e `src-tauri/target/release/bundle/msi/`. O pacote Windows usa o identificador técnico `0.1.0-3`, equivalente ao `alpha.3`, porque o WiX/MSI aceita apenas sufixos pré-release numéricos; o código e a versão pública do projeto permanecem `v0.1.0-alpha.3`. O comando Linux `npm run desktop:build` permanece independente. O WebView2 Runtime é usado pelo Tauri para exibir a interface; a instalação padrão do Tauri gerencia sua disponibilidade quando necessário. Os instaladores não são assinados digitalmente por enquanto: o Windows SmartScreen pode mostrar um aviso de editor desconhecido.
+Os instaladores serão gerados em `src-tauri/target/release/bundle/nsis/` e `src-tauri/target/release/bundle/msi/`. Na `alpha.6`, os instaladores Windows usam o identificador técnico `0.1.0-6`, correspondente à versão pública `v0.1.0-alpha.6`, para compatibilidade com a numeração aceita pelo WiX/MSI. O comando Linux `npm run desktop:build` permanece independente. O WebView2 Runtime é usado pelo Tauri para exibir a interface; a instalação padrão do Tauri gerencia sua disponibilidade quando necessário. Os instaladores não são assinados digitalmente por enquanto: o Windows SmartScreen pode mostrar um aviso de editor desconhecido.
 
 ### Compilar o AppImage
 
