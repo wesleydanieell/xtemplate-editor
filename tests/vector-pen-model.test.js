@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {PEN_MODES,createPenNode,penPointCount,snapPenAngle,resetOutgoingTangent,penPathData,uniqueClosingAnchors} from '../src/features/vector/pen-model.js';
+import {PEN_MODES,createPenNode,penPointCount,snapPenAngle,resetOutgoingTangent,penPathData,uniqueClosingAnchors,snapPenOrthogonal} from '../src/features/vector/pen-model.js';
 test('pen modes produce XNotes-native nodes and parent-relative mm coordinates',()=>{
  const points=[{x:20,y:30},{x:35,y:45},{x:50,y:60}],box={x:10,y:12};
  assert.deepEqual(PEN_MODES,['line','polyline','polygon','path']);
@@ -58,4 +58,17 @@ test('curved closing edge preserves Bézier tangents with one logical initial an
  assert.equal(closed.d.match(/ C /g).length,3,'curved closing edge remains editable');
  assert(closed.d.endsWith(' Z'));
  assert.equal(closed.d.match(/ Z/g).length,1);
+});
+
+test('Pen line endpoint magnets to prior vertex in either axis',()=>{
+ const origin={x:20,y:40};
+ assert.deepEqual(snapPenOrthogonal(origin,{x:62,y:41.1},2),{point:{x:62,y:40},axis:'horizontal'});
+ assert.deepEqual(snapPenOrthogonal(origin,{x:20.8,y:95},2),{point:{x:20,y:95},axis:'vertical'});
+ assert.deepEqual(snapPenOrthogonal(origin,{x:60,y:90},2),{point:{x:60,y:90},axis:null});
+});
+test('axis snapping tolerance adapts to zoom and preserves unconstrained diagonal',()=>{
+ const p={x:13,y:70},origin={x:10,y:20};
+ assert.equal(snapPenOrthogonal(origin,p,4).point.x,10);
+ assert.equal(snapPenOrthogonal(origin,p,1).point.x,13);
+ assert.equal(snapPenOrthogonal(origin,{x:10.2,y:20.3},2).axis,null);
 });

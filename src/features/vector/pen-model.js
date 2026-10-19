@@ -9,6 +9,20 @@ export function snapPenAngle(origin,p,step=45){
  const angle=Math.round(Math.atan2(dy,dx)/(step*Math.PI/180))*step*Math.PI/180;
  return {x:origin.x+distance*Math.cos(angle),y:origin.y+distance*Math.sin(angle)};
 }
+/** Align a Pen endpoint magnetically to the previous vertex. Unlike global
+ * object snapping, this is the intuitive straight-line tool: stay horizontal
+ * or vertical within a screen-derived tolerance at any zoom. */
+export function snapPenOrthogonal(origin, point, toleranceX, toleranceY=toleranceX){
+ if(!origin||![origin.x,origin.y,point.x,point.y,toleranceX,toleranceY].every(Number.isFinite))
+  return {point:{...point},axis:null};
+ const dx=point.x-origin.x,dy=point.y-origin.y;
+ const nearX=Math.abs(dx)<=toleranceX,nearY=Math.abs(dy)<=toleranceY;
+ if(!nearX&&!nearY)return {point:{...point},axis:null};
+ if(nearX&&nearY&&Math.hypot(dx,dy)<Math.min(toleranceX,toleranceY))
+  return {point:{...point},axis:null};
+ const axis=nearX&&(!nearY||Math.abs(dx)/Math.max(toleranceX,1e-9)<=Math.abs(dy)/Math.max(toleranceY,1e-9))?'vertical':'horizontal';
+ return {point:axis==='vertical'?{...point,x:origin.x}:{...point,y:origin.y},axis};
+}
 /** Every anchor owns independent incoming and outgoing tangent vectors.
  * The old symmetric `hx/hy` form is understood for backward-compatible drafts. */
 export function penIncoming(p){return {x:p.inHx??-(p.hx||0),y:p.inHy??-(p.hy||0)};}

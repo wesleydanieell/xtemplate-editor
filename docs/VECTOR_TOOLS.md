@@ -156,3 +156,30 @@ Bézier segment conversion remain planned work.
   fill rules and expression evaluator still needs device-level comparison tests.
 - For smooth large-template editing, optimization of Hatch/repeat rendering is still planned.
 - The tools do not introduce any new JSON keys or template format extensions.
+
+## Structure multi-drag and Pen alignment
+
+In **Structure**, select any number of layers with Ctrl-click or Shift-click,
+then drag **one of the selected rows**. The entire normalized selection moves
+as one operation, preserving source document order and Undo/Redo history.
+Drop above or below a layer, onto a Group/Repeat to move the selection inside,
+or onto **Page** to return it to the root. Parent-and-child selections move
+the parent once. The editor rejects drops into selected nodes and descendants
+rather than creating cyclic hierarchies. Moving layers between coordinate
+contexts retains their visual position when the element supports translation.
+
+When creating a **Line** using **Pen (P)**, the second point aligns magnetically
+to the first point's horizontal or vertical axis within a zoom-adjusted cursor
+tolerance. The corresponding guide appears while hovering, before the second
+click. The same behavior applies to further Polyline/Polygon/Path straight
+segments. Hold **Shift** for the existing 45° direction constraint; hold
+**Alt** to temporarily disable magnetic snapping; or disable Magnetic guides
+in Settings. Guides and tooltips are editor-only and export native coordinates.
+
+## Editing existing color variables
+
+In **Variables**, expand an existing Color variable and use the color picker
+next to **Default** to change its saved native HEX color. The HEX field and
+picker stay synchronized. The separate **Preview value** picker updates only
+the live Studio preview, allowing color experiments without modifying the
+exported default. Creating Color variables offers the same visual picker.

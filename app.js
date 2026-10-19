@@ -17,12 +17,12 @@ import { repeatPositions } from "./src/features/repeat-layout.js";
 import { inspectorSections } from "./src/features/inspector-priority.js";
 import { readPointPairs, requiresBake, replacePointCoordinate, addPoint, removePoint, reversePoints, midpoint, alignPoints, distributePoints } from "./src/features/vector/points.js";
 import { editablePathNodes, replaceSvgPathPoint, appendSvgLine, toggleSvgClosed, removeSvgPathAnchor, pathHandleConnections, closedSvgAnchorAlias } from "./src/features/vector/svg-path.js";
-import { PEN_MODES,createPenNode,snapPenAngle,penIncoming,penOutgoing,penPathData,resetOutgoingTangent } from "./src/features/vector/pen-model.js";
+import { PEN_MODES,createPenNode,snapPenAngle,snapPenOrthogonal,penIncoming,penOutgoing,penPathData,resetOutgoingTangent } from "./src/features/vector/pen-model.js";
 import { FLIPPABLE_TYPES, flipNativeNode, flipNeedsExpressionConfirmation } from "./src/features/vector/flip-geometry.js";
 import { translate as matrixTranslate, scale as matrixScale, rotate as matrixRotate, around as matrixAround, multiply as matrixMultiply, toSVG as matrixSVG } from "./src/features/affine-transform.js";
 import { resizePreviewTransform, rotationPreviewTransform, resizedBounds } from "./src/features/resize-preview.js";
 import { resizeGestureBounds } from "./src/features/constrained-resize.js";
-import { deleteSiblingNodes, duplicateSiblingNodes, getSiblingSelection as getTreeSiblingSelection, groupSiblingNodes, normalizePaths, sameParent, moveNode, nudgeSiblingNodes } from "./src/core/tree-operations.js";
+import { deleteSiblingNodes, duplicateSiblingNodes, getSiblingSelection as getTreeSiblingSelection, groupSiblingNodes, normalizePaths, sameParent, moveNodes, nudgeSiblingNodes } from "./src/core/tree-operations.js";
 import { arrangeBounds } from "./src/features/arrange-selection.js";
 import { sharedEditableProperties, editablePropertyValue } from "./src/core/common-properties.js";
 import { selectTreePaths } from "./src/core/tree-selection.js";
@@ -59,7 +59,7 @@ try{magneticGuidesEnabled=localStorage.getItem('xtemplate-magnetic-guides')!=='f
 const history=createHistory(JSON.stringify(doc));let historyRestoring=false;
 let pageSize=[210,297],zoomMode="fit",previewValues={},lastValidJson="",expanded=true,clipSerial=0;
 const collapsedTree=new Set();
-let treeDragSource=null,treeSelectionAnchor=null;
+let treeDragSource=null,treeDragSelection=null,treeSelectionAnchor=null;
 let layerColors={};
 function layerColorStorageKey(){return 'xtemplate-layer-colors:'+String(doc.id||doc.name||'untitled').slice(0,120);}
 function loadLayerColors(){
@@ -756,7 +756,7 @@ function renderTree(){
  page.addEventListener("click",()=>{selectedPath=["__page__"];selectedPaths=[selectedPath.slice()];setInspectorTab("properties");render();});
  page.addEventListener("dragover",e=>{if(!treeDragSource)return;e.preventDefault();page.classList.add("tree-drop-target");});
  page.addEventListener("dragleave",()=>page.classList.remove("tree-drop-target"));
- page.addEventListener("drop",e=>{e.preventDefault();page.classList.remove("tree-drop-target");const source=treeDragSource||toPath(e.dataTransfer.getData("text/plain"));if(source.length&&source[0]!=="__page__")moveTreeNode(source,null,"root");treeDragSource=null;});
+ page.addEventListener("drop",e=>{e.preventDefault();page.classList.remove("tree-drop-target");const paths=treeDragSelection||[treeDragSource];if(paths[0]?.[0]==="items")moveTreeNodes(paths,null,"root");treeDragSource=null;treeDragSelection=null;});
  tree.appendChild(page);
  if(!roots.length){const empty=document.createElement("div");empty.className="tree-empty";empty.textContent="No elements yet. Use + to create an element on the Page.";tree.appendChild(empty);}
  const typeOrdinalByNode=new Map(),typeCounts=new Map();
@@ -765,11 +765,19 @@ function renderTree(){
  function add(n,path,depth){
   const key=nodeKey(path),children=branchTypes.has(n.type)?(n.children||[]):[],canExpand=children.length>0,active=selectedPaths.some(p=>nodeKey(p)===key),typeOrdinal=typeOrdinalByNode.get(n)||1;
   const b=document.createElement("button");b.type="button";b.className="tree-item tree-type-"+(n.type||"other")+(active?" active":"");b.setAttribute("aria-pressed",String(active));b.dataset.path=key;b.draggable=true;b.style.paddingLeft=(12+depth*18)+"px";
-  b.addEventListener("dragstart",e=>{treeDragSource=path.slice();e.dataTransfer.setData("text/plain",key);e.dataTransfer.effectAllowed="move";b.classList.add("tree-dragging");});
-  b.addEventListener("dragend",()=>{treeDragSource=null;b.classList.remove("tree-dragging");tree.querySelectorAll(".tree-drop-target,.drop-before,.drop-after").forEach(el=>el.classList.remove("tree-drop-target","drop-before","drop-after"));});
-  b.addEventListener("dragover",e=>{const source=treeDragSource;if(!source||nodeKey(source)===key||key.startsWith(nodeKey(source)+".")||source[0]==="__page__")return;e.preventDefault();e.dataTransfer.dropEffect="move";tree.querySelectorAll(".tree-drop-target,.drop-before,.drop-after").forEach(el=>el.classList.remove("tree-drop-target","drop-before","drop-after"));const rect=b.getBoundingClientRect(),ratio=(e.clientY-rect.top)/Math.max(1,rect.height);const place=branchTypes.has(n.type)&&ratio>=.3&&ratio<=.7?"inside":ratio<.3?"before":"after";b.classList.add(place==="inside"?"tree-drop-target":place==="before"?"drop-before":"drop-after");b.dataset.dropPlace=place;});
+  b.addEventListener("dragstart",e=>{
+   treeDragSource=path.slice();
+   const selected=selectedPaths.some(item=>nodeKey(item)===key);
+   treeDragSelection=normalizeSelectedPaths(selected?selectedPaths:[path]).filter(item=>item[0]==='items');
+   e.dataTransfer.setData("text/plain",key);e.dataTransfer.effectAllowed="move";
+   b.classList.add("tree-dragging");
+   if(treeDragSelection.length>1)e.dataTransfer.setData("text/x-xtemplate-selection",String(treeDragSelection.length));
+  });
+  b.addEventListener("dragend",()=>{treeDragSource=null;treeDragSelection=null;b.classList.remove("tree-dragging");tree.querySelectorAll(".tree-drop-target,.drop-before,.drop-after").forEach(el=>el.classList.remove("tree-drop-target","drop-before","drop-after"));});
+  b.addEventListener("dragover",e=>{const source=treeDragSource,paths=treeDragSelection||[source];
+   if(!source||paths.some(item=>nodeKey(item)===key||key.startsWith(nodeKey(item)+"."))||source[0]==="__page__")return;e.preventDefault();e.dataTransfer.dropEffect="move";tree.querySelectorAll(".tree-drop-target,.drop-before,.drop-after").forEach(el=>el.classList.remove("tree-drop-target","drop-before","drop-after"));const rect=b.getBoundingClientRect(),ratio=(e.clientY-rect.top)/Math.max(1,rect.height);const place=branchTypes.has(n.type)&&ratio>=.3&&ratio<=.7?"inside":ratio<.3?"before":"after";b.classList.add(place==="inside"?"tree-drop-target":place==="before"?"drop-before":"drop-after");b.dataset.dropPlace=place;});
   b.addEventListener("dragleave",e=>{if(!b.contains(e.relatedTarget))b.classList.remove("tree-drop-target","drop-before","drop-after");});
-  b.addEventListener("drop",e=>{e.preventDefault();b.classList.remove("tree-drop-target","drop-before","drop-after");const source=treeDragSource||toPath(e.dataTransfer.getData("text/plain")),target=toPath(b.dataset.path),place=b.dataset.dropPlace||"after";if(!source.length||source[0]==="__page__")return;moveTreeNode(source,target,place);treeDragSource=null;});
+  b.addEventListener("drop",e=>{e.preventDefault();b.classList.remove("tree-drop-target","drop-before","drop-after");const source=treeDragSource||toPath(e.dataTransfer.getData("text/plain")),target=toPath(b.dataset.path),place=b.dataset.dropPlace||"after";if(!source.length||source[0]==="__page__")return;moveTreeNodes(treeDragSelection||[source],target,place);treeDragSource=null;treeDragSelection=null;});
   const disclosure=document.createElement("span");disclosure.className="tree-disclosure";disclosure.textContent=canExpand?(collapsedTree.has(key)?"▸":"▾"):"";disclosure.title=canExpand?(collapsedTree.has(key)?"Expand":"Collapse"):"";disclosure.setAttribute("aria-hidden","true");
   const symbols={group:"▣",repeat:"⠿",hline:"━",vline:"┃",line:"／",rect:"▱",circle:"○",ellipse:"◉",dot:"•",text:"T",path:"⌁",polygon:"⬡",polyline:"⌁",hatch:"⁄"};
   const icon=document.createElement("span");icon.className="tree-symbol";icon.textContent=symbols[n.type]||"◇";
@@ -851,25 +859,30 @@ $("tree").addEventListener("dragover",e=>{
 });
 $("tree").addEventListener("drop",e=>{
  if(!treeDragSource||e.target.closest(".tree-item"))return;
- e.preventDefault();moveTreeNode(treeDragSource,null,"root");treeDragSource=null;
+ e.preventDefault();moveTreeNodes(treeDragSelection||[treeDragSource],null,"root");treeDragSource=null;treeDragSelection=null;
 });
 function findNodePath(target){let found=null;function visit(items,parentPath){for(let i=0;i<items.length&&!found;i++){const n=items[i],path=parentPath.concat(i);if(n===target){found=path;return;}if(["group","repeat"].includes(n.type))visit(n.children||[],path.concat("children"));}}visit(doc.items||[],["items"]);return found;}
-function moveTreeNode(source,target,place="after"){
- const node=getAt(source);if(!node||source[0]==="__page__")return;
- const oldBounds=transformGeometry(node,source);
+function moveTreeNodes(paths,target,place='after'){
+ const valid=normalizeSelectedPaths(paths).filter(path=>path?.[0]==='items'&&getAt(path));
+ if(!valid.length)return;
+ const original=valid.map(path=>({node:getAt(path),bounds:transformGeometry(getAt(path),path)}));
  const colorMarkers=snapshotLayerMarkers();
- const newPath=moveNode(doc,source,target,place);
- if(!newPath)return;
- // Reparenting changes the reference coordinate system. Keep the visible
- // position when both source and destination have a measurable box.
- const newBounds=transformGeometry(node,newPath);
- if(oldBounds&&newBounds){
-  const dx=oldBounds.x-newBounds.x,dy=oldBounds.y-newBounds.y;
-  if(Number.isFinite(dx)&&Number.isFinite(dy)&&(Math.abs(dx)>0.001||Math.abs(dy)>0.001)&&draggableTypes.has(node.type))moveBy(node,dx,dy,parentBoxForPath(newPath));
+ const moved=moveNodes(doc,valid,target,place);
+ if(!moved){toast('Invalid target: cannot move layers into themselves or their descendants.');return;}
+ // Reparenting changes the reference frame. Restore each independent node's
+ // visible location after moving, without changing its hierarchy or siblings.
+ for(const {node,bounds} of original){
+  const nextPath=findNodePath(node);if(!nextPath||!bounds)continue;
+  const current=transformGeometry(node,nextPath);if(!current)continue;
+  const dx=bounds.x-current.x,dy=bounds.y-current.y;
+  if(Number.isFinite(dx)&&Number.isFinite(dy)&&(Math.abs(dx)>.001||Math.abs(dy)>.001)&&draggableTypes.has(node.type))
+   moveBy(node,dx,dy,parentBoxForPath(nextPath));
  }
  restoreLayerMarkers(colorMarkers);
- selectedPath=newPath;selectedPaths=[newPath.slice()];
- commit(()=>{});setInspectorTab("properties");toast(place==="inside"?"Moved into container":place==="root"?"Moved to Page":"Layer order updated");
+ selectedPaths=moved.paths.map(path=>path.slice());selectedPath=selectedPaths.at(-1)||null;
+ treeSelectionAnchor=selectedPaths[0]||null;
+ commit(()=>{});setInspectorTab('properties');
+ toast(moved.count+(moved.count===1?' layer':' layers')+' moved.');
 }
 function select(path){
  selectedPath=path;selectedPaths=path?[path.slice()]:[];
@@ -1096,11 +1109,32 @@ function setLeftTab(tab){
  document.querySelectorAll("[data-left-panel]").forEach(panel=>panel.classList.toggle("hidden",panel.dataset.leftPanel!==tab));
 }
 document.querySelectorAll(".left-tab").forEach(b=>b.addEventListener("click",()=>setLeftTab(b.dataset.leftTab)));
-function renderParams(){const root=$("paramsEditor");root.replaceChildren();const params=doc.params||(doc.params={});const entries=Object.entries(params);if(!entries.length){const p=document.createElement("p");p.className="param-empty";p.textContent="Este template não define parâmetros. Adicione um para expor valores configuráveis sem editar a estrutura dos elements.";root.appendChild(p);}entries.forEach(([name,p])=>{const card=document.createElement("details");card.className="param-card";const head=document.createElement("summary");head.className="param-card-head";const titleWrap=document.createElement("span");titleWrap.className="param-title-wrap";const code=document.createElement("code");code.textContent=name;const titleType=document.createElement("small");titleType.textContent=(p.label||name)+" · "+(p.type||"length");titleWrap.append(code,titleType);const del=document.createElement("button");del.textContent="×";del.title="Delete variable";del.setAttribute("aria-label","Delete variable "+name);del.addEventListener("click",async e=>{e.preventDefault();e.stopPropagation();if(!await requestConfirmation("Delete variable","Delete “"+name+"”? Properties using this variable will keep their value/reference.","Delete"))return;delete doc.params[name];delete previewValues[name];delete previewValues["$"+name];commit(()=>{});});head.append(titleWrap,del);card.appendChild(head);const grid=document.createElement("div");grid.className="param-grid";function field(label,value,key,wide=false,type="text"){const lab=document.createElement("label");if(wide)lab.className="wide";lab.append(document.createTextNode(label));const inp=document.createElement("input");inp.type=type;const isLength=p.type==="length"&&["default","min","max","step"].includes(key);inp.type=isLength?"number":type;if(isLength)inp.step="any";inp.value=isLength&&value!==undefined&&value!==""?(mm(value)??(Number.isFinite(Number(value))?Number(value):"")):value??"";if(key==="default"&&p.type==="color")inp.type="text";if(key==="default"&&["number","integer"].includes(p.type))inp.type="number";if(["min","max","step"].includes(key)&&["number","integer"].includes(p.type))inp.type="number";inp.addEventListener("change",()=>{commit(()=>{if(inp.value===""){if(key==="default"&&p.type==="color")throw Error("Enter a hex color, for example #4f7cff.");delete p[key];}else if(isLength&&Number.isFinite(Number(inp.value)))p[key]=Number(inp.value)+"mm";else if(["min","max","step"].includes(key)&&p.type!=="color"&&Number.isFinite(Number(inp.value)))p[key]=Number(inp.value);else if(key==="default"&&p.type==="color"){if(!/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(inp.value))throw Error("Use a hex color, for example #4f7cff.");p[key]=inp.value;}else if(key==="default"&&["number","integer"].includes(p.type)&&Number.isFinite(Number(inp.value)))p[key]=p.type==="integer"?Math.round(Number(inp.value)):Number(inp.value);else p[key]=inp.value;if(key==="default"){delete previewValues[name];delete previewValues["$"+name];initializePreviewValues();}});});lab.appendChild(inp);if(key==="default"&&p.type==="color"){const palette=document.createElement("span");palette.className="color-swatch-row";COLOR_SWATCHES.forEach(color=>{const b=document.createElement("button");b.type="button";b.className="color-swatch";b.style.backgroundColor=color;b.title=color;b.setAttribute("aria-label","Use color "+color);b.addEventListener("click",()=>{inp.value=color;emitColorChange(inp);});palette.appendChild(b);});lab.appendChild(palette);}grid.appendChild(lab);}const typelab=document.createElement("label");typelab.textContent="Type";const sel=document.createElement("select");["length","number","integer","color"].forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=v;sel.appendChild(o);});sel.value=p.type||"length";sel.addEventListener("change",()=>commit(()=>{p.type=sel.value;p.default=sel.value==="color"?"#4f7cff":sel.value==="length"?"5mm":1;delete previewValues[name];delete previewValues["$"+name];initializePreviewValues();}));typelab.appendChild(sel);
+function renderParams(){const root=$("paramsEditor");root.replaceChildren();const params=doc.params||(doc.params={});const entries=Object.entries(params);if(!entries.length){const p=document.createElement("p");p.className="param-empty";p.textContent="Este template não define parâmetros. Adicione um para expor valores configuráveis sem editar a estrutura dos elements.";root.appendChild(p);}entries.forEach(([name,p])=>{const card=document.createElement("details");card.className="param-card";const head=document.createElement("summary");head.className="param-card-head";const titleWrap=document.createElement("span");titleWrap.className="param-title-wrap";const code=document.createElement("code");code.textContent=name;const titleType=document.createElement("small");titleType.textContent=(p.label||name)+" · "+(p.type||"length");titleWrap.append(code,titleType);const del=document.createElement("button");del.textContent="×";del.title="Delete variable";del.setAttribute("aria-label","Delete variable "+name);del.addEventListener("click",async e=>{e.preventDefault();e.stopPropagation();if(!await requestConfirmation("Delete variable","Delete “"+name+"”? Properties using this variable will keep their value/reference.","Delete"))return;delete doc.params[name];delete previewValues[name];delete previewValues["$"+name];commit(()=>{});});head.append(titleWrap,del);card.appendChild(head);const grid=document.createElement("div");grid.className="param-grid";function field(label,value,key,wide=false,type="text"){const lab=document.createElement("label");if(wide)lab.className="wide";lab.append(document.createTextNode(label));const inp=document.createElement("input");inp.type=type;const isLength=p.type==="length"&&["default","min","max","step"].includes(key);inp.type=isLength?"number":type;if(isLength)inp.step="any";inp.value=isLength&&value!==undefined&&value!==""?(mm(value)??(Number.isFinite(Number(value))?Number(value):"")):value??"";if(key==="default"&&p.type==="color")inp.type="text";if(key==="default"&&["number","integer"].includes(p.type))inp.type="number";if(["min","max","step"].includes(key)&&["number","integer"].includes(p.type))inp.type="number";inp.addEventListener("change",()=>{commit(()=>{if(inp.value===""){if(key==="default"&&p.type==="color")throw Error("Enter a hex color, for example #4f7cff.");delete p[key];}else if(isLength&&Number.isFinite(Number(inp.value)))p[key]=Number(inp.value)+"mm";else if(["min","max","step"].includes(key)&&p.type!=="color"&&Number.isFinite(Number(inp.value)))p[key]=Number(inp.value);else if(key==="default"&&p.type==="color"){if(!/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(inp.value))throw Error("Use a hex color, for example #4f7cff.");p[key]=inp.value;}else if(key==="default"&&["number","integer"].includes(p.type)&&Number.isFinite(Number(inp.value)))p[key]=p.type==="integer"?Math.round(Number(inp.value)):Number(inp.value);else p[key]=inp.value;if(key==="default"){delete previewValues[name];delete previewValues["$"+name];initializePreviewValues();}});});lab.appendChild(inp);if(key==="default"&&p.type==="color"){
+  const picker=document.createElement('input');picker.type='color';picker.className='variable-edit-color-picker';
+  picker.setAttribute('aria-label','Choose default color for '+name);
+  const asLongHex=hex=>/^#[0-9a-f]{3}$/i.test(hex)?'#'+[...hex.slice(1)].map(c=>c+c).join(''):hex;
+  picker.value=/^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(inp.value)?asLongHex(inp.value):'#4f7cff';
+  // Changing a hex value by hand refreshes the swatch. The color picker
+  // triggers the same vetted commit path as the normal input on change.
+  inp.addEventListener('input',()=>{const hex=asLongHex(inp.value.trim());
+   if(/^#[0-9a-f]{6}$/i.test(hex))picker.value=hex;
+  });
+  picker.addEventListener('input',()=>{inp.value=picker.value;});
+  picker.addEventListener('change',()=>{inp.value=picker.value;inp.dispatchEvent(new Event('change',{bubbles:true}));});
+  lab.classList.add('variable-edit-color-field');lab.appendChild(picker);
+ }grid.appendChild(lab);}const typelab=document.createElement("label");typelab.textContent="Type";const sel=document.createElement("select");["length","number","integer","color"].forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=v;sel.appendChild(o);});sel.value=p.type||"length";sel.addEventListener("change",()=>commit(()=>{p.type=sel.value;p.default=sel.value==="color"?"#4f7cff":sel.value==="length"?"5mm":1;delete previewValues[name];delete previewValues["$"+name];initializePreviewValues();}));typelab.appendChild(sel);
  const typeHint=document.createElement("small");typeHint.className="value-type-hint";
  typeHint.textContent=variableTypeHint(sel.value)?.[1]||"";
  sel.addEventListener("change",()=>{typeHint.textContent=variableTypeHint(sel.value)?.[1]||"";});
- typelab.appendChild(typeHint);grid.appendChild(typelab);field("Label",p.label||"", "label",true);const roleLabel=document.createElement("label");roleLabel.className="wide";roleLabel.append(document.createTextNode("Template role"));const roleSelect=document.createElement("select");[["","Default"],["spacing","Primary spacing"]].forEach(([value,label])=>{const option=document.createElement("option");option.value=value;option.textContent=label;roleSelect.appendChild(option);});roleSelect.value=p.role||"";const spacingOwner=Object.entries(doc.params||{}).find(([otherName,other])=>other.role==="spacing"&&otherName!==name);roleSelect.querySelector('option[value="spacing"]').disabled=p.type!=="length"||!!spacingOwner;if(p.type!=="length")roleSelect.value="";roleSelect.addEventListener("change",()=>commit(()=>{if(roleSelect.value)p.role=roleSelect.value;else delete p.role;}));roleLabel.appendChild(roleSelect);grid.appendChild(roleLabel);field("Default",p.default??"", "default",true,"text");if(p.type!=="color"){field("Minimum",p.min??"","min");field("Maximum",p.max??"","max");field("Step",p.step??"","step");}const live=document.createElement("label");live.className="wide";live.textContent=p.type==="length"?"Preview value (mm)":"Preview value";if(p.type==="color"){const row=document.createElement("span");row.className="param-color";const inp=document.createElement("input");inp.type="text";inp.value=previewValues["$"+name]||p.default||"#4f7cff";const val=document.createElement("code");val.textContent=inp.value;const choices=document.createElement("span");choices.className="color-swatch-row";COLOR_SWATCHES.forEach(color=>{const b=document.createElement("button");b.type="button";b.className="color-swatch";b.style.backgroundColor=color;b.title=color;b.setAttribute("aria-label","Use color "+color);b.addEventListener("click",()=>{inp.value=color;inp.dispatchEvent(new Event("input",{bubbles:true}));});choices.appendChild(b);});inp.addEventListener("input",()=>{if(/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(inp.value)){previewValues["$"+name]=inp.value;val.textContent=inp.value;renderCanvas();}else val.textContent="Invalid hex";});row.append(inp,val,choices);live.appendChild(row);}else{const inp=document.createElement("input");inp.type="number";inp.step=p.type==="integer"?"1":"any";inp.min=p.min!==undefined?String(p.type==="length"?(mm(p.min)??p.min):p.min):"";inp.max=p.max!==undefined?String(p.type==="length"?(mm(p.max)??p.max):p.max):"";inp.value=previewValues[name]??p.default??"";inp.addEventListener("change",()=>{let v=p.type==="length"?(mm(inp.value)??(Number(inp.value)||0)):Number(inp.value);const low=p.min===undefined?null:(p.type==="length"?(mm(p.min)??Number(p.min)):Number(p.min)),high=p.max===undefined?null:(p.type==="length"?(mm(p.max)??Number(p.max)):Number(p.max));if(Number.isFinite(low))v=Math.max(low,v);if(Number.isFinite(high))v=Math.min(high,v);if(p.type==="integer")v=Math.round(v);previewValues[name]=Number.isFinite(v)?v:0;renderCanvas();});live.appendChild(inp);}grid.appendChild(live);card.appendChild(grid);const usage=document.createElement("div");usage.className="param-usage";const uses=[];function scanUses(nodes,path="items"){(nodes||[]).forEach((node,index)=>{if(!node||typeof node!=="object")return;const nodePath=path+"["+index+"]";for(const prop of ["stroke","fill"]){if(p.type==="color"&&node[prop]===name)uses.push({type:node.type,prop,nodePath});}if(p.type!=="color"){for(const [prop,value] of Object.entries(node)){if(["children","type","stroke","fill","font","weight","align","baseline"].includes(prop)||typeof value!=="string")continue;const re=new RegExp("(^|[^A-Za-z0-9_])"+name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"([^A-Za-z0-9_]|$)");if(re.test(value))uses.push({type:node.type,prop,nodePath});}}if(Array.isArray(node.children))scanUses(node.children,nodePath+".children");});}scanUses(doc.items);const usageTitle=document.createElement("b");usageTitle.textContent=uses.length?"Where it is used":"Not linked yet";usage.appendChild(usageTitle);const usageText=document.createElement("p");usageText.textContent=uses.length?uses.slice(0,5).map(u=>u.type+" · "+u.prop+" · "+u.nodePath).join("\n")+(uses.length>5?"\n+ "+(uses.length-5)+" use(s)":""):(p.type==="color"?"To link it, select an element and choose this variable in the Stroke or Fill field.":"To link it, use the name "+name+" in an element measurement or expression, for example: "+name+" * 2.");usage.appendChild(usageText);card.appendChild(usage);root.appendChild(card);});}
+ typelab.appendChild(typeHint);grid.appendChild(typelab);field("Label",p.label||"", "label",true);const roleLabel=document.createElement("label");roleLabel.className="wide";roleLabel.append(document.createTextNode("Template role"));const roleSelect=document.createElement("select");[["","Default"],["spacing","Primary spacing"]].forEach(([value,label])=>{const option=document.createElement("option");option.value=value;option.textContent=label;roleSelect.appendChild(option);});roleSelect.value=p.role||"";const spacingOwner=Object.entries(doc.params||{}).find(([otherName,other])=>other.role==="spacing"&&otherName!==name);roleSelect.querySelector('option[value="spacing"]').disabled=p.type!=="length"||!!spacingOwner;if(p.type!=="length")roleSelect.value="";roleSelect.addEventListener("change",()=>commit(()=>{if(roleSelect.value)p.role=roleSelect.value;else delete p.role;}));roleLabel.appendChild(roleSelect);grid.appendChild(roleLabel);field("Default",p.default??"", "default",true,"text");if(p.type!=="color"){field("Minimum",p.min??"","min");field("Maximum",p.max??"","max");field("Step",p.step??"","step");}const live=document.createElement("label");live.className="wide";live.textContent=p.type==="length"?"Preview value (mm)":"Preview value";if(p.type==="color"){const row=document.createElement("span");row.className="param-color";const inp=document.createElement("input");inp.type="text";inp.value=previewValues["$"+name]||p.default||"#4f7cff";const val=document.createElement("code");val.textContent=inp.value;const choices=document.createElement("span");choices.className="color-swatch-row";COLOR_SWATCHES.forEach(color=>{const b=document.createElement("button");b.type="button";b.className="color-swatch";b.style.backgroundColor=color;b.title=color;b.setAttribute("aria-label","Use color "+color);b.addEventListener("click",()=>{inp.value=color;inp.dispatchEvent(new Event("input",{bubbles:true}));});choices.appendChild(b);});inp.addEventListener("input",()=>{if(/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(inp.value)){previewValues["$"+name]=inp.value;val.textContent=inp.value;renderCanvas();}else val.textContent="Invalid hex";});const picker=document.createElement('input');picker.type='color';picker.className='variable-preview-color-picker';
+ picker.setAttribute('aria-label','Choose preview color for '+name);
+ const normalize=hex=>/^#[0-9a-f]{3}$/i.test(hex)?'#'+[...hex.slice(1)].map(c=>c+c).join(''):hex;
+ if(/^#[0-9a-f]{6}$/i.test(normalize(inp.value)))picker.value=normalize(inp.value);
+ picker.addEventListener('input',()=>{inp.value=picker.value;inp.dispatchEvent(new Event('input',{bubbles:true}));});
+ inp.addEventListener('input',()=>{const hex=normalize(inp.value);
+  if(/^#[0-9a-f]{6}$/i.test(hex))picker.value=hex;
+ });
+ row.append(inp,picker,val,choices);live.appendChild(row);}else{const inp=document.createElement("input");inp.type="number";inp.step=p.type==="integer"?"1":"any";inp.min=p.min!==undefined?String(p.type==="length"?(mm(p.min)??p.min):p.min):"";inp.max=p.max!==undefined?String(p.type==="length"?(mm(p.max)??p.max):p.max):"";inp.value=previewValues[name]??p.default??"";inp.addEventListener("change",()=>{let v=p.type==="length"?(mm(inp.value)??(Number(inp.value)||0)):Number(inp.value);const low=p.min===undefined?null:(p.type==="length"?(mm(p.min)??Number(p.min)):Number(p.min)),high=p.max===undefined?null:(p.type==="length"?(mm(p.max)??Number(p.max)):Number(p.max));if(Number.isFinite(low))v=Math.max(low,v);if(Number.isFinite(high))v=Math.min(high,v);if(p.type==="integer")v=Math.round(v);previewValues[name]=Number.isFinite(v)?v:0;renderCanvas();});live.appendChild(inp);}grid.appendChild(live);card.appendChild(grid);const usage=document.createElement("div");usage.className="param-usage";const uses=[];function scanUses(nodes,path="items"){(nodes||[]).forEach((node,index)=>{if(!node||typeof node!=="object")return;const nodePath=path+"["+index+"]";for(const prop of ["stroke","fill"]){if(p.type==="color"&&node[prop]===name)uses.push({type:node.type,prop,nodePath});}if(p.type!=="color"){for(const [prop,value] of Object.entries(node)){if(["children","type","stroke","fill","font","weight","align","baseline"].includes(prop)||typeof value!=="string")continue;const re=new RegExp("(^|[^A-Za-z0-9_])"+name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"([^A-Za-z0-9_]|$)");if(re.test(value))uses.push({type:node.type,prop,nodePath});}}if(Array.isArray(node.children))scanUses(node.children,nodePath+".children");});}scanUses(doc.items);const usageTitle=document.createElement("b");usageTitle.textContent=uses.length?"Where it is used":"Not linked yet";usage.appendChild(usageTitle);const usageText=document.createElement("p");usageText.textContent=uses.length?uses.slice(0,5).map(u=>u.type+" · "+u.prop+" · "+u.nodePath).join("\n")+(uses.length>5?"\n+ "+(uses.length-5)+" use(s)":""):(p.type==="color"?"To link it, select an element and choose this variable in the Stroke or Fill field.":"To link it, use the name "+name+" in an element measurement or expression, for example: "+name+" * 2.");usage.appendChild(usageText);card.appendChild(usage);root.appendChild(card);});}
 const paramCreateForm=$("paramCreateForm");
 function syncParamRoleOption(){const option=$("newParamRole").querySelector('option[value="spacing"]');if(!option)return;const name=$("newParamName").value.trim(),owner=Object.entries(doc.params||{}).some(([key,p])=>key!==name&&p.role==="spacing");option.disabled=$("newParamType").value!=="length"||owner;if(option.disabled&&$("newParamRole").value==="spacing")$("newParamRole").value="";}
 function resetParamForm(){paramCreateForm.reset();$("newParamName").value="";$("newParamLabel").value="";$("newParamType").value="length";$("newParamDefault").value=5;$("newParamMin").value="";$("newParamMax").value="";$("newParamDefault").type="number";$("newParamDefault").min="0";$("newParamDefault").step="any";["newParamMin","newParamMax"].forEach(id=>{const input=$(id);input.type="number";input.step="any";input.min="0";input.placeholder="mm";});$("newParamRole").value="";$("newParamError").classList.add("hidden");$("newParamLimits").classList.remove("hidden");renderColorChoices("newParamDefault","literal");$("newParamDefaultChoices").classList.add("hidden");$("newParamColorPicker").classList.add("hidden");$("newParamColorPicker").value="#4f7cff";syncParamRoleOption();}
@@ -2182,7 +2216,7 @@ let activeTool="select",drawState=null,curveState=null,penMode="path";
 function updatePenPicker(){
  const picker=$("penModePicker");picker.classList.toggle("hidden",activeTool!=="pen");
  $("penMode").value=penMode;
- const descriptions={line:"Click two points. Shift constrains the direction to 45°.",polyline:"Click vertices; Enter or double-click finishes an open line.",polygon:"Click at least three vertices; click the first point or press Enter to close.",path:"Click for straight nodes, drag for Bézier handles. Enter or double-click finishes."};
+ const descriptions={line:"Click two points. Magnetic guides lock horizontal / vertical; Shift locks 45°; Alt temporarily disables snapping.",polyline:"Click vertices; Enter or double-click finishes an open line.",polygon:"Click at least three vertices; click the first point or press Enter to close.",path:"Click for straight nodes, drag for Bézier handles. Enter or double-click finishes."};
  $("penModeHint").textContent=descriptions[penMode]+' Points can be placed outside the page. XNotes clips output at its edges.';
 }
 function setActiveTool(tool){
@@ -2201,6 +2235,29 @@ function pagePoint(e){
   if(matrix)toLocal=(x,y)=>{const point=paper.createSVGPoint();point.x=x;point.y=y;return point.matrixTransform(matrix.inverse());};
  }catch{}
  return screenToDocumentPoint({clientX:e.clientX,clientY:e.clientY,rect:paper.getBoundingClientRect(),pageWidth:pageSize[0],pageHeight:pageSize[1],toLocal});
+}
+function penConstrainPointer(point,last,event){
+ const initial={point:{...point},axis:null};
+ if(!last)return initial;
+ // Shift keeps the existing 45-degree compass constraint. Alt disables
+ // magnetic snapping without affecting the original cursor position.
+ if(event.shiftKey)return {point:snapPenAngle(last,point),axis:null};
+ if(!magneticGuidesEnabled||event.altKey)return initial;
+ const rect=paper.getBoundingClientRect();
+ return snapPenOrthogonal(last,point,
+  7*pageSize[0]/Math.max(1,rect.width),
+  7*pageSize[1]/Math.max(1,rect.height));
+}
+function penGuides(point,last,axis){
+ if(!last||!axis){clearSmartGuides();renderSmartGuideOverlay();return;}
+ if(axis==='horizontal'){
+  smartGuides={x:null,y:last.y};
+  smartGuideSegments={x:null,y:{y:last.y,x1:Math.min(last.x,point.x),x2:Math.max(last.x,point.x),kind:'object'}};
+ }else{
+  smartGuides={x:last.x,y:null};
+  smartGuideSegments={x:{x:last.x,y1:Math.min(last.y,point.y),y2:Math.max(last.y,point.y),kind:'object'},y:null};
+ }
+ renderSmartGuideOverlay();
 }
 function handlePenPointerDown(e){
  if(e.button!==0)return;
@@ -2227,7 +2284,9 @@ function handlePenPointerDown(e){
   toast('Outgoing tangent reset; preceding curve preserved. Click to continue.');return;
  }
  if(last&&state.points.length>=2&&Math.hypot(pt.x-last.x,pt.y-last.y)<hitRadius){finishPenPath();return;}
- if(e.shiftKey&&last)pt=snapPenAngle(last,pt);
+ const constrained=penConstrainPointer(pt,last,e);
+ pt=constrained.point;
+ penGuides(pt,last,constrained.axis);
  state.points.push({x:pt.x,y:pt.y,inHx:0,inHy:0,outHx:0,outHy:0});
  state.activeIndex=state.points.length-1;state.pointerId=e.pointerId;
  if(state.mode==='line'&&state.points.length===2){finishPenPath();return;}
@@ -2239,7 +2298,13 @@ function updatePenFromPointer(e){
  if(state.pointerId===e.pointerId&&state.mode==='path'){
   if(last){const dx=pt.x-last.x,dy=pt.y-last.y;
    last.outHx=dx;last.outHy=dy;last.inHx=-dx;last.inHy=-dy;}
- }else if(state.pointerId===null){state.hover=e.shiftKey&&last?snapPenAngle(last,pt):pt;}
+ }else if(state.pointerId===null){
+  const proposed=(!e.altKey&&magneticGuidesEnabled)?snapToGuides({x:pt.x,y:pt.y,w:0,h:0},[],null):null;
+  const position=proposed?{x:pt.x+proposed.dx,y:pt.y+proposed.dy}:pt;
+  const result=penConstrainPointer(position,last,e);
+  state.hover=result.point;
+  penGuides(result.point,last,result.axis);
+ }
  renderPenPreview();
 }
 /** The page is not the drawing boundary: the pasteboard around it can host
