@@ -265,3 +265,12 @@ handles and resize controls stay visible on the outside pasteboard. Hold
 keeps that proportion intact. In **Variables → Create variable → Color**, use
 the color picker or enter an exact hexadecimal value. Inspector value/variable
 suggestions use a compact popup to keep the editor visible.
+
+### Structure multi-drag, Pen guides and variable color editing
+
+Ctrl/Shift-select several Structure layers and drag any selected layer to move
+the entire selection at once, including between groups or back to Page.
+Pen Line creation magnetically aligns to the previous point's horizontal and
+vertical axes (Shift: 45°, Alt: temporarily bypass snapping).
+Existing Color variables now offer HEX-linked pickers for both the saved
+**Default** color and a preview-only **Preview value**.

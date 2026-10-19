@@ -1223,6 +1223,132 @@ try{
  assert.equal(afterUndoResize.w,'40mm');assert.equal(afterUndoResize.h,'40mm','resize has one Undo snapshot');
  await polishPage.close();
  }
+ // Multi-select Structure drag, native Pen axis guides, and editing existing
+ // color variables (not only setting a color during initial creation).
+ {
+ const featurePage=await browser.newPage();
+ await featurePage.setViewport({width:1440,height:900});
+ featurePage.on('pageerror',e=>errors.push(e.message));
+ featurePage.on('dialog',dialog=>dialog.accept());
+ await featurePage.goto(`http://127.0.0.1:${port}/`,{waitUntil:'networkidle0'});
+ const scenario={xtemplate:1,id:'test.multidrag.pen.picker',name:'Multi-drag and Pen alignment',
+  params:{coverColor:{type:'color',default:'#335577',label:'Cover color'}},items:[
+   {type:'rect',name:'Alpha',x:'10mm',y:'10mm',w:'20mm',h:'15mm',stroke:'ink'},
+   {type:'group',name:'Group',x:'30mm',y:'25mm',w:'100mm',h:'90mm',children:[
+    {type:'rect',name:'Inside',x:'5mm',y:'5mm',w:'15mm',h:'10mm',stroke:'ink'}]},
+   {type:'rect',name:'Beta',x:'95mm',y:'10mm',w:'20mm',h:'15mm',stroke:'ink'},
+   {type:'rect',name:'Gamma',x:'135mm',y:'10mm',w:'20mm',h:'15mm',stroke:'ink'},
+  ]};
+ await featurePage.$eval('#fileInput',(input,raw)=>{
+  const dt=new DataTransfer();dt.items.add(new File([raw],'multi-pen.xtemplate',{type:'application/json'}));
+  input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(scenario));
+ await featurePage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Multi-drag and Pen alignment');
+ const readDoc=()=>featurePage.$eval('#jsonEditor',el=>JSON.parse(el.value));
+ const dragTree=async(source,target,placement)=>featurePage.evaluate(([source,target,placement])=>{
+  const tree=document.querySelector('#tree'),dt=new DataTransfer();
+  const node=tree.querySelector('.tree-item[data-path="'+source+'"]');
+  const drop=target==='__page__'?tree.querySelector('.tree-page'):
+   tree.querySelector('.tree-item[data-path="'+target+'"]');
+  if(!node||!drop)throw new Error('Missing tree item for drag');
+  const start=new DragEvent('dragstart',{bubbles:true,cancelable:true,dataTransfer:dt});node.dispatchEvent(start);
+  const rect=drop.getBoundingClientRect();
+  const clientY=placement==='inside'?rect.top+rect.height*.5:placement==='before'?rect.top+1:rect.bottom-1;
+  drop.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:dt,clientY}));
+  drop.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:dt,clientY}));
+  node.dispatchEvent(new DragEvent('dragend',{bubbles:true,cancelable:true,dataTransfer:dt}));
+ },[source,target,placement]);
+ await featurePage.click('.tree-item[data-path="items.2"]');
+ await featurePage.keyboard.down('Control');await featurePage.click('.tree-item[data-path="items.0"]');await featurePage.keyboard.up('Control');
+ assert.equal(await featurePage.$$('.tree-item.active[data-path]').then(x=>x.length),2);
+ const alphaBefore=await featurePage.$eval('#page-artwork g[data-path="items.0"] .svg-hitbox',el=>{
+  const r=el.getBoundingClientRect();return{x:r.x,y:r.y};
+ });
+ await dragTree('items.2','items.1','inside');
+ const alphaAfter=await featurePage.$eval('#page-artwork g[data-path="items.0.children.1"] .svg-hitbox',el=>{
+  const r=el.getBoundingClientRect();return{x:r.x,y:r.y};
+ });
+ assert(Math.hypot(alphaAfter.x-alphaBefore.x,alphaAfter.y-alphaBefore.y)<1.5,
+  'moving selected layers into a nested group preserves their visual coordinates');
+ let rearranged=await readDoc();
+ assert.deepEqual(rearranged.items.map(n=>n.name),['Group','Gamma']);
+ assert.deepEqual(rearranged.items[0].children.map(n=>n.name),['Inside','Alpha','Beta'],
+  'Ctrl-click order must not reverse original document order');
+ assert.equal(await featurePage.$$('.tree-item.active[data-path]').then(x=>x.length),2,
+  'dragging a group retains both selected layers');
+ await dragTree('items.0.children.1','__page__','root');
+ rearranged=await readDoc();
+ assert.deepEqual(rearranged.items.map(n=>n.name),['Group','Gamma','Alpha','Beta'],
+  'Page root drop moves the whole selection atomically');
+ assert.deepEqual(rearranged.items[0].children.map(n=>n.name),['Inside']);
+ await featurePage.keyboard.down('Control');await featurePage.keyboard.press('z');await featurePage.keyboard.up('Control');
+ rearranged=await readDoc();
+ assert.deepEqual(rearranged.items[0].children.map(n=>n.name),['Inside','Alpha','Beta'],
+  'multi-node drop is a single undo operation');
+ // Reimport for predictable Pen creation and picker editing.
+ const linesDoc={xtemplate:1,id:'test.line.axis',name:'Pen guide scenario',
+  params:{coverColor:{type:'color',default:'#335577'}},items:[]};
+ await featurePage.$eval('#fileInput',(input,raw)=>{
+  const dt=new DataTransfer();dt.items.add(new File([raw],'pen-axis.xtemplate',{type:'application/json'}));
+  input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(linesDoc));
+ await featurePage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Pen guide scenario');
+ await featurePage.click('.canvas-tool[data-tool="pen"]');
+ await featurePage.select('#penMode','line');
+ const screen=async(x,y)=>featurePage.evaluate(([x,y])=>{
+  const page=document.querySelector('#paper'),p=page.createSVGPoint();p.x=x;p.y=y;
+  const result=p.matrixTransform(page.getScreenCTM());return{x:result.x,y:result.y};
+ },[x,y]);
+ let p=await screen(30,75),q=await screen(125,76.4);
+ await featurePage.mouse.click(p.x,p.y);
+ await featurePage.mouse.move(q.x,q.y,{steps:5});
+ const horizontal=await featurePage.$eval('#paper',paper=>({
+  guides:[...paper.querySelectorAll('.smart-guide')].map(x=>({x1:x.getAttribute('x1'),x2:x.getAttribute('x2'),y1:x.getAttribute('y1'),y2:x.getAttribute('y2')})),
+  line:paper.querySelector('#pen-preview polyline')?.getAttribute('points')
+ }));
+ assert(horizontal.guides.some(g=>g.y1===g.y2&&g.x1!==g.x2),'Pen must show a horizontal guide');
+ const hoverEnd=horizontal.line?.split(' ').at(-1).split(',').map(Number)||[];
+ assert(Math.abs(hoverEnd[0]-125)<.01&&Math.abs(hoverEnd[1]-75)<.01,
+  'hover preview must show snapped horizontal Line');
+ await featurePage.mouse.click(q.x,q.y);
+ let line=(await readDoc()).items[0];
+ assert.equal(line.type,'line');assert.equal(line.y1,line.y2,'native XNotes line has identical Y when horizontal');
+ await featurePage.click('.canvas-tool[data-tool="pen"]');
+ await featurePage.select('#penMode','line');
+ p=await screen(100,112);q=await screen(101.3,165);
+ await featurePage.mouse.click(p.x,p.y);await featurePage.mouse.move(q.x,q.y,{steps:5});
+ assert.equal(await featurePage.$$('#paper .smart-guide').then(x=>x.length)>0,true);
+ await featurePage.mouse.click(q.x,q.y);
+ line=(await readDoc()).items[1];
+ assert.equal(line.x1,line.x2,'native XNotes line has identical X when vertical');
+ await featurePage.$eval('#magneticGuidesToggle',el=>{el.checked=false;el.dispatchEvent(new Event('change',{bubbles:true}));});
+ await featurePage.click('.canvas-tool[data-tool="pen"]');await featurePage.select('#penMode','line');
+ p=await screen(48,205);q=await screen(108,206.4);
+ await featurePage.mouse.click(p.x,p.y);await featurePage.mouse.move(q.x,q.y,{steps:5});
+ assert.equal(await featurePage.$$('#paper .smart-guide').then(x=>x.length),0,
+  'disabling magnetic guides removes Pen line alignment feedback');
+ await featurePage.mouse.click(q.x,q.y);
+ line=(await readDoc()).items[2];
+ assert(Math.abs(parseFloat(line.y2)-parseFloat(line.y1))>1,
+  'disabled snapping must not force horizontal native line coordinates');
+ // Edit an already-created variable, and separately adjust its preview color.
+ await featurePage.click('[data-inspector="params"]');
+ await featurePage.$eval('.param-card',el=>el.open=true);
+ const colorPicker='.param-card .variable-edit-color-picker';
+ assert.equal(await featurePage.$eval(colorPicker,el=>el.value),'#335577');
+ await featurePage.$eval(colorPicker,el=>{el.value='#ba42d1';el.dispatchEvent(new Event('input',{bubbles:true}));
+  el.dispatchEvent(new Event('change',{bubbles:true}));});
+ assert.equal((await readDoc()).params.coverColor.default,'#ba42d1','picker saves existing variable color');
+ await featurePage.$eval('.param-card',el=>el.open=true);
+ const defaultHex=await featurePage.$eval('.param-card .variable-edit-color-field input[type=text]',el=>el.value);
+ assert.equal(defaultHex,'#ba42d1');
+ const previewPicker='.param-card .variable-preview-color-picker';
+ assert.equal(await featurePage.$eval(previewPicker,el=>el.value),'#ba42d1');
+ await featurePage.$eval(previewPicker,el=>{el.value='#009966';el.dispatchEvent(new Event('input',{bubbles:true}));});
+ assert.equal((await readDoc()).params.coverColor.default,'#ba42d1','preview picker does not overwrite saved default');
+ assert.equal(await featurePage.$eval('.param-card .param-color input[type=text]',el=>el.value),'#009966');
+ await featurePage.close();
+ }
  await compatibilityPage.close();
  assert.deepEqual(errors,[],'no errors for sparse multi-edit or repeated snapping');
  console.log('PASS: sparse property compatibility, repeated geometry guides and Settings toggle');

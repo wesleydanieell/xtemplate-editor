@@ -1010,3 +1010,12 @@
 /* Rendered artwork is clipped, editor transform controls are not. */
 #editor-selection-overlay{overflow:visible}
 #editor-selection-overlay .selection-control-layer{pointer-events:visiblePainted}
+
+/* Keep the selected group visually coherent while dragging one selected row. */
+#tree:has(.tree-dragging) .tree-item.active{box-shadow:inset 2px 0 #82a5ed}
+
+/* Color variables remain editable using precise HEX text or an inline picker. */
+.variable-edit-color-field{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.variable-edit-color-field>input[type=text]{flex:1;min-width:110px}
+.variable-edit-color-picker,.variable-preview-color-picker{width:38px;height:29px;padding:3px;border:1px solid var(--ui-border,#556071);border-radius:6px;background:transparent;cursor:pointer;flex-shrink:0}
+.param-color .variable-preview-color-picker{width:34px;height:28px}

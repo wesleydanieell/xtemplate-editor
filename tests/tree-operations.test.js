@@ -91,3 +91,40 @@ test("Alt arrows respect bounds and ignore selections across different parents",
   assert.deepEqual(nudgeSiblingNodes(doc,[["items",2]],"down"),[]);
   assert.equal(nudgeSiblingNodes(doc,[["items",0],["items",1,"children",0]],"up"),null);
 });
+
+import { moveNodes } from '../src/core/tree-operations.js';
+test('multi-drag respects document order rather than Ctrl-click selection order',()=>{
+ const doc={items:['A','B','C','D','E'].map(name=>({type:'rect',name}))};
+ const result=moveNodes(doc,[['items',3],['items',1]],['items',4],'after');
+ assert.equal(result.count,2);
+ assert.deepEqual(doc.items.map(n=>n.name),['A','C','E','B','D']);
+ assert.deepEqual(result.paths,[['items',3],['items',4]]);
+});
+test('multi-drag moves nodes across parents and into page root atomically',()=>{
+ const doc={items:[{type:'group',name:'L',children:[{type:'rect',name:'A'},{type:'rect',name:'B'}]},
+  {type:'group',name:'R',children:[{type:'ellipse',name:'C'}]}, {type:'rect',name:'D'}]};
+ const selected=[['items',0,'children',1],['items',2]];
+ const moved=moveNodes(doc,selected,['items',1],'inside');
+ assert.deepEqual(doc.items[1].children.map(n=>n.name),['C','B','D']);
+ assert.deepEqual(moved.paths,[['items',1,'children',1],['items',1,'children',2]]);
+ const returned=moveNodes(doc,moved.paths,null,'root');
+ assert.deepEqual(doc.items.map(n=>n.name),['L','R','B','D']);
+ assert.deepEqual(returned.paths,[['items',2],['items',3]]);
+});
+test('selected ancestor absorbs descendants, rejects cyclic and in-selection drops',()=>{
+ const doc={items:[{type:'group',name:'G',children:[{type:'rect',name:'A'}]}, {type:'rect',name:'B'}]};
+ const snapshot=structuredClone(doc);
+ assert.equal(moveNodes(doc,[['items',0],['items',0,'children',0]],['items',0,'children',0],'after'),null);
+ assert.equal(moveNodes(doc,[['items',0],['items',1]],['items',0],'after'),null);
+ assert.equal(moveNodes(doc,[['items',1]],['items',0,'children',0],'inside'),null);
+ assert.deepEqual(doc,snapshot);
+ const allowed=moveNodes(doc,[['items',0],['items',0,'children',0]],null,'root');
+ assert.equal(allowed.count,1);
+ assert.equal(doc.items.at(-1).name,'G');
+});
+test('multi-drag before target with same-list removals uses target identity',()=>{
+ const doc={items:['A','B','C','D','E','F'].map(name=>({type:'rect',name}))};
+ const result=moveNodes(doc,[['items',5],['items',1]],['items',3],'before');
+ assert.deepEqual(doc.items.map(n=>n.name),['A','C','B','F','D','E']);
+ assert.deepEqual(result.paths,[['items',2],['items',3]]);
+});

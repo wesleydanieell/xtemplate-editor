@@ -108,6 +108,53 @@ export function findNodePath(root, target) {
   return visit(root.items, ["items"]);
 }
 
+/** Atomically drag multiple selected nodes, optionally from different parents.
+ * Items retain their original document (not click) order. A selected parent
+ * subsumes its children; dropping onto any selected subtree is invalid.
+ * Preflight all destinations before removal so invalid operations are no-ops.
+ */
+export function moveNodes(root, sourcePaths, targetPath = null, placement = 'after') {
+  if(!['before','after','inside','root'].includes(placement))return null;
+  const paths=normalizePaths(sourcePaths);
+  if(!paths.length||paths.some(path=>path[0]!=='items'))return null;
+  const entries=paths.map(path=>({path,node:getAtPath(root,path),array:getAtPath(root,path.slice(0,-1)),index:path.at(-1)}));
+  if(entries.some(({node,array,index})=>!node||!Array.isArray(array)||!Number.isInteger(index)||array[index]!==node))return null;
+  const moved=new Set(entries.map(item=>item.node));
+  const target=placement==='root'?null:getAtPath(root,targetPath);
+  if(placement!=='root'){
+   if(!target||moved.has(target)||!Array.isArray(targetPath)||targetPath[0]!=='items')return null;
+   if(placement==='inside'&&!['group','repeat'].includes(target.type))return null;
+   if(paths.some(path=>targetPath.length>path.length&&path.every((part,i)=>part===targetPath[i])))return null;
+  }
+  const destination=placement==='root'?root.items:placement==='inside'?
+   (target.children||[]):getAtPath(root,targetPath.slice(0,-1));
+  if(!Array.isArray(destination))return null;
+  // Sort by document tree traversal to maintain a predictable sequence even
+  // when selectedPaths is ordered by Ctrl-clicks rather than source order.
+  const inDocumentOrder=[];
+  const visit=(nodes)=>{for(const node of nodes||[]){if(moved.has(node))inDocumentOrder.push(node);
+   if(['group','repeat'].includes(node?.type))visit(node.children);}};
+  visit(root.items);
+  if(inDocumentOrder.length!==entries.length)return null;
+  // Keep list indices stable while removing multiple siblings in one atomic step.
+  const groups=new Map();
+  for(const item of entries){if(!groups.has(item.array))groups.set(item.array,[]);groups.get(item.array).push(item.index);}
+  for(const [array,indices] of groups)for(const index of indices.sort((a,b)=>b-a))array.splice(index,1);
+  let insertArray,position;
+  if(placement==='root'){insertArray=root.items;position=insertArray.length;}
+  else if(placement==='inside'){insertArray=target.children||(target.children=[]);position=insertArray.length;}
+  else{
+   // Destination target is guaranteed not removed; use its identity rather
+   // than a stale path after siblings have shifted.
+   const current=findNodePath(root,target);
+   insertArray=getAtPath(root,current.slice(0,-1));
+   position=current.at(-1)+(placement==='after'?1:0);
+  }
+  insertArray.splice(position,0,...inDocumentOrder);
+  const resultPaths=inDocumentOrder.map(node=>findNodePath(root,node));
+  return {paths:resultPaths,path:resultPaths.at(-1),nodes:inDocumentOrder,count:inDocumentOrder.length};
+}
+
 /** Move a set of sibling layers exactly one slot, preserving their relative order. */
 export function nudgeSiblingNodes(root, paths, direction) {
   if (direction !== "up" && direction !== "down") return null;
