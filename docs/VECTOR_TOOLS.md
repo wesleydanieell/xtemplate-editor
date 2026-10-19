@@ -43,6 +43,26 @@ Nested `group` coordinates are evaluated using the parent container. Editing a p
 `repeat` changes the *shared source node*, so all repeated copies change, not only the selected copy.
 Currently the first repeated instance provides the coordinate context for expression baking.
 
+## Drawing outside the page (pasteboard)
+
+Pen points and the selected Polygon/Polyline/SVG Path vertex handles can now be placed
+outside the A4/A5/Letter paper boundary, using **negative coordinates** or positions
+greater than the page width/height. Click on the dark pasteboard next to the sheet,
+then continue the curve across the page. Panning and zoom preserve the correct
+coordinate conversions. The page outline marks the actual paper edges.
+
+The canvas footer offers an **Outside visible / Page preview** toggle. The first
+mode exposes the surrounding pasteboard and allows drawing there; the second
+clips the preview to paper, matching the Android template's visible boundaries.
+The toggle changes only the Studio display, not the saved `.xtemplate`.
+
+The **outside geometry is editor-only visibility**, not a new template feature:
+the XNotes template evaluator clips lines, polygon fills and paths to the paper.
+Off-page control points can shape Bézier curves reaching onto a cover, while
+coordinates entirely outside the page will not appear in the Android render.
+No extra JSON keys, expanded paper sizes or unsupported SVG transforms are
+introduced. The Studio must not clip or silently discard these authored points.
+
 ## Mirror / Flip Geometry
 
 The **Element** inspector exposes **Flip Horizontal** and **Flip Vertical** for native

@@ -903,6 +903,62 @@ try{
  assert.equal((await compatibilityPage.$$('g[data-path="'+flippedRepeatPath+'"] > polyline')).length,2,'repeated shapes share the new mirrored node');
  assert.equal(afterRepeat.type,'polyline');
  assert.deepEqual(Object.keys(afterRepeat).sort(),Object.keys(beforeRepeat).sort(),'mirroring must not invent unsupported XNotes keys');
+ // Drawing and editing on the pasteboard: negative and beyond-right-edge
+ // native coordinates must survive export, without extending the XNotes paper.
+ const offPageDoc={xtemplate:1,id:'test.pen.off.page',name:'Outside-page points',items:[]};
+ await compatibilityPage.$eval('#fileInput',(input,raw)=>{
+  const dt=new DataTransfer();dt.items.add(new File([raw],'offpage.xtemplate',{type:'application/json'}));
+  input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(offPageDoc));
+ await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Outside-page points');
+ assert.equal(await compatibilityPage.$eval('#paper',el=>getComputedStyle(el).overflow),'visible',
+  'pasteboard geometry should be visible outside the SVG page');
+ await compatibilityPage.click('#togglePasteboard');
+ assert.equal(await compatibilityPage.$eval('#paper',el=>getComputedStyle(el).overflow),'hidden',
+  'page preview should clip nodes to the paper boundaries');
+ await compatibilityPage.click('#togglePasteboard');
+ assert.equal(await compatibilityPage.$eval('#paper',el=>getComputedStyle(el).overflow),'visible',
+  'returning to the pasteboard should reveal outside handles again');
+ await usePen('polygon');
+ const outsideFirst=await screenPos(230,90);
+ const outsideLeft=await screenPos(-12,170);
+ const paperRect=await compatibilityPage.$eval('#paper',el=>el.getBoundingClientRect().toJSON());
+ assert(outsideFirst.x>paperRect.right,'test must click beyond actual paper edge');
+ assert(outsideLeft.x<paperRect.left,'test must click left of actual paper edge');
+ await compatibilityPage.mouse.click(outsideFirst.x,outsideFirst.y);
+ await clickDocument(175,110);
+ await compatibilityPage.mouse.click(outsideLeft.x,outsideLeft.y);
+ await compatibilityPage.keyboard.press('Enter');
+ const outsidePolygon=(await getPenItems())[0];
+ assert.equal(outsidePolygon.type,'polygon');
+ assert.deepEqual(outsidePolygon.points,[['230mm','90mm'],['175mm','110mm'],['-12mm','170mm']],
+  'outside clicks must become native XNotes coordinates, including negatives');
+ assert.equal(await compatibilityPage.$eval('#paper',el=>el.getAttribute('viewBox')),'0 0 210 297',
+  'allowing outside points must not expand the exported page dimensions');
+ const rightVertex=await compatibilityPage.$eval('#vector-overlay [data-vector-vertex="0"]',el=>{
+  const bounds=el.querySelector('circle').getBoundingClientRect();return{x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};
+ });
+ const rightTarget=await compatibilityPage.evaluate(([x,y])=>document.elementFromPoint(x,y)?.closest('[data-vector-vertex]')?.dataset.vectorVertex,[rightVertex.x,rightVertex.y]);
+ assert.equal(rightTarget,'0','outside-page anchor must be clickable in the pasteboard');
+ await compatibilityPage.mouse.move(rightVertex.x,rightVertex.y);
+ await compatibilityPage.mouse.down();
+ await compatibilityPage.mouse.move(rightVertex.x+24,rightVertex.y+12,{steps:7});
+ await compatibilityPage.mouse.up();
+ const movedOutside=(await getPenItems())[0];
+ assert.notEqual(movedOutside.points[0][0],'230mm','dragging an outside vertex must persist geometry');
+ assert.deepEqual(movedOutside.points[2],['-12mm','170mm'],'editing must preserve other off-page coordinates');
+ await compatibilityPage.keyboard.down('Control');await compatibilityPage.keyboard.press('z');await compatibilityPage.keyboard.up('Control');
+ assert.deepEqual((await getPenItems())[0].points,outsidePolygon.points,'undo restores off-page point position');
+ await usePen('path');
+ await compatibilityPage.mouse.click((await screenPos(-14,115)).x,(await screenPos(-14,115)).y);
+ await clickDocument(60,85);await compatibilityPage.mouse.click((await screenPos(233,140)).x,(await screenPos(233,140)).y);
+ await compatibilityPage.keyboard.press('Enter');
+ const outsidePath=(await getPenItems()).at(-1);
+ assert.equal(outsidePath.type,'path');
+ assert(Number.parseFloat(outsidePath.x)<0,'path geometry extends beyond the left paper edge');
+ assert(Number.parseFloat(outsidePath.w)>210,'path geometry can extend beyond both paper edges');
+ assert.deepEqual(Object.keys(outsidePath).sort(),['d','fill','h','stroke','strokeWidth','type','viewBox','w','x','y'].sort(),
+  'no unsupported pasteboard properties are exported');
  await compatibilityPage.close();
  assert.deepEqual(errors,[],'no errors for sparse multi-edit or repeated snapping');
  console.log('PASS: sparse property compatibility, repeated geometry guides and Settings toggle');

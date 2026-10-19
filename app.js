@@ -50,6 +50,7 @@ const repeatFrameBounds=new Map();
 function unionRepeatBounds(a,b){if(!a)return{...b};return{x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.max(a.x+a.w,b.x+b.w)-Math.min(a.x,b.x),h:Math.max(a.y+a.h,b.y+b.h)-Math.min(a.y,b.y)};}
 
 
+let pasteboardVisible=true;
 let magneticGuidesEnabled=true;
 try{magneticGuidesEnabled=localStorage.getItem('xtemplate-magnetic-guides')!=='false';}catch{}
 
@@ -677,6 +678,7 @@ function previewVectorPoints(dragState,dx,dy){
 }
 function initializePreviewValues(){const previous=previewValues,next={};for(const [name,p] of Object.entries(doc.params||{})){const d=p.default;if(p.type==="color")next["$"+name]=previous["$"+name]||d||"#333333";else next[name]=previous[name]!==undefined?previous[name]:(typeof d==="number"?d:(mm(d,1) ?? (Number(d)||0)));}previewValues=next;}
 function renderCanvas(){renderInstanceCounts.clear();repeatFrameBounds.clear();paper.replaceChildren();paper.setAttribute("viewBox","0 0 "+pageSize[0]+" "+pageSize[1]);paper.appendChild(svg("rect",{x:0,y:0,width:pageSize[0],height:pageSize[1],fill:"#fffefa"}));const box={x:0,y:0,w:pageSize[0],h:pageSize[1],vars:{...previewValues,W:pageSize[0],H:pageSize[1],i:0,j:0}};(doc.items||[]).forEach((n,i)=>{const e=renderNode(n,["items",i],box);if(e)paper.appendChild(e);});
+paper.appendChild(svg('rect',{id:'page-edit-boundary',x:0,y:0,width:pageSize[0],height:pageSize[1],fill:'none',stroke:'#8599bc','stroke-width':.45,'stroke-dasharray':'2 1.5','pointer-events':'none'}));
 renderSmartGuideOverlay();renderVectorOverlay();renderHatchOverlay();renderPathOverlay();}
 function render(){renderCanvas();
 $("pageDimensions").textContent=pageSize[0]+" × "+pageSize[1]+" mm";if($("filePageSize"))$("filePageSize").value=$("paperSize").value;$("docName").textContent=doc.name||"Untitled";$("nodeStatus").textContent=countNodes(doc.items||[])+" nodes";if(document.activeElement!==$("metaName"))$("metaName").value=doc.name||"";if(document.activeElement!==$("metaId"))$("metaId").value=doc.id||"";if(document.activeElement!==$("metaDescription"))$("metaDescription").value=doc.description||"";if(document.activeElement!==$("metaAuthor"))$("metaAuthor").value=doc.author||"";if(document.activeElement!==$("metaLicense"))$("metaLicense").value=doc.license||"";if(document.activeElement!==$("metaVersion"))$("metaVersion").value=doc.version||"";if(document.activeElement!==$("metaTags"))$("metaTags").value=(doc.tags||[]).join(", ");renderTree();renderInspector();renderParams();renderAllColorChoices();refreshVariableSuggestions();renderQuickProperties();fitPaper();}
@@ -1356,12 +1358,8 @@ paper.addEventListener("pointermove",e=>{
   previewVectorPoints(dragState,d.dx,d.dy);renderSmartGuideOverlay();e.preventDefault();return;
  }
  if(curveState&&activeTool==='pen'){
-  const state=curveState,pt=pagePoint(e),last=state.points.at(-1);
-  if(state.pointerId===e.pointerId&&state.mode==='path'){
-   if(last){const dx=pt.x-last.x,dy=pt.y-last.y;
-    last.outHx=dx;last.outHy=dy;last.inHx=-dx;last.inHy=-dy;}
-  }else if(state.pointerId===null){state.hover=e.shiftKey&&last?snapPenAngle(last,pt):pt;}
-  renderPenPreview();e.stopImmediatePropagation();return;
+  updatePenFromPointer(e);
+  e.stopImmediatePropagation();return;
  }
  if(marqueeState&&marqueeState.pointerId===e.pointerId){marqueeState.current=pagePoint(e);const a=marqueeState.start,b=marqueeState.current,el=paper.querySelector("#marquee-selection");if(el){el.setAttribute("x",Math.min(a.x,b.x));el.setAttribute("y",Math.min(a.y,b.y));el.setAttribute("width",Math.abs(b.x-a.x));el.setAttribute("height",Math.abs(b.y-a.y));}return;}
  if(!drag||drag.pointerId!==e.pointerId)return;
@@ -2095,6 +2093,14 @@ document.addEventListener("pointerup",e=>{
 },true);
 // Alt + wheel zooms; Space + drag pans the paper itself, even when it fits the viewport.
 const canvas=$("canvasArea"),paperWrap=$("paperWrap");let spaceDown=false,pan=null,panOffset={x:0,y:0};
+$("togglePasteboard").addEventListener("click",()=>{
+ pasteboardVisible=!pasteboardVisible;
+ canvas.classList.toggle('preview-clipped',!pasteboardVisible);
+ const button=$("togglePasteboard");
+ button.textContent=pasteboardVisible?'Outside visible':'Page preview';
+ button.setAttribute('aria-pressed',String(pasteboardVisible));
+ button.title=pasteboardVisible?'Outside-page points are editable; XNotes clips artwork to paper':'XNotes-style page clipping preview. Click to return to pasteboard editing.';
+});
 function applyPan(){paperWrap.style.transform="translate("+panOffset.x+"px, "+panOffset.y+"px)";}
 window.addEventListener("keydown",e=>{
  if(e.code!=="Space"||e.repeat)return;
@@ -2119,7 +2125,7 @@ function updatePenPicker(){
  const picker=$("penModePicker");picker.classList.toggle("hidden",activeTool!=="pen");
  $("penMode").value=penMode;
  const descriptions={line:"Click two points. Shift constrains the direction to 45°.",polyline:"Click vertices; Enter or double-click finishes an open line.",polygon:"Click at least three vertices; click the first point or press Enter to close.",path:"Click for straight nodes, drag for Bézier handles. Enter or double-click finishes."};
- $("penModeHint").textContent=descriptions[penMode];
+ $("penModeHint").textContent=descriptions[penMode]+' Points can be placed outside the page. XNotes clips output at its edges.';
 }
 function setActiveTool(tool){
  if(tool==="line"||tool==="polygon"||tool==="curve"){penMode=tool==="curve"?"path":tool;tool="pen";}
@@ -2165,6 +2171,37 @@ function handlePenPointerDown(e){
  if(state.mode==='line'&&state.points.length===2){finishPenPath();return;}
  paper.setPointerCapture(e.pointerId);renderPenPreview();
 }
+function updatePenFromPointer(e){
+ const state=curveState;if(!state||activeTool!=='pen')return;
+ const pt=pagePoint(e),last=state.points.at(-1);
+ if(state.pointerId===e.pointerId&&state.mode==='path'){
+  if(last){const dx=pt.x-last.x,dy=pt.y-last.y;
+   last.outHx=dx;last.outHy=dy;last.inHx=-dx;last.inHy=-dy;}
+ }else if(state.pointerId===null){state.hover=e.shiftKey&&last?snapPenAngle(last,pt):pt;}
+ renderPenPreview();
+}
+/** The page is not the drawing boundary: the pasteboard around it can host
+ * XNotes coordinates <0 or >W/H, though Android clips output to paper. */
+function isPasteboardPointer(e){
+ if(!pasteboardVisible)return false;
+ const target=e.target;
+ return target instanceof Element&&!target.closest('#paper,.canvas-tools,.pen-mode-picker,.canvas-footer,.canvas-hint,button,input,select,textarea');
+}
+canvas.addEventListener('pointerdown',e=>{
+ if(activeTool!=='pen'||spaceDown||e.button!==0||!isPasteboardPointer(e))return;
+ e.preventDefault();e.stopPropagation();handlePenPointerDown(e);
+});
+canvas.addEventListener('pointermove',e=>{
+ if(activeTool!=='pen'||!curveState||!isPasteboardPointer(e))return;
+ updatePenFromPointer(e);
+});
+canvas.addEventListener('dblclick',e=>{
+ if(activeTool!=='pen'||!curveState||!isPasteboardPointer(e))return;
+ e.preventDefault();e.stopPropagation();
+ const pts=curveState.points;
+ if(pts.length>2&&Math.hypot(pts.at(-1).x-pts.at(-2).x,pts.at(-1).y-pts.at(-2).y)<1.5)pts.pop();
+ finishPenPath();
+});
 function renderPenPreview(){
  let layer=paper.querySelector('#pen-preview');if(!curveState){layer?.remove();return;}
  if(!layer){layer=svg('g',{id:'pen-preview','pointer-events':'none'});paper.appendChild(layer);}layer.replaceChildren();
