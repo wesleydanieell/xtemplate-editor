@@ -23,6 +23,20 @@ const server=createServer(async(req,res)=>{
 });
 server.listen(0,'127.0.0.1');await once(server,'listening');
 const port=server.address().port;
+// Legacy interaction tests use a known demo fixture, while the real Studio
+// startup is now intentionally empty (no elements or preset variables).
+const legacyFixture={
+ xtemplate:1,id:'xtemplate.studio.ruled',name:'Ruled paper',description:'Horizontal lines for writing.',license:'MIT',tags:['lines','writing'],
+ params:{spacing:{type:'length',default:'8mm',min:'4mm',max:'14mm',label:'Line spacing',role:'spacing'}},
+ items:[{type:'group',inset:'12mm',children:[{type:'repeat',axis:'y',period:'spacing',fit:'space',children:[{type:'hline',y:'100%',stroke:'#9eb8df',strokeWidth:'0.2mm'}]}]}]
+};
+async function loadLegacyFixture(page){
+ await page.$eval('#fileInput',(input,raw)=>{
+  const dt=new DataTransfer();dt.items.add(new File([raw],'smoke-ruled.xtemplate',{type:'application/json'}));
+  input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(legacyFixture));
+ await page.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Ruled paper');
+}
 let browser;
 try{
  const candidates=[process.env.XTEMPLATE_BROWSER_PATH, '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/brave', '/usr/bin/brave-browser', '/opt/google/chrome/chrome', ...['chromium','chromium_headless_shell'].flatMap(kind=>{const base=resolve(homedir(),'.cache/ms-playwright'); try{return (readdirSync(base)).filter(name=>name.startsWith(kind+'-')).map(name=>resolve(base,name,kind==='chromium'?'chrome-linux64/chrome':'chrome-linux/headless_shell'));}catch{return [];} })];
@@ -33,6 +47,40 @@ try{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  page.on('console',message=>{if(message.type()==='error')errors.push(message.text())});
  await page.goto(`http://127.0.0.1:${port}/`,{waitUntil:'networkidle0'});
+ const initial=JSON.parse(await page.$eval('#jsonEditor',el=>el.value));
+ assert.equal(initial.xtemplate,1);
+ assert.deepEqual(initial.items,[],'initial startup should have no example elements');
+ assert.deepEqual(initial.params,{},'initial startup should have no example variables');
+ assert.equal(await page.$eval('#nodeStatus',el=>el.textContent),'0 nodes');
+ assert.equal(await page.$$('#paramsEditor .param-card').then(a=>a.length),0);
+ // New template must not silently insert variables, sample shapes, or a license.
+ const blankPage=await browser.newPage();
+ await blankPage.setViewport({width:1440,height:900});
+ blankPage.on('pageerror',e=>errors.push(e.message));
+ await blankPage.goto(`http://127.0.0.1:${port}/`,{waitUntil:'networkidle0'});
+ await blankPage.click('[data-menu="fileMenu"]');
+ await blankPage.click('#newBtn');
+ assert.match(await blankPage.$eval('#newTemplateModal .modal-description',el=>el.textContent),/no elements or predefined variables/);
+ assert.equal(await blankPage.$eval('#newTemplateLicense',el=>el.value),'');
+ await blankPage.$eval('#newTemplateName',el=>{el.value='Empty cover';});
+ await blankPage.click('#newTemplateForm button[type="submit"]');
+ const fresh=JSON.parse(await blankPage.$eval('#jsonEditor',el=>el.value));
+ assert.deepEqual(fresh.items,[],'new template should have no sample layers');
+ assert.deepEqual(fresh.params,{},'new template should have no preset variables');
+ assert.equal(fresh.name,'Empty cover');
+ assert.equal(Object.hasOwn(fresh,'license'),false,'optional blank license must not be exported');
+ assert.equal(await blankPage.$eval('#nodeStatus',el=>el.textContent),'0 nodes');
+ assert.equal(await blankPage.$$('#paramsEditor .param-card').then(a=>a.length),0);
+ await blankPage.click('[data-menu-action="export"]');
+ assert.match(await blankPage.$eval('#exportSummary',el=>el.textContent),/0 elements/);
+ assert.match(await blankPage.$eval('#exportSummary',el=>el.textContent),/Variables0/);
+ await blankPage.click('#exportTemplateModal [data-close-modal="exportTemplateModal"]');
+ // Examples remain available through the separate picker on demand.
+ blankPage.once('dialog',d=>d.accept());
+ await blankPage.select('#topExample','ruled.xtemplate');
+ await blankPage.waitForFunction(()=>JSON.parse(document.querySelector('#jsonEditor').value).items.length>0);
+ await blankPage.close();
+ await loadLegacyFixture(page);
  const clickMenuAction=async action=>{
   await page.click('[data-menu="insertMenu"]');
   await page.click(`#insertMenu [data-menu-action="${action}"]`);
@@ -81,6 +129,7 @@ try{
  await guidesPage.setViewport({width:1440,height:900});
  guidesPage.on('pageerror',error=>errors.push(error.message));
  await guidesPage.goto(`http://127.0.0.1:${port}/`,{waitUntil:'networkidle0'});
+ await loadLegacyFixture(guidesPage);
  const insert=async type=>{
   await guidesPage.click('[data-menu="insertMenu"]');
   await guidesPage.click(`#insertMenu [data-menu-action="insert-${type}"]`);
@@ -113,6 +162,7 @@ try{
  await workspacePage.setViewport({width:1440,height:900});
  workspacePage.on('pageerror',error=>errors.push(error.message));
  await workspacePage.goto(`http://127.0.0.1:${port}/`,{waitUntil:'networkidle0'});
+ await loadLegacyFixture(workspacePage);
  const themeColors={};
  for(const theme of ['dusk','graphite','midnight']){
   await workspacePage.$eval('#themeSelect',(el,value)=>{
@@ -141,6 +191,7 @@ try{
  assert.equal(await workspacePage.$eval('html',el=>el.dataset.theme),'midnight');
  await workspacePage.reload({waitUntil:'networkidle0'});
  assert.equal(await workspacePage.$eval('html',el=>el.dataset.theme),'midnight','theme must persist');
+ await loadLegacyFixture(workspacePage);
  // Clicking Page must inspect its metadata in Element without a modal.
  await workspacePage.click('.tree-page');
  assert.equal(await workspacePage.$eval('#filePropertiesModal',el=>el.classList.contains('hidden')),true);
