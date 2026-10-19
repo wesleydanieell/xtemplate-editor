@@ -21,6 +21,7 @@ import { PEN_MODES,createPenNode,snapPenAngle,penIncoming,penOutgoing,penPathDat
 import { FLIPPABLE_TYPES, flipNativeNode, flipNeedsExpressionConfirmation } from "./src/features/vector/flip-geometry.js";
 import { translate as matrixTranslate, scale as matrixScale, rotate as matrixRotate, around as matrixAround, multiply as matrixMultiply, toSVG as matrixSVG } from "./src/features/affine-transform.js";
 import { resizePreviewTransform, rotationPreviewTransform, resizedBounds } from "./src/features/resize-preview.js";
+import { resizeGestureBounds } from "./src/features/constrained-resize.js";
 import { deleteSiblingNodes, duplicateSiblingNodes, getSiblingSelection as getTreeSiblingSelection, groupSiblingNodes, normalizePaths, sameParent, moveNode, nudgeSiblingNodes } from "./src/core/tree-operations.js";
 import { arrangeBounds } from "./src/features/arrange-selection.js";
 import { sharedEditableProperties, editablePropertyValue } from "./src/core/common-properties.js";
@@ -194,7 +195,7 @@ function showVariableCompletion(input,filter=false){
   variablePopup.appendChild(button);
  }
  const rect=input.getBoundingClientRect(),viewportW=document.documentElement.clientWidth;
- const popupWidth=Math.min(340,Math.max(250,rect.width+80),viewportW-20);
+ const popupWidth=Math.min(278,Math.max(190,rect.width+14),viewportW-20);
  variablePopup.style.width=popupWidth+"px";
  variablePopup.style.left=Math.max(8,Math.min(rect.left,viewportW-popupWidth-8))+"px";
  variablePopup.style.top=Math.min(rect.bottom+5,window.innerHeight-30)+"px";
@@ -682,7 +683,28 @@ function previewVectorPoints(dragState,dx,dy){
  }
 }
 function initializePreviewValues(){const previous=previewValues,next={};for(const [name,p] of Object.entries(doc.params||{})){const d=p.default;if(p.type==="color")next["$"+name]=previous["$"+name]||d||"#333333";else next[name]=previous[name]!==undefined?previous[name]:(typeof d==="number"?d:(mm(d,1) ?? (Number(d)||0)));}previewValues=next;}
-function renderCanvas(){renderInstanceCounts.clear();repeatFrameBounds.clear();paper.replaceChildren();paper.setAttribute("viewBox","0 0 "+pageSize[0]+" "+pageSize[1]);paper.appendChild(svg("rect",{x:0,y:0,width:pageSize[0],height:pageSize[1],fill:"#fffefa"}));const box={x:0,y:0,w:pageSize[0],h:pageSize[1],vars:{...previewValues,W:pageSize[0],H:pageSize[1],i:0,j:0}};(doc.items||[]).forEach((n,i)=>{const e=renderNode(n,["items",i],box);if(e)paper.appendChild(e);});
+function renderCanvas(){renderInstanceCounts.clear();repeatFrameBounds.clear();paper.replaceChildren();paper.setAttribute("viewBox","0 0 "+pageSize[0]+" "+pageSize[1]);paper.appendChild(svg("rect",{x:0,y:0,width:pageSize[0],height:pageSize[1],fill:"#fffefa"}));
+// The artwork must *always* be clipped to the physical XNotes page, even in
+// pasteboard edit mode. The unmasked sibling overlays remain available for
+// off-page anchor manipulation and precise transforms.
+const mask=svg('clipPath',{id:'xstudio-page-artwork-clip',clipPathUnits:'userSpaceOnUse'});
+mask.appendChild(svg('rect',{x:0,y:0,width:pageSize[0],height:pageSize[1]}));
+const definitions=svg('defs');definitions.appendChild(mask);paper.appendChild(definitions);
+const artwork=svg('g',{id:'page-artwork','clip-path':'url(#xstudio-page-artwork-clip)'});
+paper.appendChild(artwork);
+const box={x:0,y:0,w:pageSize[0],h:pageSize[1],vars:{...previewValues,W:pageSize[0],H:pageSize[1],i:0,j:0}};(doc.items||[]).forEach((n,i)=>{const e=renderNode(n,["items",i],box);if(e)artwork.appendChild(e);});
+// Overlay for editor controls lives OUTSIDE the clipped artwork. Selected
+// off-page objects still expose their eight resize handles and selection box.
+// Only the rendered shapes remain inside the page clip path.
+const selectionOverlay=svg('g',{id:'editor-selection-overlay'});
+for(const node of artwork.querySelectorAll('g[data-path]')){
+ const handles=[...node.children].filter(child=>child.classList?.contains('svg-selection')||child.classList?.contains('transform-handle')||child.classList?.contains('rotation-stem'));
+ if(!handles.length)continue;
+ const layer=svg('g',{'data-path':node.dataset.path,'data-instance':node.dataset.instance||0,class:'selection-control-layer'});
+ for(const handle of handles)layer.appendChild(handle);
+ selectionOverlay.appendChild(layer);
+}
+paper.appendChild(selectionOverlay);
 paper.appendChild(svg('rect',{id:'page-edit-boundary',x:0,y:0,width:pageSize[0],height:pageSize[1],fill:'none',stroke:'#8599bc','stroke-width':.45,'stroke-dasharray':'2 1.5','pointer-events':'none'}));
 renderSmartGuideOverlay();renderVectorOverlay();renderHatchOverlay();renderPathOverlay();}
 function render(){renderCanvas();
@@ -1081,14 +1103,25 @@ function renderParams(){const root=$("paramsEditor");root.replaceChildren();cons
  typelab.appendChild(typeHint);grid.appendChild(typelab);field("Label",p.label||"", "label",true);const roleLabel=document.createElement("label");roleLabel.className="wide";roleLabel.append(document.createTextNode("Template role"));const roleSelect=document.createElement("select");[["","Default"],["spacing","Primary spacing"]].forEach(([value,label])=>{const option=document.createElement("option");option.value=value;option.textContent=label;roleSelect.appendChild(option);});roleSelect.value=p.role||"";const spacingOwner=Object.entries(doc.params||{}).find(([otherName,other])=>other.role==="spacing"&&otherName!==name);roleSelect.querySelector('option[value="spacing"]').disabled=p.type!=="length"||!!spacingOwner;if(p.type!=="length")roleSelect.value="";roleSelect.addEventListener("change",()=>commit(()=>{if(roleSelect.value)p.role=roleSelect.value;else delete p.role;}));roleLabel.appendChild(roleSelect);grid.appendChild(roleLabel);field("Default",p.default??"", "default",true,"text");if(p.type!=="color"){field("Minimum",p.min??"","min");field("Maximum",p.max??"","max");field("Step",p.step??"","step");}const live=document.createElement("label");live.className="wide";live.textContent=p.type==="length"?"Preview value (mm)":"Preview value";if(p.type==="color"){const row=document.createElement("span");row.className="param-color";const inp=document.createElement("input");inp.type="text";inp.value=previewValues["$"+name]||p.default||"#4f7cff";const val=document.createElement("code");val.textContent=inp.value;const choices=document.createElement("span");choices.className="color-swatch-row";COLOR_SWATCHES.forEach(color=>{const b=document.createElement("button");b.type="button";b.className="color-swatch";b.style.backgroundColor=color;b.title=color;b.setAttribute("aria-label","Use color "+color);b.addEventListener("click",()=>{inp.value=color;inp.dispatchEvent(new Event("input",{bubbles:true}));});choices.appendChild(b);});inp.addEventListener("input",()=>{if(/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(inp.value)){previewValues["$"+name]=inp.value;val.textContent=inp.value;renderCanvas();}else val.textContent="Invalid hex";});row.append(inp,val,choices);live.appendChild(row);}else{const inp=document.createElement("input");inp.type="number";inp.step=p.type==="integer"?"1":"any";inp.min=p.min!==undefined?String(p.type==="length"?(mm(p.min)??p.min):p.min):"";inp.max=p.max!==undefined?String(p.type==="length"?(mm(p.max)??p.max):p.max):"";inp.value=previewValues[name]??p.default??"";inp.addEventListener("change",()=>{let v=p.type==="length"?(mm(inp.value)??(Number(inp.value)||0)):Number(inp.value);const low=p.min===undefined?null:(p.type==="length"?(mm(p.min)??Number(p.min)):Number(p.min)),high=p.max===undefined?null:(p.type==="length"?(mm(p.max)??Number(p.max)):Number(p.max));if(Number.isFinite(low))v=Math.max(low,v);if(Number.isFinite(high))v=Math.min(high,v);if(p.type==="integer")v=Math.round(v);previewValues[name]=Number.isFinite(v)?v:0;renderCanvas();});live.appendChild(inp);}grid.appendChild(live);card.appendChild(grid);const usage=document.createElement("div");usage.className="param-usage";const uses=[];function scanUses(nodes,path="items"){(nodes||[]).forEach((node,index)=>{if(!node||typeof node!=="object")return;const nodePath=path+"["+index+"]";for(const prop of ["stroke","fill"]){if(p.type==="color"&&node[prop]===name)uses.push({type:node.type,prop,nodePath});}if(p.type!=="color"){for(const [prop,value] of Object.entries(node)){if(["children","type","stroke","fill","font","weight","align","baseline"].includes(prop)||typeof value!=="string")continue;const re=new RegExp("(^|[^A-Za-z0-9_])"+name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"([^A-Za-z0-9_]|$)");if(re.test(value))uses.push({type:node.type,prop,nodePath});}}if(Array.isArray(node.children))scanUses(node.children,nodePath+".children");});}scanUses(doc.items);const usageTitle=document.createElement("b");usageTitle.textContent=uses.length?"Where it is used":"Not linked yet";usage.appendChild(usageTitle);const usageText=document.createElement("p");usageText.textContent=uses.length?uses.slice(0,5).map(u=>u.type+" · "+u.prop+" · "+u.nodePath).join("\n")+(uses.length>5?"\n+ "+(uses.length-5)+" use(s)":""):(p.type==="color"?"To link it, select an element and choose this variable in the Stroke or Fill field.":"To link it, use the name "+name+" in an element measurement or expression, for example: "+name+" * 2.");usage.appendChild(usageText);card.appendChild(usage);root.appendChild(card);});}
 const paramCreateForm=$("paramCreateForm");
 function syncParamRoleOption(){const option=$("newParamRole").querySelector('option[value="spacing"]');if(!option)return;const name=$("newParamName").value.trim(),owner=Object.entries(doc.params||{}).some(([key,p])=>key!==name&&p.role==="spacing");option.disabled=$("newParamType").value!=="length"||owner;if(option.disabled&&$("newParamRole").value==="spacing")$("newParamRole").value="";}
-function resetParamForm(){paramCreateForm.reset();$("newParamName").value="";$("newParamLabel").value="";$("newParamType").value="length";$("newParamDefault").value=5;$("newParamMin").value="";$("newParamMax").value="";$("newParamDefault").type="number";$("newParamDefault").min="0";$("newParamDefault").step="any";["newParamMin","newParamMax"].forEach(id=>{const input=$(id);input.type="number";input.step="any";input.min="0";input.placeholder="mm";});$("newParamRole").value="";$("newParamError").classList.add("hidden");$("newParamLimits").classList.remove("hidden");renderColorChoices("newParamDefault","literal");$("newParamDefaultChoices").classList.add("hidden");syncParamRoleOption();}
-function updateParamFormType(){const type=$("newParamType").value,defaults={length:"5mm",color:"#4f7cff",number:"1",integer:"1"};$("newParamDefault").type=type==="color"?"text":(["number","integer","length"].includes(type)?"number":"text");$("newParamDefault").step=type==="integer"?"1":"any";$("newParamDefault").min=type==="length"?"0":"";$("newParamDefault").value=type==="length"?5:defaults[type];renderColorChoices("newParamDefault","literal");$("newParamDefaultChoices").classList.toggle("hidden",type!=="color");["newParamMin","newParamMax"].forEach(id=>{const input=$(id);input.type=type==="color"?"text":"number";input.step="any";input.min=type==="length"?"0":"";input.placeholder=type==="length"?"mm":"Opcional";});$("newParamLimits").classList.toggle("hidden",type==="color");syncParamRoleOption();}
+function resetParamForm(){paramCreateForm.reset();$("newParamName").value="";$("newParamLabel").value="";$("newParamType").value="length";$("newParamDefault").value=5;$("newParamMin").value="";$("newParamMax").value="";$("newParamDefault").type="number";$("newParamDefault").min="0";$("newParamDefault").step="any";["newParamMin","newParamMax"].forEach(id=>{const input=$(id);input.type="number";input.step="any";input.min="0";input.placeholder="mm";});$("newParamRole").value="";$("newParamError").classList.add("hidden");$("newParamLimits").classList.remove("hidden");renderColorChoices("newParamDefault","literal");$("newParamDefaultChoices").classList.add("hidden");$("newParamColorPicker").classList.add("hidden");$("newParamColorPicker").value="#4f7cff";syncParamRoleOption();}
+function updateParamFormType(){const type=$("newParamType").value,defaults={length:"5mm",color:"#4f7cff",number:"1",integer:"1"};$("newParamDefault").type=type==="color"?"text":(["number","integer","length"].includes(type)?"number":"text");$("newParamDefault").step=type==="integer"?"1":"any";$("newParamDefault").min=type==="length"?"0":"";$("newParamDefault").value=type==="length"?5:defaults[type];renderColorChoices("newParamDefault","literal");$("newParamDefaultChoices").classList.toggle("hidden",type!=="color");$("newParamColorPicker").classList.toggle("hidden",type!=="color");if(type==="color")$("newParamColorPicker").value="#4f7cff";["newParamMin","newParamMax"].forEach(id=>{const input=$(id);input.type=type==="color"?"text":"number";input.step="any";input.min=type==="length"?"0":"";input.placeholder=type==="length"?"mm":"Opcional";});$("newParamLimits").classList.toggle("hidden",type==="color");syncParamRoleOption();}
 $("addParam").addEventListener("click",()=>{resetParamForm();refreshNewVariableHint();$("newVariableModal").classList.remove("hidden");paramCreateForm.classList.remove("hidden");$("newParamName").focus();});
 $("cancelAddParam").addEventListener("click",()=>{paramCreateForm.classList.add("hidden");closeModal("newVariableModal");});
 function refreshNewVariableHint(){
  const hint=variableTypeHint($("newParamType").value);
  $("newParamTypeHint").textContent=hint?.[1]||"";
 }
+// Native browser color picker + exact hexadecimal entry, synchronized both
+// ways without changing the document until the variable is created.
+$("newParamColorPicker").addEventListener('input',e=>{
+ $("newParamDefault").value=e.target.value;
+});
+$("newParamDefault").addEventListener('input',e=>{
+ if($("newParamType").value!=='color')return;
+ let hex=e.target.value.trim();
+ if(/^#[0-9a-f]{3}$/i.test(hex))hex='#'+[...hex.slice(1)].map(c=>c+c).join('');
+ if(/^#[0-9a-f]{6}$/i.test(hex))$("newParamColorPicker").value=hex;
+});
 $("newParamType").addEventListener("change",refreshNewVariableHint);
 $("newParamType").addEventListener("change",updateParamFormType);
 paramCreateForm.addEventListener("submit",e=>{e.preventDefault();const name=$("newParamName").value.trim(),label=$("newParamLabel").value.trim(),type=$("newParamType").value,rawDefault=$("newParamDefault").value.trim(),rawMin=$("newParamMin").value.trim(),rawMax=$("newParamMax").value.trim(),error=$("newParamError");let message="";
@@ -1185,6 +1218,7 @@ function snapTargetsFor(excludedPaths=[]){
  // of individually visible alignment targets; custom shapes and hatch groups
  // also have proper painted bounds despite lacking explicit x/y/w/h keys.
  for(const element of paper.querySelectorAll('g[data-path]')){
+  if(element.closest('#editor-selection-overlay'))continue;
   const candidate=element.dataset.path;
   if(related(candidate))continue;
   const bounds=paintedBounds(element,paper);
@@ -1201,6 +1235,15 @@ function snappedResizeBounds(bounds,handle,excludedPaths=[],targets=null){
  if(!magneticGuidesEnabled)return{bounds,guides:{x:null,y:null},segments:{x:null,y:null}};
  const rect=paper.getBoundingClientRect(),tx=7*pageSize[0]/Math.max(1,rect.width),ty=7*pageSize[1]/Math.max(1,rect.height);
  return calculateResizeSnap(bounds,handle,targets||snapTargetsFor(excludedPaths),{w:pageSize[0],h:pageSize[1]},tx,ty);
+}
+function resizeForGesture(bounds,handle,dx,dy,shiftKey,paths,targets){
+ const rect=paper.getBoundingClientRect(),toleranceX=7*pageSize[0]/Math.max(1,rect.width),
+   toleranceY=7*pageSize[1]/Math.max(1,rect.height);
+ return resizeGestureBounds(bounds,handle,dx,dy,{
+  shiftKey,magnetic:magneticGuidesEnabled,
+  targets:targets||snapTargetsFor(paths),page:{w:pageSize[0],h:pageSize[1]},
+  toleranceX,toleranceY
+ });
 }
 function clearSmartGuides(){smartGuides={x:null,y:null};smartGuideSegments={x:null,y:null};}
 function renderSmartGuideOverlay(){
@@ -1316,7 +1359,7 @@ paper.addEventListener("pointerdown",e=>{
  const visibleBounds=paintedBounds(g,paper);
  if(isRepeatedPath(path))focusedRepeatInstance={key,instance:Number(g.dataset.instance)||0};
  else focusedRepeatInstance=null;
- if(e.ctrlKey||e.metaKey||e.shiftKey){selectFromTree(path,e);return;}
+ if((e.ctrlKey||e.metaKey||e.shiftKey)&&!handle){selectFromTree(path,e);return;}
  const multi=!handle&&selectedPaths.length>1&&selectedPaths.some(p=>nodeKey(p)===key);
  if(!multi)select(path);
  if(n.type==="repeat"&&handle!=="rotate")return;
@@ -1325,7 +1368,7 @@ paper.addEventListener("pointerdown",e=>{
  const items=(multi?selectedPaths.map(p=>p.slice()):[path.slice()]).map(p=>({path:p,origin:clone(getAt(p)),bounds:transformGeometry(getAt(p),p),parentBox:clone(parentBoxForPath(p)),repeated:isRepeatedPath(p)}));
  const repeatRect=n.type==="repeat"?g.querySelector(':scope > .repeat-selection'):null;
  const repeatBounds=repeatRect?{x:Number(repeatRect.getAttribute('x')),y:Number(repeatRect.getAttribute('y')),w:Number(repeatRect.getAttribute('width')),h:Number(repeatRect.getAttribute('height'))}:null;
- const bounds=repeatBounds||(multi?(unionBounds(items)||geometry):(handle&&n.type==="group"?geometry:(visibleBounds||geometry)));if(!bounds)return;
+ const bounds=repeatBounds||(multi?(unionBounds(items)||geometry):(handle&&!isRepeatedPath(path)?geometry:(visibleBounds||geometry)));if(!bounds)return;
  const point=pagePoint(e),snapTargets=snapTargetsFor(items.map(item=>item.path)),previewTransforms=captureDragTransforms(items.map(item=>item.path));
  drag={pointerId:e.pointerId,path,mode:handle?"transform":"move",handle,modelBounds:geometry,startX:e.clientX,startY:e.clientY,startPoint:point,parentBox:clone(parentBox),bounds,origin:clone(n),items,moved:false,repeated:isRepeatedPath(path),snapTargets,previewTransforms,lastDelta:{dx:0,dy:0},startAngle:Math.atan2(point.y-(bounds.y+bounds.h/2),point.x-(bounds.x+bounds.w/2))*180/Math.PI};
  try{paper.setPointerCapture(e.pointerId);}catch{}e.preventDefault();
@@ -1382,7 +1425,7 @@ paper.addEventListener("pointermove",e=>{
   // Group children use their own repeat period/count. Do not scale the painted SVG:
   // modify the *container box* and rebuild its layout instead, preserving cell spacing.
   const original=drag.modelBounds||drag.bounds;
-  const snap=snappedResizeBounds(resizedBounds(original,drag.handle,dx,dy),drag.handle,[drag.path],drag.snapTargets);
+  const snap=resizeForGesture(original,drag.handle,dx,dy,e.shiftKey,[drag.path],drag.snapTargets);
   const next=snap.bounds;smartGuides=snap.guides;smartGuideSegments=snap.segments;
   const node=getAt(drag.path),box=drag.parentBox,fmt=value=>Number(value.toFixed(3))+"mm";
   if(!node)return;
@@ -1409,11 +1452,15 @@ paper.addEventListener("pointermove",e=>{
   const angle=Math.atan2(point.y-(pivot.y+pivot.h/2),point.x-(pivot.x+pivot.w/2))*180/Math.PI;
   if(type==="text")n.rotate=Math.round(((Number(base.rotate)||0)+angle-drag.startAngle)/90)*90;
  }else{
-  let left=g.x,right=g.x+g.w,top=g.y,bottom=g.y+g.h,h=drag.handle;
-  if(h.includes("w"))left=Math.min(right-1,left+dx);if(h.includes("e"))right=Math.max(left+1,right+dx);if(h.includes("n"))top=Math.min(bottom-1,top+dy);if(h.includes("s"))bottom=Math.max(top+1,bottom+dy);
+  const h=drag.handle,resize=resizeForGesture(g,h,dx,dy,
+    e.shiftKey||['circle','dot'].includes(type),[drag.path],drag.snapTargets);
+  const {x:left,y:top,w:width,h:height}=resize.bounds,
+    right=left+width,bottom=top+height;
+  smartGuides=resize.guides;smartGuideSegments=resize.segments;
+  renderSmartGuideOverlay();
   if(type==="circle"||type==="dot"){
-   const size=Math.max(1,right-left,bottom-top),cx=h.includes("w")?g.x+g.w:g.x,cy=h.includes("n")?g.y+g.h:g.y,x0=h.includes("w")?cx-size:cx,y0=h.includes("n")?cy-size:cy;
-   n.r=fmt(size/2);n.cx=fmt(x0+size/2-box.x);n.cy=fmt(y0+size/2-box.y);
+   const size=Math.max(1,Math.max(width,height));
+   n.r=fmt(size/2);n.cx=fmt(left+size/2-box.x);n.cy=fmt(top+size/2-box.y);
   }else if(type==="ellipse"){n.rx=fmt(Math.max(1,right-left)/2);n.ry=fmt(Math.max(1,bottom-top)/2);n.cx=fmt(left+(right-left)/2-box.x);n.cy=fmt(top+(bottom-top)/2-box.y);
   }else if(type==="line"){
    const src=base,srcX1=evalN(src.x1??0,box,"x"),srcX2=evalN(src.x2??0,box,"x"),srcY1=evalN(src.y1??0,box,"y"),srcY2=evalN(src.y2??0,box,"y"),xs=Math.sign(srcX2-srcX1)||1,ys=Math.sign(srcY2-srcY1)||1,w=right-left,hg=bottom-top;
@@ -1489,7 +1536,7 @@ paper.addEventListener("pointerup",e=>{
    const angle=Math.atan2(endPoint.y-(g.y+g.h/2),endPoint.x-(g.x+g.w/2))*180/Math.PI;
    node.rotate=Math.round((Number(state.origin.rotate)||0)+angle-state.startAngle);
   }else{
-   const resized=snappedResizeBounds(resizedBounds(g,state.handle,dx,dy),state.handle,[state.path],state.snapTargets).bounds;
+   const resized=resizeForGesture(g,state.handle,dx,dy,e.shiftKey,[state.path],state.snapTargets).bounds;
    node.x=fmt(resized.x-box.x);node.y=fmt(resized.y-box.y);node.w=fmt(resized.w);node.h=fmt(resized.h);
   }
  }
@@ -2108,9 +2155,9 @@ $("togglePasteboard").addEventListener("click",()=>{
  pasteboardVisible=!pasteboardVisible;
  canvas.classList.toggle('preview-clipped',!pasteboardVisible);
  const button=$("togglePasteboard");
- button.textContent=pasteboardVisible?'Outside visible':'Page preview';
+ button.textContent=pasteboardVisible?'Edit outside':'Page preview';
  button.setAttribute('aria-pressed',String(pasteboardVisible));
- button.title=pasteboardVisible?'Outside-page points are editable; XNotes clips artwork to paper':'XNotes-style page clipping preview. Click to return to pasteboard editing.';
+ button.title=pasteboardVisible?'Off-page handles remain editable; artwork is always clipped to the page':'Hide off-page handles and return to the page-only preview';
 });
 function applyPan(){paperWrap.style.transform="translate("+panOffset.x+"px, "+panOffset.y+"px)";}
 window.addEventListener("keydown",e=>{

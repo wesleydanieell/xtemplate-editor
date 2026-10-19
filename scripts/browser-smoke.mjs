@@ -126,7 +126,7 @@ try{
  const sample=()=>page.evaluate(()=>{
   const element=document.querySelector('g[data-path="items.1"]');
   return{selected:document.querySelector('#selectedType').textContent,
-   handles:element?.querySelectorAll('.transform-handle').length||0,
+   handles:document.querySelectorAll('#editor-selection-overlay g[data-path="items.1"] .transform-handle').length,
    active:[...document.querySelectorAll('.tree-item.active')].map(item=>item.dataset.path),
    transform:element?.getAttribute('transform')||null,
    box:element?.querySelector('.svg-hitbox')?.getBoundingClientRect().toJSON()};
@@ -189,7 +189,7 @@ try{
  await guidesPage.mouse.up();
  assert.equal(await guidesPage.$('#paper .smart-guide'),null,'guide overlays must clear after release');
  await insert('text');
- assert.equal(await guidesPage.$eval('g[data-path="items.3"]',el=>el.querySelectorAll('.transform-handle.rotate-handle').length),1,
+ assert.equal(await guidesPage.$eval('#editor-selection-overlay g[data-path="items.3"]',el=>el.querySelectorAll('.transform-handle.rotate-handle').length),1,
   'selected text should provide a rotation handle');
  await guidesPage.close();
  assert.deepEqual(errors,[],'no browser errors after object snapping and text selection');
@@ -611,15 +611,16 @@ try{
   input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
  },JSON.stringify(horizontalDoc));
  await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Horizontal guides');
- const repeatedHline='g[data-path="items.0.children.0"]';
+ const repeatedHline='#page-artwork g[data-path="items.0.children.0"]';
+ const hlineHandles='#editor-selection-overlay g[data-path="items.0.children.0"]';
  assert.equal((await compatibilityPage.$$(repeatedHline)).length,4,'all four horizontal lines must render');
  await compatibilityPage.$eval('.tree-item[data-path="items.0.children.0"]',el=>el.dispatchEvent(new MouseEvent('click',{bubbles:true})));
  // A repeated child keeps only its two endpoint resize handles, focused on
  // one copy; XNotes-compatible repeat geometry has no rotation control.
- const childHandles=await compatibilityPage.$$eval(repeatedHline,nodes=>nodes.map(n=>n.querySelectorAll('[data-handle]').length));
+ const childHandles=await compatibilityPage.$$eval(hlineHandles,nodes=>nodes.map(n=>n.querySelectorAll('[data-handle]').length));
  assert.equal(childHandles.filter(x=>x>0).length,1,'one repeat copy may have resize handles');
  assert.equal(childHandles.reduce((a,b)=>a+b,0),2,'hline keeps only two endpoint resize handles');
- assert.equal(await compatibilityPage.$$eval(repeatedHline,nodes=>nodes.reduce((count,n)=>count+n.querySelectorAll('[data-handle="rotate"]').length,0)),0,
+ assert.equal(await compatibilityPage.$$eval(hlineHandles,nodes=>nodes.reduce((count,n)=>count+n.querySelectorAll('[data-handle="rotate"]').length,0)),0,
   'repeat copies do not each rotate individually');
  assert.equal(await compatibilityPage.$eval('g[data-path="items.0"]',n=>n.querySelectorAll(':scope > [data-handle="rotate"]').length),0,
   'repeat must not offer rotation unsupported by XNotes');
@@ -627,11 +628,10 @@ try{
   const r=nodes[2].getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};
  });
  await compatibilityPage.mouse.click(thirdCopy.x,thirdCopy.y);
- const focusHandles=await compatibilityPage.$$eval(repeatedHline,nodes=>nodes.map(n=>n.querySelectorAll('[data-handle]').length));
- assert.equal(focusHandles[2],2,'third copy gains the two endpoint resize handles');
- const resizeHandle=await compatibilityPage.$$eval(repeatedHline,nodes=>{
-  const r=nodes[2].querySelector('[data-handle="e"]').getBoundingClientRect();
-  return{x:r.x+r.width/2,y:r.y+r.height/2};
+ const focusHandles=await compatibilityPage.$$eval(hlineHandles,nodes=>nodes.map(n=>({instance:n.dataset.instance,count:n.querySelectorAll('[data-handle]').length})));
+ assert(focusHandles.some(h=>h.instance==='2'&&h.count===2),'third copy gains the two endpoint resize handles');
+ const resizeHandle=await compatibilityPage.$eval(hlineHandles+'[data-instance="2"] [data-handle="e"]',el=>{
+  const r=el.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};
  });
  await compatibilityPage.mouse.move(resizeHandle.x,resizeHandle.y);
  await compatibilityPage.mouse.down();
@@ -1114,6 +1114,115 @@ try{
  assert(Number.parseFloat(outsidePath.w)>210,'path geometry can extend beyond both paper edges');
  assert.deepEqual(Object.keys(outsidePath).sort(),['d','fill','h','stroke','strokeWidth','type','viewBox','w','x','y'].sort(),
   'no unsupported pasteboard properties are exported');
+ {
+ // Keep final artwork clipped to paper while leaving pasteboard handles
+ // editable; verify compact suggestions, native color picker and Shift resize.
+ const polishPage=await browser.newPage();
+ await polishPage.setViewport({width:1440,height:900});
+ polishPage.on('pageerror',e=>errors.push(e.message));
+ await polishPage.goto(`http://127.0.0.1:${port}/`,{waitUntil:'networkidle0'});
+ const polishDoc={xtemplate:1,id:'test.canvas.precision',name:'Precision canvas',params:{},items:[
+  {type:'rect',x:'20mm',y:'40mm',w:'40mm',h:'40mm',stroke:'ink',fill:'#8899cc'},
+  {type:'rect',x:'100mm',y:'115mm',w:'18mm',h:'20mm',stroke:'ink',fill:'#556677'},
+  {type:'ellipse',cx:'220mm',cy:'130mm',rx:'40mm',ry:'28mm',fill:'#bb2255'}
+ ]};
+ await polishPage.$eval('#fileInput',(input,raw)=>{
+  const dt=new DataTransfer();dt.items.add(new File([raw],'precision.xtemplate',{type:'application/json'}));
+  input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(polishDoc));
+ await polishPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Precision canvas');
+ const visualClip=await polishPage.evaluate(()=>{
+  const artwork=document.querySelector('#page-artwork');
+  const clip=document.querySelector('#xstudio-page-artwork-clip rect');
+  const external=document.querySelector('g[data-path="items.2"]');
+  const paper=document.querySelector('#paper');
+  const rect=paper.createSVGPoint();rect.x=235;rect.y=130;
+  const location=rect.matrixTransform(paper.getScreenCTM());
+  const hit=document.elementFromPoint(location.x,location.y);
+  return {clipPath:artwork?.getAttribute('clip-path'),
+   children:[...artwork.querySelectorAll('g[data-path]')].length,
+   clipBounds:clip&&[clip.getAttribute('x'),clip.getAttribute('y'),clip.getAttribute('width'),clip.getAttribute('height')],
+   externalShape:!!external,interceptsOutside:!!hit?.closest('#page-artwork'),
+   paperOverflow:getComputedStyle(paper).overflow};
+ });
+ assert.equal(visualClip.clipPath,'url(#xstudio-page-artwork-clip)');
+ assert.deepEqual(visualClip.clipBounds,['0','0','210','297']);
+ assert.equal(visualClip.children,3);
+ assert.equal(visualClip.externalShape,true,'original outside geometry remains editable and exportable');
+ assert.equal(visualClip.interceptsOutside,false,'clipped content must not intercept pasteboard mouse events');
+ assert.equal(visualClip.paperOverflow,'visible','control overlays can still extend beyond paper');
+ // Selected transforms belong to an unclipped editor layer, even when the
+ // entire resize handle lies beyond the canvas page rectangle.
+ await polishPage.$eval('.tree-item[data-path="items.2"]',el=>el.click());
+ const ellipseOuterHandle=await polishPage.$eval('#editor-selection-overlay g[data-path="items.2"] [data-handle="e"]',el=>{
+  const r=el.getBoundingClientRect(),paper=document.querySelector('#paper').getBoundingClientRect();
+  const x=r.x+r.width/2,y=r.y+r.height/2;
+  return {x,y,pageRight:paper.right,pageLeft:paper.left,overlays:document.querySelectorAll('#editor-selection-overlay [data-handle]').length,
+   target:document.elementFromPoint(x,y)?.closest('[data-handle]')?.dataset.handle};
+ });
+ assert(ellipseOuterHandle.x>ellipseOuterHandle.pageRight+10,'ellipse resize handle must extend beyond page');
+ assert.equal(ellipseOuterHandle.target,'e','outside transform handle remains clickable');
+ assert(ellipseOuterHandle.overlays>=8,'eight standard transforms are rendered outside the clip');
+ await polishPage.mouse.move(ellipseOuterHandle.x,ellipseOuterHandle.y);
+ await polishPage.mouse.down();
+ await polishPage.mouse.move(ellipseOuterHandle.x+20,ellipseOuterHandle.y,{steps:6});
+ await polishPage.mouse.up();
+ const resizedOutsideEllipse=JSON.parse(await polishPage.$eval('#jsonEditor',el=>el.value)).items[2];
+ assert(parseFloat(resizedOutsideEllipse.rx)>40,'off-page transformation changes native geometry');
+ assert.equal(resizedOutsideEllipse.type,'ellipse');
+ await polishPage.keyboard.down('Control');await polishPage.keyboard.press('z');await polishPage.keyboard.up('Control');
+ assert.equal(JSON.parse(await polishPage.$eval('#jsonEditor',el=>el.value)).items[2].rx,'40mm');
+ await polishPage.click('[data-inspector="params"]');
+ await polishPage.click('#addParam');
+ await polishPage.select('#newParamType','color');
+ assert.equal(await polishPage.$eval('#newParamColorPicker',el=>el.classList.contains('hidden')),false);
+ assert.equal(await polishPage.$eval('#newParamColorPicker',el=>el.value),'#4f7cff');
+ assert.equal(await polishPage.$eval('#newParamDefault',el=>el.value),'#4f7cff');
+ await polishPage.$eval('#newParamColorPicker',el=>{el.value='#ab34ef';el.dispatchEvent(new Event('input',{bubbles:true}));});
+ assert.equal(await polishPage.$eval('#newParamDefault',el=>el.value),'#ab34ef', 'color picker updates native variable hex');
+ await polishPage.$eval('#newParamDefault',el=>{el.value='#fed';el.dispatchEvent(new Event('input',{bubbles:true}));});
+ assert.equal(await polishPage.$eval('#newParamColorPicker',el=>el.value),'#ffeedd', 'hex input updates picker, supporting shorthand');
+ await polishPage.$eval('#newParamName',el=>{el.value='coverTint';});
+ await polishPage.click('#paramCreateForm button[type="submit"]');
+ const colorDoc=JSON.parse(await polishPage.$eval('#jsonEditor',el=>el.value));
+ assert.equal(colorDoc.params.coverTint.type,'color');
+ assert.equal(colorDoc.params.coverTint.default,'#fed');
+ await polishPage.click('[data-inspector="properties"]');
+ await polishPage.$eval('.tree-item[data-path="items.0"]',el=>el.click());
+ await polishPage.click('#elementStroke');
+ const popupMetrics=await polishPage.$eval('#variableCompletion',el=>{
+  const r=el.getBoundingClientRect(),rows=[...el.querySelectorAll('.variable-completion-item')];
+  return {width:r.width,height:r.height,rows:rows.length,rowHeight:rows[0]?.getBoundingClientRect().height};
+ });
+ assert(popupMetrics.rows>=4,'color tokens and added color variables must be suggested');
+ assert(popupMetrics.width<=280&&popupMetrics.height<=210&&popupMetrics.rowHeight<=38,
+  'suggestion popup stays compact: '+JSON.stringify(popupMetrics));
+ await polishPage.$eval('#elementStroke',el=>el.blur());
+ const corner=await polishPage.$eval('g[data-path="items.0"] [data-handle="se"]',el=>{
+  const r=el.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};
+ });
+ const resizeTarget=await polishPage.evaluate(()=>{
+  const p=document.querySelector('#paper').createSVGPoint();p.x=99;p.y=99;
+  const q=p.matrixTransform(document.querySelector('#paper').getScreenCTM());
+  return {x:q.x,y:q.y};
+ });
+ await polishPage.mouse.move(corner.x,corner.y);
+ await polishPage.keyboard.down('Shift');
+ await polishPage.mouse.down();
+ await polishPage.mouse.move(resizeTarget.x,resizeTarget.y,{steps:12});
+ const activeGuide=await polishPage.$$('.smart-guide').then(els=>els.length);
+ await polishPage.mouse.up();
+ await polishPage.keyboard.up('Shift');
+ const resized=JSON.parse(await polishPage.$eval('#jsonEditor',el=>el.value)).items[0];
+ assert(Math.abs(parseFloat(resized.w)-parseFloat(resized.h))<.011,'Shift resize must preserve square geometry');
+ assert.equal(resized.x,'20mm');assert.equal(resized.y,'40mm');
+ assert(Math.abs(parseFloat(resized.w)-80)<5,'object magnetic snap should bring square near 80mm');
+ assert(activeGuide>0,'magnetic guide should appear during square resize');
+ await polishPage.keyboard.down('Control');await polishPage.keyboard.press('z');await polishPage.keyboard.up('Control');
+ const afterUndoResize=JSON.parse(await polishPage.$eval('#jsonEditor',el=>el.value)).items[0];
+ assert.equal(afterUndoResize.w,'40mm');assert.equal(afterUndoResize.h,'40mm','resize has one Undo snapshot');
+ await polishPage.close();
+ }
  await compatibilityPage.close();
  assert.deepEqual(errors,[],'no errors for sparse multi-edit or repeated snapping');
  console.log('PASS: sparse property compatibility, repeated geometry guides and Settings toggle');

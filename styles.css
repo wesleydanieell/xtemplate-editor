@@ -989,3 +989,24 @@
 .canvas-footer .pasteboard-toggle{border:1px solid #3a475e;background:rgba(50,61,80,.72);color:#c4d0e7;border-radius:5px;padding:3px 9px;font-size:10px;min-height:21px;cursor:pointer}
 .canvas-footer .pasteboard-toggle:hover{border-color:#7592c6;background:#384b6c}
 .canvas-area.preview-clipped .pasteboard-toggle{border-color:#7893c4;color:#e5ecfb}
+
+/* The page render is always clipped. Only interactive editor overlays are
+   allowed to extend onto the pasteboard. */
+#page-artwork{clip-path:url(#xstudio-page-artwork-clip)}
+.new-param-color-row{display:flex;align-items:center;gap:7px;width:100%}
+.new-param-color-row #newParamDefault{min-width:0;flex:1}
+.new-param-color-row #newParamColorPicker{flex:0 0 44px;width:44px;height:33px;padding:3px;cursor:pointer;border:1px solid var(--ui-border,#566078);border-radius:6px}
+/* Compact value/variable suggestions: same keyboard and mouse navigation,
+   less text wrapping and less occlusion of the Element inspector. */
+.variable-completion{max-height:min(202px,38vh);padding:3px;border-radius:7px;box-shadow:0 7px 20px var(--ui-shadow,#0008)}
+.variable-completion-heading{padding:4px 7px 6px;margin-bottom:2px;font-size:8px}
+.variable-completion .variable-completion-item{grid-template-columns:19px minmax(0,1fr) auto;min-height:31px;gap:5px;padding:3px 6px;border-radius:4px}
+.variable-completion .variable-completion-marker{width:18px;height:18px;border-radius:4px;font-size:10px}
+.variable-completion .variable-completion-details{gap:1px;line-height:1.2}
+.variable-completion .variable-completion-details strong{font-size:10px;line-height:1.2;letter-spacing:0}
+.variable-completion .variable-completion-details small{font-size:9px;line-height:1.2;letter-spacing:0}
+.variable-completion .variable-completion-item code{font-size:9px;line-height:1.2;max-width:64px}
+
+/* Rendered artwork is clipped, editor transform controls are not. */
+#editor-selection-overlay{overflow:visible}
+#editor-selection-overlay .selection-control-layer{pointer-events:visiblePainted}
