@@ -256,3 +256,12 @@ toggle lets you edit outside the sheet or inspect the Android-style clipping.
 ### Experimental vector tools
 
 The Element inspector now provides visual editing for Polygon/Polyline vertices, Hatch pattern settings, and a safe SVG Path node subset. For supported features, limits and Android compatibility notes, see [Vector Tools](docs/VECTOR_TOOLS.md).
+
+### Canvas precision and variable colors
+
+Rendered artwork is clipped to the page, while selection outlines, Bézier
+handles and resize controls stay visible on the outside pasteboard. Hold
+**Shift** while dragging a corner to preserve aspect ratio; magnetic snapping
+keeps that proportion intact. In **Variables → Create variable → Color**, use
+the color picker or enter an exact hexadecimal value. Inspector value/variable
+suggestions use a compact popup to keep the editor visible.

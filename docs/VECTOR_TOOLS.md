@@ -68,6 +68,20 @@ mode exposes the surrounding pasteboard and allows drawing there; the second
 clips the preview to paper, matching the Android template's visible boundaries.
 The toggle changes only the Studio display, not the saved `.xtemplate`.
 
+**Only the part of the artwork inside the page is painted**, regardless of
+whether the pasteboard is visible. Selection outlines, vertex handles and
+transform/resize grips are rendered on a separate, unclipped editor layer,
+including for elements entirely outside the page. You can select them from
+Structure and manipulate them outside the page; the exported template is
+unaffected by editor overlays.
+
+For a corner resize, hold **Shift** to preserve the current aspect ratio,
+anchored at the opposite corner. Magnetic guides use this constrained geometry,
+so snapping to an object or page edge no longer stretches a square into a
+rectangle. Dragging a side handle adjusts only its dimension; use **Alt**
+while dragging to disable magnetic snapping when editing vertices, or turn
+magnetic guides off in Settings.
+
 The **outside geometry is editor-only visibility**, not a new template feature:
 the XNotes template evaluator clips lines, polygon fills and paths to the paper.
 Off-page control points can shape Bézier curves reaching onto a cover, while
