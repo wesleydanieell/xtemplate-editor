@@ -10,7 +10,15 @@ Select one of **Line**, **Polyline**, **Polygon**, or **SVG Path** in the nearby
 The Pen creates XNotes-native `line`, `polyline`, `polygon`, or `path` nodes. It never adds SVG-only
 transformation attributes. Click to place anchors; press **Enter** or double-click to finish
 Polyline, Polygon or SVG Path, and **Escape** to cancel. Line finishes on the second click.
-Polygon can also close by clicking its first node. Click-and-drag during SVG Path creation to
+Polygon and SVG Path can also close by clicking their first node. That click
+**reuses the initial anchor**, never creating a second editable point over it.
+For SVG Paths, a straight closing edge is encoded as native `Z` only. A curved
+closing edge retains its native closing `C` segment, but the final SVG control
+endpoint is treated as an alias of the original `M` anchor in the inspector
+and on the canvas. Moving the first vertex updates both serialized coordinates
+so no visual gap appears. Reopening a curved contour removes the closing edge
+instead of leaving a phantom overlapping point.
+Click-and-drag during SVG Path creation to
 place Bézier tangent handles. **Click the latest Bézier anchor again** to reset only
 its **outgoing** handle for the next segment, preserving the curve you just drew.
 **Shift** constrains the new segment to 45° directions.

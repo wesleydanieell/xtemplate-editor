@@ -31,13 +31,31 @@ export function penPathData(points,closed=false,offsetX=0,offsetY=0){
   return ` C ${r(a.x+out.x-offsetX)} ${r(a.y+out.y-offsetY)} ${r(b.x+incoming.x-offsetX)} ${r(b.y+incoming.y-offsetY)} ${r(b.x-offsetX)} ${r(b.y-offsetY)}`;
  };
  for(let i=1;i<points.length;i++)d+=cubic(points[i-1],points[i]);
- if(closed&&points.length>2)d+=cubic(points.at(-1),points[0])+' Z';
+ if(closed&&points.length>2){
+  // Native Z already joins the final anchor to M; emitting an additional
+  // zero-length C would create a second editor node over the first vertex.
+  // Keep an explicit cubic only when its tangents actually curve this edge.
+  const outgoing=penOutgoing(points.at(-1)),incoming=penIncoming(points[0]);
+  const curved=[outgoing.x,outgoing.y,incoming.x,incoming.y].some(v=>Math.abs(v)>1e-9);
+  if(curved)d+=cubic(points.at(-1),points[0]);
+  d+=' Z';
+ }
  return d;
+}
+/** Coalesce the closing click with the existing first anchor, even if a
+ * browser dispatches a second click at its exact original coordinates. */
+export function uniqueClosingAnchors(points,closed){
+ const anchors=points.map(p=>({...p}));
+ if(!closed||anchors.length<2)return anchors;
+ const first=anchors[0],last=anchors.at(-1);
+ if(Math.hypot(last.x-first.x,last.y-first.y)<=1e-6)anchors.pop();
+ return anchors;
 }
 export function createPenNode(mode,points,parentBox={x:0,y:0},closed=false){
  if(!PEN_MODES.includes(mode))throw new Error('Unsupported Pen type');
- if(points.length<penPointCount(mode))throw new Error(`At least ${penPointCount(mode)} points required`);
- const local=points.map(p=>({...p,x:p.x-parentBox.x,y:p.y-parentBox.y}));
+ const anchors=uniqueClosingAnchors(points,mode==='polygon'||closed);
+ if(anchors.length<penPointCount(mode))throw new Error(`At least ${penPointCount(mode)} points required`);
+ const local=anchors.map(p=>({...p,x:p.x-parentBox.x,y:p.y-parentBox.y}));
  if(mode==='line')return {type:'line',x1:mm(local[0].x),y1:mm(local[0].y),x2:mm(local[1].x),y2:mm(local[1].y),stroke:'ink',strokeWidth:'0.3mm'};
  if(mode==='polygon'||mode==='polyline')return {type:mode,points:local.map(p=>[mm(p.x),mm(p.y)]),stroke:'ink',fill:'none',strokeWidth:'0.3mm'};
  const coords=[];for(const p of local){const a=penIncoming(p),b=penOutgoing(p);coords.push(p.x,p.y,p.x+a.x,p.y+a.y,p.x+b.x,p.y+b.y);}

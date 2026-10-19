@@ -15,7 +15,7 @@ import { paintedBounds } from "./src/features/painted-bounds.js";
 import { repeatPositions } from "./src/features/repeat-layout.js";
 import { inspectorSections } from "./src/features/inspector-priority.js";
 import { readPointPairs, requiresBake, replacePointCoordinate, addPoint, removePoint, reversePoints, midpoint, alignPoints, distributePoints } from "./src/features/vector/points.js";
-import { editablePathNodes, replaceSvgPathPoint, appendSvgLine, toggleSvgClosed, removeSvgPathAnchor, pathHandleConnections } from "./src/features/vector/svg-path.js";
+import { editablePathNodes, replaceSvgPathPoint, appendSvgLine, toggleSvgClosed, removeSvgPathAnchor, pathHandleConnections, closedSvgAnchorAlias } from "./src/features/vector/svg-path.js";
 import { PEN_MODES,createPenNode,snapPenAngle,penIncoming,penOutgoing,penPathData,resetOutgoingTangent } from "./src/features/vector/pen-model.js";
 import { FLIPPABLE_TYPES, flipNativeNode, flipNeedsExpressionConfirmation } from "./src/features/vector/flip-geometry.js";
 import { translate as matrixTranslate, scale as matrixScale, rotate as matrixRotate, around as matrixAround, multiply as matrixMultiply, toSVG as matrixSVG } from "./src/features/affine-transform.js";
@@ -357,6 +357,7 @@ function renderPathOverlay(){
  const group=svg('g',{id:'svg-path-overlay'});
  const connections=pathHandleConnections(parsed);
  const byIndex=new Map(connections.map(c=>[c.index,c]));
+ const closedAlias=closedSvgAnchorAlias(parsed);
  // Connect each tangent to the anchor it actually controls, not both to the
  // segment endpoint (which made Bézier handles look disconnected after Enter).
  for(const relation of connections){
@@ -367,6 +368,7 @@ function renderPathOverlay(){
    x1:a.x,y1:a.y,x2:c.x,y2:c.y}));
  }
  for(const [i,p] of parsed.nodes.entries()){
+  if(i===closedAlias?.aliasIndex)continue; // final closing C shares the M vertex
   const real=pathDocumentPoint(shape,p.x,p.y),relation=byIndex.get(i),anchor=relation?parsed.nodes[relation.anchorIndex]:null;
   const anchorPos=anchor?pathDocumentPoint(shape,anchor.x,anchor.y):null;
   // Editor-only display: collapsed tangents still exist in SVG C data, but
@@ -412,7 +414,9 @@ function renderSvgPathControls(root,node){
  const note=document.createElement('p');note.className='inspector-tip';note.textContent='Bézier handles: orange = incoming, blue = outgoing. At intermediate cubic anchors, both controls are independently editable. Retracted controls have separated dashed markers; the exported XNotes path remains unchanged until you drag them. Complex SVG commands remain available in the d field.';root.appendChild(note);
  if(pathCurrent()!==node)return;
  const list=document.createElement('div');list.className='vector-coordinate-list';root.appendChild(list);
+ const closingAlias=closedSvgAnchorAlias(parsed);
  parsed.nodes.forEach((pt,i)=>{
+  if(i===closingAlias?.aliasIndex)return;
   const row=document.createElement('div');row.className='vector-point-row'+(pathPointSelection===i?' selected':'');
   row.addEventListener('click',e=>{if(e.target.closest('input'))return;pathPointSelection=i;render();});
   const index=document.createElement('span');index.textContent=pt.role==='control'?'C'+(i+1):'#'+(i+1);row.appendChild(index);
@@ -2148,16 +2152,20 @@ function handlePenPointerDown(e){
  if(e.button!==0)return;
  if(document.activeElement?.matches('select,button'))document.activeElement.blur();
  let pt=pagePoint(e);
+ // Before magnetic snapping, check whether the user clicked the original
+ // anchor to close: snapping can otherwise shift it and create a duplicate.
+ const existing=curveState,firstAnchor=existing?.points[0];
+ const hitRadius=Math.max(2,7*pageSize[0]/paper.getBoundingClientRect().width);
+ if(firstAnchor&&existing.points.length>=3&&['polygon','path'].includes(existing.mode)&&
+    Math.hypot(pt.x-firstAnchor.x,pt.y-firstAnchor.y)<hitRadius){
+  existing.closed=true;finishPenPath();return;
+ }
  if(magneticGuidesEnabled&&!e.altKey){
   const snap=snapToGuides({x:pt.x,y:pt.y,w:0,h:0},[],null);
   pt={x:pt.x+snap.dx,y:pt.y+snap.dy};smartGuides=snap.guides;smartGuideSegments=snap.segments;
  }
  if(!curveState)curveState={points:[],pointerId:null,activeIndex:-1,closed:false,mode:penMode};
- const state=curveState,first=state.points[0],last=state.points.at(-1);
- const hitRadius=Math.max(2,7*pageSize[0]/paper.getBoundingClientRect().width);
- if(first&&state.points.length>=3&&['polygon','path'].includes(state.mode)&&Math.hypot(pt.x-first.x,pt.y-first.y)<hitRadius){
-  state.closed=true;finishPenPath();return;
- }
+ const state=curveState,last=state.points.at(-1);
  if(last&&state.mode==='path'&&Math.hypot(pt.x-last.x,pt.y-last.y)<hitRadius){
   // Illustrator-like "click last anchor" gesture: retract the outgoing tangent.
   // Keep the anchor and all preceding geometry; the next segment becomes a corner.

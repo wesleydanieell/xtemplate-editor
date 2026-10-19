@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {PEN_MODES,createPenNode,penPointCount,snapPenAngle,resetOutgoingTangent,penPathData} from '../src/features/vector/pen-model.js';
+import {PEN_MODES,createPenNode,penPointCount,snapPenAngle,resetOutgoingTangent,penPathData,uniqueClosingAnchors} from '../src/features/vector/pen-model.js';
 test('pen modes produce XNotes-native nodes and parent-relative mm coordinates',()=>{
  const points=[{x:20,y:30},{x:35,y:45},{x:50,y:60}],box={x:10,y:12};
  assert.deepEqual(PEN_MODES,['line','polyline','polygon','path']);
@@ -31,4 +31,31 @@ test('click last anchor preserves incoming curve and resets outgoing tangent onl
  assert(original.includes('C 8 0 18 33 30 25'));
  assert(result.includes('C 8 0 18 33 30 25'),'previous cubic must be unchanged');
  assert(result.includes('C 30 25 50 30 60 30'),'next cubic must start at a corner');
+});
+
+test('closing a polygon on its first anchor never appends a second vertex',()=>{
+ const points=[{x:10,y:20},{x:50,y:20},{x:45,y:65},{x:10,y:20}];
+ const authored=createPenNode('polygon',points,undefined,true);
+ assert.deepEqual(authored.points,[['10mm','20mm'],['50mm','20mm'],['45mm','65mm']]);
+ assert.equal(uniqueClosingAnchors(points,true).length,3);
+ assert.equal(points.length,4,'normalization must not mutate live input');
+});
+test('closing a straight native SVG path uses Z without a duplicate cubic endpoint',()=>{
+ const points=[{x:10,y:20},{x:50,y:20},{x:45,y:65}];
+ const closed=createPenNode('path',points,undefined,true);
+ assert.equal(closed.d.match(/ C /g).length,2,'two authored edges, third closed by Z');
+ assert(closed.d.endsWith(' Z'));
+ const repeated=createPenNode('path',[...points,{...points[0]}],undefined,true);
+ assert.equal(repeated.d,closed.d,'clicking M again must not add an extra segment');
+});
+test('curved closing edge preserves Bézier tangents with one logical initial anchor',()=>{
+ const points=[
+  {x:10,y:10,inHx:-6,inHy:2,outHx:4,outHy:0},
+  {x:30,y:50,inHx:0,inHy:-7,outHx:9,outHy:0},
+  {x:60,y:10,inHx:-8,inHy:3,outHx:0,outHy:13}
+ ];
+ const closed=createPenNode('path',points,undefined,true);
+ assert.equal(closed.d.match(/ C /g).length,3,'curved closing edge remains editable');
+ assert(closed.d.endsWith(' Z'));
+ assert.equal(closed.d.match(/ Z/g).length,1);
 });
