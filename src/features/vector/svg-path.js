@@ -76,3 +76,46 @@ export function pathHandleConnections(parsed){
  }
  return result;
 }
+
+/** Exact geometry bounds for the supported authored SVG path subset.
+ * Control points can lie far outside the visible Bézier curve; using their
+ * extrema as the mirror center would visibly displace the flipped shape. */
+export function svgPathGeometryBounds(parsed) {
+ const coords=[[],[]];
+ const push=(x,y)=>{if(!Number.isFinite(x)||!Number.isFinite(y))throw new Error('Invalid SVG coordinate');coords[0].push(x);coords[1].push(y);};
+ const extremalParameters=(a,b,c)=>{
+  const eps=1e-12,roots=[];
+  if(Math.abs(a)<eps){if(Math.abs(b)>eps)roots.push(-c/b);}
+  else{const d=b*b-4*a*c;if(d>=0){const root=Math.sqrt(d);roots.push((-b-root)/(2*a),(-b+root)/(2*a));}}
+  return roots.filter(t=>t>0&&t<1);
+ };
+ let current=null,start=null;
+ for(const {command,points} of parsed.segments){
+  if(command==='M'){current=points[0];start=current;push(current.x,current.y);continue;}
+  if(command==='Z'){if(start)current=start;continue;}
+  if(!current)throw new Error('SVG path must begin with M');
+  const end=points.at(-1);
+  if(command==='L'){push(end.x,end.y);current=end;continue;}
+  const degree=command==='C'?3:2;
+  for(let axis=0;axis<2;axis++){
+   const key=axis===0?'x':'y';
+   const values=[current,...points].map(p=>p[key]);
+   const evaluate=t=>{
+    const u=1-t;
+    return degree===3
+     ? u*u*u*values[0]+3*u*u*t*values[1]+3*u*t*t*values[2]+t*t*t*values[3]
+     : u*u*values[0]+2*u*t*values[1]+t*t*values[2];
+   };
+   const roots=degree===3
+    ? extremalParameters(3*(-values[0]+3*values[1]-3*values[2]+values[3]),
+       6*(values[0]-2*values[1]+values[2]),3*(values[1]-values[0]))
+    : extremalParameters(0,2*(values[0]-2*values[1]+values[2]),2*(values[1]-values[0]));
+   for(const t of [0,1,...roots])coords[axis].push(evaluate(t));
+  }
+  current=end;
+ }
+ if(!coords[0].length||!coords[1].length)throw new Error('Empty SVG path');
+ const extrema=values=>values.reduce(([lo,hi],v)=>[Math.min(lo,v),Math.max(hi,v)],[Infinity,-Infinity]);
+ const [minX,maxX]=extrema(coords[0]),[minY,maxY]=extrema(coords[1]);
+ return{x:minX,y:minY,w:maxX-minX,h:maxY-minY};
+}
