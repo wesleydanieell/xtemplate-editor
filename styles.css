@@ -977,3 +977,15 @@
 /* Mirror actions are native geometry operations, not nonportable SVG transforms. */
 .vector-flip-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .vector-flip-actions button{min-height:29px;font-weight:600;white-space:normal}
+
+/* Editor pasteboard: allow native nodes and Bézier/vertex handles to extend
+   past the paper; the surrounding canvas area still clips at the workspace.
+   Android always clips the actual template output to paper dimensions. */
+#paper{overflow:visible}
+#page-edit-boundary{pointer-events:none}
+.canvas-area:has(.canvas-tool[data-tool="pen"].active){cursor:crosshair}
+
+.canvas-area.preview-clipped #paper{overflow:hidden}
+.canvas-footer .pasteboard-toggle{border:1px solid #3a475e;background:rgba(50,61,80,.72);color:#c4d0e7;border-radius:5px;padding:3px 9px;font-size:10px;min-height:21px;cursor:pointer}
+.canvas-footer .pasteboard-toggle:hover{border-color:#7592c6;background:#384b6c}
+.canvas-area.preview-clipped .pasteboard-toggle{border-color:#7893c4;color:#e5ecfb}

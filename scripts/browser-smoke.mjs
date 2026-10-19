@@ -1,7 +1,7 @@
 /** Browser regressions for canvas selection/movement, using a locally served editor. */
 import puppeteer from 'puppeteer-core';
 import assert from 'node:assert/strict';
-import { editablePathNodes } from '../src/features/vector/svg-path.js';
+import { editablePathNodes,closedSvgAnchorAlias } from '../src/features/vector/svg-path.js';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
@@ -903,6 +903,129 @@ try{
  assert.equal((await compatibilityPage.$$('g[data-path="'+flippedRepeatPath+'"] > polyline')).length,2,'repeated shapes share the new mirrored node');
  assert.equal(afterRepeat.type,'polyline');
  assert.deepEqual(Object.keys(afterRepeat).sort(),Object.keys(beforeRepeat).sort(),'mirroring must not invent unsupported XNotes keys');
+ // Closing the Pen by clicking the original first node must never create
+ // an overlapping editable vertex, including curved cubic closure.
+ const closeDoc={xtemplate:1,id:'test.pen.close.first',name:'Close by original anchor',items:[]};
+ await compatibilityPage.$eval('#fileInput',(input,raw)=>{
+  const dt=new DataTransfer();dt.items.add(new File([raw],'pen-close.xtemplate',{type:'application/json'}));
+  input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(closeDoc));
+ await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Close by original anchor');
+ await usePen('polygon');
+ const polygonFirst={x:35,y:145};
+ await clickDocument(polygonFirst.x,polygonFirst.y);
+ await clickDocument(95,130);await clickDocument(135,178);
+ await clickDocument(polygonFirst.x,polygonFirst.y);
+ let closedItem=(await getPenItems()).at(-1);
+ assert.equal(closedItem.type,'polygon');
+ assert.equal(closedItem.points.length,3,'clicking initial Polygon point must reuse it, not append');
+ assert.equal(closedItem.points.filter(p=>p[0]==='35mm'&&p[1]==='145mm').length,1);
+ const straightCloseDoc={xtemplate:1,id:'test.pen.close.curve',name:'Bezier close by first',items:[]};
+ await compatibilityPage.$eval('#fileInput',(input,raw)=>{
+  const dt=new DataTransfer();dt.items.add(new File([raw],'path-close.xtemplate',{type:'application/json'}));
+  input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(straightCloseDoc));
+ await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Bezier close by first');
+ await usePen('path');
+ const firstX=35,firstY=145;
+ await clickDocument(firstX,firstY);
+ await clickDocument(105,130);await clickDocument(150,190);
+ await clickDocument(firstX,firstY);
+ closedItem=(await getPenItems()).at(-1);
+ assert.equal(closedItem.type,'path');
+ assert.equal(closedItem.d.match(/ C /g).length,2,'straight closing edge uses Z without duplicate C');
+ assert.equal(closedItem.d.endsWith(' Z'),true);
+ assert.equal(closedSvgAnchorAlias(editablePathNodes(closedItem.d)),null);
+ assert.equal(await compatibilityPage.$$('#svg-path-overlay .svg-path-handle.anchor').then(x=>x.length),3,
+  'only three unique SVG anchors should display after closing');
+ const bezierCloseDoc={xtemplate:1,id:'test.pen.close.bezier',name:'Curved close by first',items:[]};
+ await compatibilityPage.$eval('#fileInput',(input,raw)=>{
+  const dt=new DataTransfer();dt.items.add(new File([raw],'curved-close.xtemplate',{type:'application/json'}));
+  input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(bezierCloseDoc));
+ await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Curved close by first');
+ await usePen('path');
+ const anchor1=await screenPos(firstX,firstY),anchor2=await screenPos(105,130),anchor3=await screenPos(150,190);
+ await compatibilityPage.mouse.click(anchor1.x,anchor1.y);
+ await compatibilityPage.mouse.move(anchor2.x,anchor2.y);await compatibilityPage.mouse.down();
+ await compatibilityPage.mouse.move(anchor2.x+17,anchor2.y-11,{steps:6});await compatibilityPage.mouse.up();
+ await compatibilityPage.mouse.move(anchor3.x,anchor3.y);await compatibilityPage.mouse.down();
+ await compatibilityPage.mouse.move(anchor3.x+12,anchor3.y+13,{steps:6});await compatibilityPage.mouse.up();
+ await compatibilityPage.mouse.click(anchor1.x,anchor1.y);
+ closedItem=(await getPenItems()).at(-1);
+ assert.equal(closedItem.type,'path');
+ const closedParsed=editablePathNodes(closedItem.d),closingAlias=closedSvgAnchorAlias(closedParsed);
+ assert(closingAlias,'curved closing segment must alias final C anchor to M');
+ assert.equal(closedItem.d.match(/ C /g).length,3,'curved closing segment preserved');
+ assert.equal(await compatibilityPage.$$('#svg-path-overlay .svg-path-handle.anchor').then(x=>x.length),3,
+  'curved closing edge has three visually distinct anchor markers, not four');
+ assert.equal(await compatibilityPage.$$('#svg-path-overlay [data-svg-path-point="'+closingAlias.aliasIndex+'"]')
+  .then(x=>x.length),0,'closing alias never creates a second overlapping handle');
+ const initialHandle=await compatibilityPage.$eval('#svg-path-overlay [data-svg-path-point="0"] circle.svg-path-hit',el=>{
+  const r=el.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};
+ });
+ await compatibilityPage.mouse.move(initialHandle.x,initialHandle.y);await compatibilityPage.mouse.down();
+ await compatibilityPage.mouse.move(initialHandle.x+17,initialHandle.y+9,{steps:6});await compatibilityPage.mouse.up();
+ const editedClosed=editablePathNodes((await getPenItems()).at(-1).d);
+ assert.equal(editedClosed.nodes[0].x,editedClosed.nodes[closingAlias.aliasIndex].x,
+  'moving the first vertex also moves the closing C endpoint');
+ assert.equal(editedClosed.nodes[0].y,editedClosed.nodes[closingAlias.aliasIndex].y);
+ // Drawing and editing on the pasteboard: negative and beyond-right-edge
+ // native coordinates must survive export, without extending the XNotes paper.
+ const offPageDoc={xtemplate:1,id:'test.pen.off.page',name:'Outside-page points',items:[]};
+ await compatibilityPage.$eval('#fileInput',(input,raw)=>{
+  const dt=new DataTransfer();dt.items.add(new File([raw],'offpage.xtemplate',{type:'application/json'}));
+  input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(offPageDoc));
+ await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Outside-page points');
+ assert.equal(await compatibilityPage.$eval('#paper',el=>getComputedStyle(el).overflow),'visible',
+  'pasteboard geometry should be visible outside the SVG page');
+ await compatibilityPage.click('#togglePasteboard');
+ assert.equal(await compatibilityPage.$eval('#paper',el=>getComputedStyle(el).overflow),'hidden',
+  'page preview should clip nodes to the paper boundaries');
+ await compatibilityPage.click('#togglePasteboard');
+ assert.equal(await compatibilityPage.$eval('#paper',el=>getComputedStyle(el).overflow),'visible',
+  'returning to the pasteboard should reveal outside handles again');
+ await usePen('polygon');
+ const outsideFirst=await screenPos(230,90);
+ const outsideLeft=await screenPos(-12,170);
+ const paperRect=await compatibilityPage.$eval('#paper',el=>el.getBoundingClientRect().toJSON());
+ assert(outsideFirst.x>paperRect.right,'test must click beyond actual paper edge');
+ assert(outsideLeft.x<paperRect.left,'test must click left of actual paper edge');
+ await compatibilityPage.mouse.click(outsideFirst.x,outsideFirst.y);
+ await clickDocument(175,110);
+ await compatibilityPage.mouse.click(outsideLeft.x,outsideLeft.y);
+ await compatibilityPage.keyboard.press('Enter');
+ const outsidePolygon=(await getPenItems())[0];
+ assert.equal(outsidePolygon.type,'polygon');
+ assert.deepEqual(outsidePolygon.points,[['230mm','90mm'],['175mm','110mm'],['-12mm','170mm']],
+  'outside clicks must become native XNotes coordinates, including negatives');
+ assert.equal(await compatibilityPage.$eval('#paper',el=>el.getAttribute('viewBox')),'0 0 210 297',
+  'allowing outside points must not expand the exported page dimensions');
+ const rightVertex=await compatibilityPage.$eval('#vector-overlay [data-vector-vertex="0"]',el=>{
+  const bounds=el.querySelector('circle').getBoundingClientRect();return{x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};
+ });
+ const rightTarget=await compatibilityPage.evaluate(([x,y])=>document.elementFromPoint(x,y)?.closest('[data-vector-vertex]')?.dataset.vectorVertex,[rightVertex.x,rightVertex.y]);
+ assert.equal(rightTarget,'0','outside-page anchor must be clickable in the pasteboard');
+ await compatibilityPage.mouse.move(rightVertex.x,rightVertex.y);
+ await compatibilityPage.mouse.down();
+ await compatibilityPage.mouse.move(rightVertex.x+24,rightVertex.y+12,{steps:7});
+ await compatibilityPage.mouse.up();
+ const movedOutside=(await getPenItems())[0];
+ assert.notEqual(movedOutside.points[0][0],'230mm','dragging an outside vertex must persist geometry');
+ assert.deepEqual(movedOutside.points[2],['-12mm','170mm'],'editing must preserve other off-page coordinates');
+ await compatibilityPage.keyboard.down('Control');await compatibilityPage.keyboard.press('z');await compatibilityPage.keyboard.up('Control');
+ assert.deepEqual((await getPenItems())[0].points,outsidePolygon.points,'undo restores off-page point position');
+ await usePen('path');
+ await compatibilityPage.mouse.click((await screenPos(-14,115)).x,(await screenPos(-14,115)).y);
+ await clickDocument(60,85);await compatibilityPage.mouse.click((await screenPos(233,140)).x,(await screenPos(233,140)).y);
+ await compatibilityPage.keyboard.press('Enter');
+ const outsidePath=(await getPenItems()).at(-1);
+ assert.equal(outsidePath.type,'path');
+ assert(Number.parseFloat(outsidePath.x)<0,'path geometry extends beyond the left paper edge');
+ assert(Number.parseFloat(outsidePath.w)>210,'path geometry can extend beyond both paper edges');
+ assert.deepEqual(Object.keys(outsidePath).sort(),['d','fill','h','stroke','strokeWidth','type','viewBox','w','x','y'].sort(),
+  'no unsupported pasteboard properties are exported');
  await compatibilityPage.close();
  assert.deepEqual(errors,[],'no errors for sparse multi-edit or repeated snapping');
  console.log('PASS: sparse property compatibility, repeated geometry guides and Settings toggle');

@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {editablePathNodes,replaceSvgPathPoint,appendSvgLine,toggleSvgClosed,removeSvgPathAnchor,pathHandleConnections} from '../src/features/vector/svg-path.js';
+import {editablePathNodes,replaceSvgPathPoint,appendSvgLine,toggleSvgClosed,removeSvgPathAnchor,pathHandleConnections,closedSvgAnchorAlias} from '../src/features/vector/svg-path.js';
 test('parse native line and bezier control points with original numeric offsets',()=>{
  const d='M 0,0 L 25,40 C 30 40, 55 60, 70 80 Q 90 95 100 110 Z';
  const parsed=editablePathNodes(d);
@@ -33,4 +33,24 @@ test('Bézier handles connect outgoing to previous anchor, incoming to next anch
   {index:4,anchorIndex:3,side:'outgoing'},
   {index:5,anchorIndex:6,side:'incoming'},
  ]);
+});
+
+test('explicit curved closure aliases final C endpoint to M and preserves one logical anchor',()=>{
+ const d='M 10 10 C 20 0 30 0 40 10 C 45 15 35 40 25 30 C 20 20 5 20 10 10 Z';
+ const parsed=editablePathNodes(d),alias=closedSvgAnchorAlias(parsed);
+ assert.deepEqual(alias,{firstIndex:0,aliasIndex:9});
+ const links=pathHandleConnections(parsed);
+ assert(links.some(c=>c.index===8&&c.anchorIndex===0&&c.side==='incoming'),
+  'last incoming tangent attaches to initial anchor instead of duplicate');
+ const moved=replaceSvgPathPoint(d,parsed.nodes[0],15,18);
+ const after=editablePathNodes(moved);
+ assert.equal(after.nodes[0].x,15);assert.equal(after.nodes[0].y,18);
+ assert.equal(after.nodes[9].x,15);assert.equal(after.nodes[9].y,18);
+ assert.equal(closedSvgAnchorAlias(after).aliasIndex,9);
+ assert.equal(toggleSvgClosed(d),'M 10 10 C 20 0 30 0 40 10 C 45 15 35 40 25 30', 'opening must remove curved closing segment and its duplicate end anchor');
+ assert.equal(after.nodes[8].x,5,'moving first anchor must preserve closing control point');
+});
+test('a closed SVG path using only Z has no duplicate or alias',()=>{
+ const d='M 10 10 C 20 0 30 0 40 10 L 35 20 Z';
+ assert.equal(closedSvgAnchorAlias(editablePathNodes(d)),null);
 });

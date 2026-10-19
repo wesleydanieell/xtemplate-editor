@@ -10,7 +10,15 @@ Select one of **Line**, **Polyline**, **Polygon**, or **SVG Path** in the nearby
 The Pen creates XNotes-native `line`, `polyline`, `polygon`, or `path` nodes. It never adds SVG-only
 transformation attributes. Click to place anchors; press **Enter** or double-click to finish
 Polyline, Polygon or SVG Path, and **Escape** to cancel. Line finishes on the second click.
-Polygon can also close by clicking its first node. Click-and-drag during SVG Path creation to
+Polygon and SVG Path can also close by clicking their first node. That click
+**reuses the initial anchor**, never creating a second editable point over it.
+For SVG Paths, a straight closing edge is encoded as native `Z` only. A curved
+closing edge retains its native closing `C` segment, but the final SVG control
+endpoint is treated as an alias of the original `M` anchor in the inspector
+and on the canvas. Moving the first vertex updates both serialized coordinates
+so no visual gap appears. Reopening a curved contour removes the closing edge
+instead of leaving a phantom overlapping point.
+Click-and-drag during SVG Path creation to
 place Bézier tangent handles. **Click the latest Bézier anchor again** to reset only
 its **outgoing** handle for the next segment, preserving the curve you just drew.
 **Shift** constrains the new segment to 45° directions.
@@ -42,6 +50,26 @@ retain their expressions. The visual editor does not silently bake the entire ge
 Nested `group` coordinates are evaluated using the parent container. Editing a polyline/polygon under
 `repeat` changes the *shared source node*, so all repeated copies change, not only the selected copy.
 Currently the first repeated instance provides the coordinate context for expression baking.
+
+## Drawing outside the page (pasteboard)
+
+Pen points and the selected Polygon/Polyline/SVG Path vertex handles can now be placed
+outside the A4/A5/Letter paper boundary, using **negative coordinates** or positions
+greater than the page width/height. Click on the dark pasteboard next to the sheet,
+then continue the curve across the page. Panning and zoom preserve the correct
+coordinate conversions. The page outline marks the actual paper edges.
+
+The canvas footer offers an **Outside visible / Page preview** toggle. The first
+mode exposes the surrounding pasteboard and allows drawing there; the second
+clips the preview to paper, matching the Android template's visible boundaries.
+The toggle changes only the Studio display, not the saved `.xtemplate`.
+
+The **outside geometry is editor-only visibility**, not a new template feature:
+the XNotes template evaluator clips lines, polygon fills and paths to the paper.
+Off-page control points can shape Bézier curves reaching onto a cover, while
+coordinates entirely outside the page will not appear in the Android render.
+No extra JSON keys, expanded paper sizes or unsupported SVG transforms are
+introduced. The Studio must not clip or silently discard these authored points.
 
 ## Mirror / Flip Geometry
 

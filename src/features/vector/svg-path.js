@@ -30,12 +30,31 @@ export function editablePathNodes(d){
  if(!seenStart||segments.length<2)throw new Error('Path needs an M and at least one segment');
  return{segments,nodes,closed};
 }
+/** A closed curved Pen path may use an explicit final C ending at M and
+ * then Z. SVG requires that C endpoint to specify the closure control curve.
+ * It is an alias of the first logical vertex, not an extra editable node. */
+export function closedSvgAnchorAlias(parsed){
+ if(!parsed?.closed||parsed.segments.length<3)return null;
+ const first=parsed.segments[0]?.points?.[0];
+ const closing=parsed.segments.at(-2);
+ if(!first||closing?.command!=='C')return null;
+ const last=closing.points.at(-1);
+ if(Math.abs(first.x-last.x)>1e-7||Math.abs(first.y-last.y)>1e-7)return null;
+ return {firstIndex:parsed.nodes.indexOf(first),aliasIndex:parsed.nodes.indexOf(last)};
+}
 export function replaceSvgPathPoint(d,point,x,y){
  if(!Number.isFinite(x)||!Number.isFinite(y))throw new Error('Invalid SVG coordinates');
  const value=n=>String(Number(n.toFixed(3)));
  // Replace by original source offsets so whitespace and unmodified commands survive byte-for-byte.
- const replacements=[{...point.xToken,text:value(x)},{...point.yToken,text:value(y)}].sort((a,b)=>b.start-a.start);
- for(const token of replacements)d=d.slice(0,token.start)+token.text+d.slice(token.end);
+ const replacements=[{...point.xToken,text:value(x)},{...point.yToken,text:value(y)}];
+ const parsed=editablePathNodes(d),alias=closedSvgAnchorAlias(parsed);
+ if(alias&&point.xToken.start===parsed.nodes[alias.firstIndex]?.xToken.start){
+  // Moving the shared first vertex must also move the final C endpoint,
+  // otherwise the path would no longer close at its original anchor.
+  const shared=parsed.nodes[alias.aliasIndex];
+  replacements.push({...shared.xToken,text:value(x)},{...shared.yToken,text:value(y)});
+ }
+ for(const token of replacements.sort((a,b)=>b.start-a.start))d=d.slice(0,token.start)+token.text+d.slice(token.end);
  return d;
 }
 export function appendSvgLine(d,x,y){
@@ -43,7 +62,16 @@ export function appendSvgLine(d,x,y){
  if(parsed.closed){const match=/\s*Z\s*$/.exec(d);if(!match)throw new Error('Expected closing Z');return d.slice(0,match.index)+line+d.slice(match.index);}
  return d+line;
 }
-export function toggleSvgClosed(d){const parsed=editablePathNodes(d);return parsed.closed?d.replace(/\s*Z\s*$/,''):d+' Z';}
+export function toggleSvgClosed(d){
+ const parsed=editablePathNodes(d);
+ if(!parsed.closed)return d+' Z';
+ const alias=closedSvgAnchorAlias(parsed);
+ if(!alias)return d.replace(/\s*Z\s*$/,'');
+ // Opening a curved Pen contour removes its closing C edge as well as Z;
+ // otherwise the open path retains a second anchor on top of its initial M.
+ const closing=parsed.segments.at(-2);
+ return (d.slice(0,closing.start)+d.slice(closing.end).replace(/\s*Z\s*$/,'')).trimEnd();
+}
 
 /** Remove one complete native segment only when its anchor is selected. */
 export function removeSvgPathAnchor(d,index){
@@ -61,13 +89,15 @@ export function removeSvgPathAnchor(d,index){
  * anchor's incoming tangent. Quadratic controls are single shared handles. */
 export function pathHandleConnections(parsed){
  const result=[];let previous=null;
+ const alias=closedSvgAnchorAlias(parsed);
  for(const segment of parsed.segments){
   const points=segment.points;
   if(segment.command==='M'||segment.command==='L'){previous=points.at(-1);continue;}
   if(segment.command==='C'){
    const end=points.at(-1);
    result.push({index:parsed.nodes.indexOf(points[0]),anchorIndex:parsed.nodes.indexOf(previous),side:'outgoing'});
-   result.push({index:parsed.nodes.indexOf(points[1]),anchorIndex:parsed.nodes.indexOf(end),side:'incoming'});
+   const endIndex=parsed.nodes.indexOf(end);
+   result.push({index:parsed.nodes.indexOf(points[1]),anchorIndex:alias?.aliasIndex===endIndex?alias.firstIndex:endIndex,side:'incoming'});
    previous=end;
   }else if(segment.command==='Q'){
    result.push({index:parsed.nodes.indexOf(points[0]),anchorIndex:parsed.nodes.indexOf(previous),side:'quadratic'});
