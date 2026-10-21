@@ -62,3 +62,17 @@ Requires `ffmpeg` for WebP conversion. The script imports **an in-memory demo co
 - Keep unfinished features in separate PRs; describe AI assistance in contributed changes.
 
 For coding practices and reporting issues, see [CONTRIBUTING.md](../CONTRIBUTING.md) and [SECURITY.md](../SECURITY.md).
+
+## Official-format validation and image examples
+
+The pinned upstream [`.xtemplate` v1 schema](spec/README.md) is compiled to self-contained browser ES modules by `npm run schema:build`. Commit the generated `src/core/official-schema-validator.js` whenever its source schema changes; the shipped application requires no schema-validator dependency or network access. Local tests compare it with AJV and verify the browser uses it.
+
+The image-backed examples are reproducible without external artwork or Python packages:
+
+```bash
+python3 scripts/build-image-examples.py
+npm test
+npm run test:browser
+```
+
+See [image editor workflow](IMAGE_PACKAGES.md) for native crop/fit/position semantics and [examples](../examples/README.md) for the demo designs.

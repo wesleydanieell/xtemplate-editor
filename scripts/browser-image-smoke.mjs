@@ -111,13 +111,33 @@ try{
  assert(Math.abs(constrainBounds.w/constrainBounds.h-originalSelection.w/originalSelection.h)<.015,
    'Shift must preserve the visible image aspect ratio');
  console.log('PASS: visible image bounds, free side resize, aligned eight handles, Shift aspect lock');
+ // Crop-frame mode preserves native cover during independent viewport resizing.
+ await page.$eval('.tree-item[data-path="items.1"]',el=>el.click());
+ await page.click('[data-image-crop="toggle"]');
+ assert.equal(await page.$eval('#jsonEditor',x=>JSON.parse(x.value).items[1].fit),'cover');
+ assert.equal(await page.$eval('[data-image-crop="toggle"]',x=>x.getAttribute('aria-pressed')),'true');
+ const cropStart=await measure();
+ await page.click('[data-image-position="top right"]');
+ assert.equal(await page.$eval('#jsonEditor',x=>JSON.parse(x.value).items[1].position),'top right');
+ const rightHandle=await handlePoint('e');
+ const cropTarget=await shiftedScreen(cropStart.x+cropStart.w-16,cropStart.y+cropStart.h/2);
+ await page.mouse.move(rightHandle.x,rightHandle.y);await page.mouse.down();
+ await page.mouse.move(cropTarget.x,cropTarget.y,{steps:6});await page.mouse.up();
+ const cropped=await page.$eval('#jsonEditor',x=>JSON.parse(x.value).items[1]);
+ assert.equal(cropped.fit,'cover','crop frame must never switch to stretch');
+ assert(Math.abs(parseFloat(cropped.w)-(cropStart.w-16))<.5,'crop handle changes viewport width');
+ assert(Math.abs(parseFloat(cropped.h)-cropStart.h)<.2,'crop edge keeps viewport height');
+ await page.click('[data-image-crop="toggle"]');
+ assert.equal(await page.$eval('[data-image-crop="toggle"]',x=>x.getAttribute('aria-pressed')),'false');
+ console.log('PASS: native cover cropping frame, 9-point image positioning and finish crop');
  await page.click('[data-menu-action="export"]');
  await page.waitForFunction(()=>document.querySelector('#exportSummary')?.textContent.includes('Embedded images'));
  await page.click('#confirmExportBtn');
  let files=[];for(let i=0;i<45;i++){files=(await fs.readdir(dir)).filter(x=>x.endsWith('.xtemplate'));if(files.length)break;await new Promise(r=>setTimeout(r,180));}
  assert.equal(files.length,1,'export should download one package');
  const saved=await readTemplate(await fs.readFile(path.join(dir,files[0])));
- assert.equal(saved.packaged,true);assert.equal(saved.document.items[1].fit,'contain');
+ assert.equal(saved.packaged,true);assert.equal(saved.document.items[1].fit,'cover');
+ assert.equal(saved.document.items[1].position,'top right');
  assert.equal(Buffer.compare(Buffer.from(saved.assets.get('images/studio.webp')),Buffer.from(asset.get('images/studio.webp'))),0);
  console.log('PASS: official image ZIP import, editing, export and byte-preserving roundtrip');
  // Add a new image by using the Insert menu and the local file picker.
@@ -129,7 +149,7 @@ try{
  assert.equal(next.items.at(-1).src,'images/studio-2.webp');
  await page.$eval('.tree-item[data-path="items.2"]',el=>el.click());
  const oldSrc=next.items[2].src;
- await page.$eval('#advancedInspector button',el=>{if(el.textContent.includes('Replace image'))el.click();});
+ await page.click('[data-image-replace]');
  await page.$eval('#imageFileInput',(input,data)=>{
   const dt=new DataTransfer();dt.items.add(new File([new Uint8Array(data)],'studio.webp',{type:'image/webp'}));
   input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
@@ -162,5 +182,20 @@ try{
  const scrubbedWidth=parseFloat(await page.$eval('#jsonEditor',el=>JSON.parse(el.value).items[2].w));
  assert(scrubbedWidth>350,`Ctrl + scrub must allow width above 300mm; got ${scrubbedWidth}`);
  console.log('PASS: Width scrub extends beyond 300mm with direct numeric input and drag');
+ // The bundled example picker now supports both plain JSON and ZIP packages.
+ for(const [file,name,kind] of [
+   ['cover-aurora-atlas.xtemplate','Aurora Atlas — Image Cover','cover'],
+   ['cover-field-notes.xtemplate','Field Notes — Editorial Cover','cover'],
+   ['study-watermark.xtemplate','Study Notes — Watermark Page','page']
+ ]){
+  await page.select('#topExample',file);
+  await page.waitForFunction(value=>document.querySelector('#docName')?.textContent===value,{},name);
+  const doc=await page.$eval('#jsonEditor',x=>JSON.parse(x.value));
+  assert.equal(doc.kind,kind);
+  assert.equal(await page.$$('#page-artwork image').then(items=>items.length),1,
+    'image-based example must render its embedded image');
+  assert.equal(await page.$eval('#page-artwork image',x=>x.getAttribute('href').startsWith('blob:')),true);
+ }
+ console.log('PASS: bundled image covers and study watermark open from Examples');
  assert.deepEqual(errors,[]);console.log('PASS: add local image to Studio with editable native node');
 }finally{await browser.close();server.close();await fs.rm(dir,{recursive:true,force:true});}

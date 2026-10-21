@@ -410,6 +410,7 @@ try{
   el.value='Colored border';el.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
  });
  assert.equal(await workspacePage.$eval(`.tree-item[data-path="${layerPath}"] .tree-label`,el=>el.textContent),'Colored border');
+ assert.equal(await workspacePage.$eval('#jsonEditor',el=>JSON.parse(el.value).items[1]['x-name']),'Colored border');
  await workspacePage.click(`.tree-item[data-path="${layerPath}"] .tree-color-control`);
  assert.equal(await workspacePage.$eval('.layer-color-picker',el=>el.classList.contains('hidden')),false);
  await workspacePage.click('.layer-color-swatch');
@@ -435,7 +436,7 @@ try{
  await workspacePage.click('.layer-color-footer button');
  assert.equal(await workspacePage.$eval(`.tree-item[data-path="${layerPath}"]`,el=>el.classList.contains('tree-is-colored')),false);
  const exportedDoc=JSON.parse(await workspacePage.$eval('#jsonEditor',el=>el.value));
- assert.equal(exportedDoc.items[1].name,'Right-click renamed');
+ assert.equal(exportedDoc.items[1]['x-name'],'Right-click renamed');
  assert.equal(Object.hasOwn(exportedDoc.items[1],'layerColor'),false);
  assert.equal(Object.hasOwn(exportedDoc.items[1],'colorTag'),false);
  await workspacePage.close();
@@ -1271,19 +1272,19 @@ try{
  assert(Math.hypot(alphaAfter.x-alphaBefore.x,alphaAfter.y-alphaBefore.y)<1.5,
   'moving selected layers into a nested group preserves their visual coordinates');
  let rearranged=await readDoc();
- assert.deepEqual(rearranged.items.map(n=>n.name),['Group','Gamma']);
- assert.deepEqual(rearranged.items[0].children.map(n=>n.name),['Inside','Alpha','Beta'],
+ assert.deepEqual(rearranged.items.map(n=>n['x-name']),['Group','Gamma']);
+ assert.deepEqual(rearranged.items[0].children.map(n=>n['x-name']),['Inside','Alpha','Beta'],
   'Ctrl-click order must not reverse original document order');
  assert.equal(await featurePage.$$('.tree-item.active[data-path]').then(x=>x.length),2,
   'dragging a group retains both selected layers');
  await dragTree('items.0.children.1','__page__','root');
  rearranged=await readDoc();
- assert.deepEqual(rearranged.items.map(n=>n.name),['Group','Gamma','Alpha','Beta'],
+ assert.deepEqual(rearranged.items.map(n=>n['x-name']),['Group','Gamma','Alpha','Beta'],
   'Page root drop moves the whole selection atomically');
- assert.deepEqual(rearranged.items[0].children.map(n=>n.name),['Inside']);
+ assert.deepEqual(rearranged.items[0].children.map(n=>n['x-name']),['Inside']);
  await featurePage.keyboard.down('Control');await featurePage.keyboard.press('z');await featurePage.keyboard.up('Control');
  rearranged=await readDoc();
- assert.deepEqual(rearranged.items[0].children.map(n=>n.name),['Inside','Alpha','Beta'],
+ assert.deepEqual(rearranged.items[0].children.map(n=>n['x-name']),['Inside','Alpha','Beta'],
   'multi-node drop is a single undo operation');
  // Reimport for predictable Pen creation and picker editing.
  const linesDoc={xtemplate:1,id:'test.line.axis',name:'Pen guide scenario',

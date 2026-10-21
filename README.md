@@ -22,7 +22,7 @@
 ## Features
 
 - **Visual canvas + JSON editor:** draw, inspect and edit native XNotes elements with undo/redo and optional split view.
-- **Image covers and watermarks (development):** insert PNG/JPEG/WebP as embedded image elements; position, crop and change opacity, then export a portable ZIP `.xtemplate`. See [image package guide](docs/IMAGE_PACKAGES.md).
+- **Image covers and watermarks (development):** insert PNG/JPEG/WebP, adjust crop frames and image focus, then export a portable ZIP `.xtemplate`. Try the [bundled image-based examples](examples/README.md) or read the [image-package guide](docs/IMAGE_PACKAGES.md).
 - **Pen and vector tools:** lines, polygons, polylines, Bézier paths, Hatch patterns, snapping, node editing and horizontal/vertical mirroring.
 - **Layer organization:** nested groups, `repeat`, multi-selection, drag-and-drop in **Structure**, and alignment guides.
 - **Cover design:** place shapes and control points outside the page; only the portion inside the sheet is rendered, while editing handles stay accessible.
