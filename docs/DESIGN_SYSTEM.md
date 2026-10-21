@@ -32,3 +32,49 @@ A new folded-document/monogram symbol replaces the generic X tile. One editable 
 ## Validation
 
 Run `npm run check`, `npm test`, `npm run test:browser`, `npm run package`, and `npm run desktop:assets` before review. Visual checks target full desktop (1536×960) and compact desktop (1024×768) widths.
+
+## V3: task-first workspace (21 October 2026)
+
+The next iteration is an applied redesign of the editor's **information architecture**, not an adoption of a mobile component library. It uses the same domain model and existing controls, grouped around jobs that people actually perform, with progressive disclosure and predictable editing feedback.
+
+### External research and design decisions
+
+- [Android / Material: layout and navigation patterns](https://developer.android.com/design/ui/mobile/guides/layout-and-content/layout-and-nav-patterns): consistent destinations, secondary tabs, contextual actions, and adaptive layouts. Applied as three stable regions with explicitly collapsible side panels, rather than copying mobile navigation to a desktop creator.
+- [Figma: inspect layer properties](https://help.figma.com/hc/en-us/articles/360039832014-Design-prototype-and-explore-layer-properties-in-the-right-sidebar): left-side document layers and selection-bound properties, avoiding duplicate editors for the same value.
+- [NN/g: progressive disclosure](https://www.nngroup.com/articles/progressive-disclosure/): frequent controls exposed immediately, uncommon parameters reachable through one disclosure level.
+- [NN/g: design guidelines for complex applications](https://www.nngroup.com/articles/complex-application-design/): reduce clutter without removing advanced capabilities.
+
+### Component boundaries
+
+The editor now uses standalone UI modules rather than extending the monolithic document renderer:
+
+| Module | Responsibility | Guarantee |
+|---|---|---|
+| `src/ui/inspector-layout.js` | Compose Content, Object settings, Transform, Appearance and Precision blocks based on selected native node | Moves existing DOM controls; never copies an input or changes its ID/binding |
+| `src/ui/template-library.js` | Search and categorize example `.xtemplate` files | Uses original `#topExample` select and its change handler |
+| `src/ui/insert-menu.js` | Searchable groupings for native element insertion | Preserves every existing `data-add` action and adds direct image insertion |
+| `src/ui/workspace-layout.js` | Canvas-focus toggles and Alt+1/Alt+2 shortcuts | Docks retain state and remain reachable at compact desktop widths |
+| `src/ui/workspace-v3.css` | Consistent surfaces, spacing, typography, control states and adaptive grids | Styles the existing app; no additional network or framework dependency |
+
+### Inspector information hierarchy
+
+1. **Context:** Content is foremost for text; Image framing and fit are foremost for images; repetition controls are foremost for repeats.
+2. **Transform:** X / Y / width / height and relevant rotation; Align to page is expandable, not a permanent first block.
+3. **Appearance:** colors, stroke and opacity where supported. Image opacity is brought directly alongside image framing. This preserves the original `transformOpacity` control rather than creating a second slider.
+4. **Precision & expressions:** technical expressions live in a clearly labeled disclosure without removing the original editing fields.
+5. **Expert native properties:** the official source path for images remains editable in the advanced block, while fit / crop / focus are visible first. All native properties remain accessible.
+
+Multiple-layer selection follows the same vocabulary: Appearance, Transform, Object options. A shared property is edited once and applied to each compatible layer. Selection-side actions and layer hierarchy are preserved.
+
+### Observable interaction criteria
+
+Automated Chromium checks run at **1536 × 960** and **1024 × 768** and verify:
+
+- Dock visibility and accessible pressed states, including keyboard shortcuts and a canvas-only focus view.
+- Search and category filters for all example templates, keeping the original dropdown behavior intact.
+- Grouped insert actions, including SVG paths, repeat, shapes and image import.
+- Context-sensitive inspector sections and unchanged property bindings for text, repeat and rectangle.
+- Consistent multi-selection groups, no duplicate editor field IDs and no horizontal overflow.
+- Existing canvas, selection, vector editing, crop Apply/Cancel, JSON import/export and ZIP asset roundtrip regressions.
+
+This is a **principles-based Material-inspired design**, not a claim that the application implements or has been certified against the entire Material 3 specification. Android/XNotes rendering parity and formal moderated user research still require independent validation.
