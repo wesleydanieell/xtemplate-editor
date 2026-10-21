@@ -30,3 +30,8 @@ test('fresh blank files do not share mutable params, items, or tag arrays',()=>{
  assert.deepEqual(second.params,{});
  assert.deepEqual(second.tags,['cover']);
 });
+
+test('cover documents can be categorized without adding page elements',()=>{
+ const cover=createBlankTemplate({name:'Cover',kind:'cover'});
+ assert.equal(cover.kind,'cover');assert.deepEqual(cover.items,[]);assert.deepEqual(cover.params,{});
+});

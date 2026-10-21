@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createDefaultNode, NODE_TYPES } from "../src/core/template-schema.js";
 
 test("every documented visual node type has an editable default", () => {
-  const expected = ["group", "repeat", "line", "hline", "vline", "rect", "circle", "ellipse", "dot", "polyline", "polygon", "text", "path", "hatch"];
+  const expected = ["group", "repeat", "line", "hline", "vline", "rect", "image", "circle", "ellipse", "dot", "polyline", "polygon", "text", "path", "hatch"];
   assert.deepEqual([...NODE_TYPES], expected);
   for (const type of NODE_TYPES) {
     const node = createDefaultNode(type);

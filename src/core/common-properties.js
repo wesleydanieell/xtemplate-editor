@@ -6,7 +6,7 @@ export const EDITABLE_PROPERTIES = Object.freeze([
   "weight", "italic", "align", "baseline", "dash", "clip", "inset",
   "axis", "period", "count", "fit", "index", "stagger", "extend", "text",
   "x", "y", "w", "h", "rx", "cx", "cy", "r", "ry", "points",
-  "d", "viewBox", "aspect", "angle", "offset", "select", "x1", "y1", "x2", "y2",
+  "d", "viewBox", "aspect", "angle", "offset", "src", "position", "select", "x1", "y1", "x2", "y2",
 ]);
 const STYLE = ["stroke", "fill", "strokeWidth", "opacity", "dash"];
 const LINE_STYLE = ["stroke", "strokeWidth", "opacity", "dash"];
@@ -18,6 +18,7 @@ const TYPE_PROPERTIES = Object.freeze({
   group: [...STYLE, ...TEXT_STYLE, ...XYWH, "inset", "clip"],
   repeat: [...STYLE, ...TEXT_STYLE, "axis", "period", "count", "fit", "index", "stagger", "extend"],
   rect: [...STYLE, ...XYWH, "rx"],
+  image: [...XYWH, "src", "fit", "position", "opacity"],
   hline: [...LINE_STYLE, "y", "x1", "x2"],
   vline: [...LINE_STYLE, "x", "y1", "y2"],
   line: [...LINE_STYLE, "x1", "y1", "x2", "y2"],
