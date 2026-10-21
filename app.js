@@ -44,11 +44,12 @@ todo:{xtemplate:1,id:"xtemplate.examples.todo",name:"Checklist",description:"Row
 };
 let doc=createBlankTemplate(),selectedPath=null,selectedPaths=[],dirty=false,drag=null,marqueeState=null,split=false,activeInspector="properties",suppressJson=false,toastTimer,clipboardNodes=[];
 let imageCropPath=null; // Active crop interaction; image stays in native clipped group.
+let imageCropSession=null; // Baseline for Apply / Cancel; never persisted into .xtemplate.
 let documentAssets=new Map();
 let documentImageSizes=new Map();
 const assetObjectUrls=new Map();
 function releaseAssetUrls(){for(const url of assetObjectUrls.values())URL.revokeObjectURL(url);assetObjectUrls.clear();}
-function replaceDocumentAssets(next,sizes=new Map()){imageCropPath=null;releaseAssetUrls();documentAssets=next;documentImageSizes=sizes;}
+function replaceDocumentAssets(next,sizes=new Map()){imageCropPath=null;imageCropSession=null;releaseAssetUrls();documentAssets=next;documentImageSizes=sizes;}
 function imageObjectUrl(src){const data=documentAssets.get(src);if(!data)return null;
  if(!assetObjectUrls.has(src))assetObjectUrls.set(src,URL.createObjectURL(new Blob([data],{type:imageFileType(data)})));
  return assetObjectUrls.get(src);
@@ -477,7 +478,7 @@ function renderSvgPathControls(root,node){
   catch(e){toast(e.message);}
  });
  button(parsed.closed?'Open path':'Close path',()=>commit(()=>{node.d=toggleSvgClosed(node.d);}));
- const note=document.createElement('p');note.className='inspector-tip';note.textContent='Bézier handles: orange = incoming, blue = outgoing. At intermediate cubic anchors, both controls are independently editable. Retracted controls have separated dashed markers; the exported XNotes path remains unchanged until you drag them. Complex SVG commands remain available in the d field.';root.appendChild(note);
+ const note=document.createElement('p');note.className='inspector-tip';note.textContent='Bézier handles are independent at each anchor. Drag a handle to shape the curve; edit advanced SVG commands in the path data field.';root.appendChild(note);
  if(pathCurrent()!==node)return;
  const list=document.createElement('div');list.className='vector-coordinate-list';root.appendChild(list);
  const closingAlias=closedSvgAnchorAlias(parsed);
@@ -969,7 +970,7 @@ function moveTreeNodes(paths,target,place='after'){
  toast(moved.count+(moved.count===1?' layer':' layers')+' moved.');
 }
 function select(path){
- if(imageCropPath && (!path || nodeKey(path)!==imageCropPath))imageCropPath=null;
+ if(imageCropPath && (!path || nodeKey(path)!==imageCropPath)){imageCropPath=null;imageCropSession=null;}
  selectedPath=path;selectedPaths=path?[path.slice()]:[];
  if(path)for(let i=2;i<path.length;i+=2)collapsedTree.delete(nodeKey(path.slice(0,i)));
  render();setInspectorTab("properties");
@@ -984,7 +985,7 @@ function selectFromTree(path,e){
  selectedPaths=next.paths;
  treeSelectionAnchor=next.anchor;
  selectedPath=selectedPaths.at(-1)||null;
- if(imageCropPath&&(!selectedPath||nodeKey(selectedPath)!==imageCropPath))imageCropPath=null;
+ if(imageCropPath&&(!selectedPath||nodeKey(selectedPath)!==imageCropPath)){imageCropPath=null;imageCropSession=null;}
  for(const p of selectedPaths)for(let i=2;i<p.length;i+=2)collapsedTree.delete(nodeKey(p.slice(0,i)));
  render();setInspectorTab("properties");
 }
@@ -994,7 +995,7 @@ function groupSelection(){
  const result=groupSiblingNodes(doc,selectedPaths);
  if(!result){toast("Select at least two sibling layers to group.");return;}
  restoreLayerMarkers(markers);
- selectedPath=result.path;selectedPaths=result.paths;commit(()=>{});setInspectorTab("properties");toast("Elementos agrupados.");
+ selectedPath=result.path;selectedPaths=result.paths;commit(()=>{});setInspectorTab("properties");toast("Elements grouped.");
 }
 function getValue(n,k){if(n[k]===undefined)return"";return typeof n[k]==="object"?JSON.stringify(n[k]):String(n[k]);}
 // The document form has one owner at a time: Element when Page is selected,
@@ -1104,16 +1105,29 @@ function cropFrameSize(group,path=selectedPath){
  return{w:evalN(group.w??'100%',box,'x',box.w),h:evalN(group.h??'100%',box,'y',box.h)};
 }
 function ensureCropCoverage(group,path=selectedPath){if(isCropGroup(group))constrainCrop(group.children[0],cropFrameSize(group,path));}
+function applyCrop(){
+ imageCropSession=null;imageCropPath=null;render();
+}
+function cancelCrop(){
+ const session=imageCropSession;
+ imageCropSession=null;imageCropPath=null;
+ if(session&&selectedPath&&session.path===nodeKey(selectedPath)){
+  commit(()=>replaceAt(selectedPath,session.original));
+  setStatus('Crop cancelled');
+ }else render();
+}
 function beginNativeCrop(){
  const path=selectedPath?.slice(),node=getAt(path);
  if(!node)return;
  if(isCropGroup(node)){
+  imageCropSession={path:nodeKey(path),original:clone(node)};
   imageCropPath=nodeKey(path);render();return;
  }
  if(node.type!=='image')return;
  const bounds=transformGeometry(node,path),dims=documentImageSizes.get(node.src);
  if(!dims){toast('The source image is not available for cropping.');return;}
  const wrap=createNativeCropGroup(node,{w:bounds.w,h:bounds.h},dims);
+ imageCropSession={path:nodeKey(path),original:clone(node)};
  imageCropPath=nodeKey(path);
  commit(()=>replaceAt(path,wrap));
 }
@@ -1123,17 +1137,22 @@ function renderImageCropControls(root,node){
  const title=document.createElement('h3');title.className='inspector-section-title';title.textContent='Image framing';wrapper.appendChild(title);
  const actions=document.createElement('div');actions.className='crop-actions';
  const crop=document.createElement('button');crop.type='button';crop.dataset.imageCrop='toggle';
- crop.className='quiet'+(active?' crop-active':'');crop.setAttribute('aria-pressed',String(active));
- crop.textContent=active?'Done cropping':isNative?'Edit crop':'Crop image';
- crop.addEventListener('click',()=>{
-  if(active){imageCropPath=null;render();}
-  else beginNativeCrop();
- });
- const replace=document.createElement('button');replace.type='button';replace.className='quiet';
- replace.dataset.imageReplace='true';replace.textContent='Replace image';replace.addEventListener('click',()=>{
-  $('imageFileInput').dataset.replace='true';$('imageFileInput').click();
- });
- actions.append(crop,replace);wrapper.appendChild(actions);
+ crop.className=active?'primary crop-active':'quiet';crop.setAttribute('aria-pressed',String(active));
+ crop.textContent=active?'Apply crop':isNative?'Edit crop':'Crop image';
+ crop.addEventListener('click',()=>active?applyCrop():beginNativeCrop());
+ if(active){
+  const cancel=document.createElement('button');cancel.type='button';cancel.className='quiet';
+  cancel.dataset.imageCropCancel='true';cancel.textContent='Cancel';
+  cancel.addEventListener('click',cancelCrop);
+  actions.append(crop,cancel);
+ }else{
+  const replace=document.createElement('button');replace.type='button';replace.className='quiet';
+  replace.dataset.imageReplace='true';replace.textContent='Replace image';replace.addEventListener('click',()=>{
+   $('imageFileInput').dataset.replace='true';$('imageFileInput').click();
+  });
+  actions.append(crop,replace);
+ }
+ wrapper.appendChild(actions);
  if(isNative){
   const inner=node.children[0],frame=cropFrameSize(node),dims=documentImageSizes.get(inner.src);
   const cover=dims?cropCoverGeometry(frame,dims):null;
@@ -1161,7 +1180,7 @@ function renderImageCropControls(root,node){
  }
  const hint=document.createElement('p');hint.className='crop-tip';
  hint.textContent=isNative
-  ? active?'Drag the photo to reposition it. Drag the frame handles to adjust the crop. Use Image scale to zoom. Done when finished.':'Your crop remains editable. Select Edit crop to move the photo within the frame.'
+  ? active?'Drag the photo to reposition it, adjust the crop frame with its handles, or zoom. Apply to keep changes; Cancel or Esc restores the previous framing.':'This non-destructive crop is editable. Select Edit crop to adjust it.'
   :'Crop lets you move and zoom the photo inside a resizable frame, without stretching or deleting pixels.';
  wrapper.appendChild(hint);root.appendChild(wrapper);
 }
@@ -1252,7 +1271,7 @@ function commit(fn){
 }
 function updateHistoryButtons(){const u=$("undoBtn"),r=$("redoBtn");if(u)u.disabled=!history.canUndo;if(r)r.disabled=!history.canRedo;}
 function resetHistory(){history.reset(JSON.stringify(doc));updateHistoryButtons();}
-function restoreHistory(direction,label){const state=direction==="undo"?history.undo(JSON.stringify(doc)):history.redo(JSON.stringify(doc));if(state===null)return;historyRestoring=true;try{doc=JSON.parse(state);selectedPath=null;selectedPaths=[];setDirty(true);initializePreviewValues();syncJson();render();setInspectorTab("properties");setStatus(label);updateHistoryButtons();}finally{historyRestoring=false;}}
+function restoreHistory(direction,label){imageCropPath=null;imageCropSession=null;const state=direction==="undo"?history.undo(JSON.stringify(doc)):history.redo(JSON.stringify(doc));if(state===null)return;historyRestoring=true;try{doc=JSON.parse(state);selectedPath=null;selectedPaths=[];setDirty(true);initializePreviewValues();syncJson();render();setInspectorTab("properties");setStatus(label);updateHistoryButtons();}finally{historyRestoring=false;}}
 function undo(){restoreHistory("undo","Undone");}
 function redo(){restoreHistory("redo","Redone");}
 $("undoBtn")?.addEventListener("click",undo);$("redoBtn")?.addEventListener("click",redo);
@@ -1376,7 +1395,7 @@ let jsonInputTimer;
 jsonEditor.addEventListener("input",()=>{if(suppressJson)return;updateLineNumbers();clearTimeout(jsonInputTimer);jsonInputTimer=setTimeout(renderJsonInput,250);});
 jsonEditor.addEventListener("scroll",()=>$("lineNumbers").scrollTop=jsonEditor.scrollTop);
 jsonEditor.addEventListener("click",updateCursor);jsonEditor.addEventListener("keyup",updateCursor);
-function updateCursor(){const before=jsonEditor.value.slice(0,jsonEditor.selectionStart),lines=before.split("\n");$("jsonCursor").textContent="Linha "+lines.length+", coluna "+(lines[lines.length-1].length+1);}
+function updateCursor(){const before=jsonEditor.value.slice(0,jsonEditor.selectionStart),lines=before.split("\n");$("jsonCursor").textContent="Line "+lines.length+", column "+(lines[lines.length-1].length+1);}
 $("formatJson").addEventListener("click",()=>{try{const next=JSON.parse(jsonEditor.value);validate(next);doc=next;syncJson();initializePreviewValues();render();setDirty(true);toast("JSON formatted.");}catch(e){toast("Invalid JSON: "+e.message);}});
 $("resetJson").addEventListener("click",()=>{syncJson();initializePreviewValues();render();toast("JSON editor reverted to the last valid version.");});
 function toggleSplit(force){split=force===undefined?!split:force;$("jsonPane").classList.toggle("hidden",!split);$("splitToggle").classList.toggle("active",split);$("splitToggle").querySelector("span").textContent=split?"Close JSON":"Split editor";if(split){syncJson();$("jsonEditor").focus();}fitPaper();}
@@ -2755,7 +2774,7 @@ window.addEventListener("keydown",e=>{const typing=/INPUT|TEXTAREA|SELECT/.test(
    commit(()=>{});
   }return;
  }if(!e.ctrlKey&&!e.metaKey&&!e.altKey){const key=e.key.toLowerCase(),tools={v:"select",r:"rect",o:"ellipse",p:"pen",c:"curve",l:"line",t:"text"};if(tools[key]){setActiveTool(tools[key]);return;}}if(e.key==="Insert"){e.preventDefault();openStructureAddMenu();}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="d"&&selectedPath){e.preventDefault();$("duplicateElement").click();}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="g"&&selectedPaths.length>1){e.preventDefault();groupSelection();}if(e.key==="Delete"||e.key==="Backspace"){if(selectedPath&&selectedPath[0]!=="__page__"){e.preventDefault();$("deleteElement").click();}}if(e.key==="Enter"&&activeTool==="pen"&&curveState){e.preventDefault();finishPenPath();return;}if(e.key==="Escape"){
- if(imageCropPath){imageCropPath=null;render();e.preventDefault();return;}
+ if(imageCropPath){cancelCrop();e.preventDefault();return;}
  if(curveState){curveState=null;renderPenPreview();clearSmartGuides();renderSmartGuideOverlay();toast("Drawing cancelled.");return;}
  hideContextMenu();
 }if(e.altKey&&["ArrowUp","ArrowDown"].includes(e.key)&&selectedPath){e.preventDefault();moveSelectedLayer(e.key==="ArrowUp"?"up":"down");return;}});
@@ -2799,8 +2818,8 @@ const commands=[
 ];
 let commandMatches=[],commandIndex=0,previousFocus=null;
 function renderCommandResults(){
- const q=commandSearch.value.trim().toLocaleLowerCase("pt-BR");
- commandMatches=commands.map((c,i)=>({...c,index:i})).filter(c=>(c.label+" "+c.group+" "+(c.keywords||"")+" "+(c.shortcut||"")).toLocaleLowerCase("pt-BR").includes(q));
+ const q=commandSearch.value.trim().toLocaleLowerCase("en");
+ commandMatches=commands.map((c,i)=>({...c,index:i})).filter(c=>(c.label+" "+c.group+" "+(c.keywords||"")+" "+(c.shortcut||"")).toLocaleLowerCase("en").includes(q));
  commandIndex=Math.min(commandIndex,Math.max(0,commandMatches.length-1));
  commandResults.replaceChildren();
  if(!commandMatches.length){const empty=document.createElement("div");empty.className="command-empty";empty.textContent="No commands found";commandResults.appendChild(empty);return;}

@@ -179,10 +179,27 @@ try{
  await page.$eval('.tree-item[data-path="items.1"]',el=>el.click());
  assert.equal(await page.$eval('[data-image-crop]',el=>el.textContent.trim()),'Edit crop');
  await page.click('[data-image-crop="toggle"]');
- assert.equal(await page.$eval('[data-image-crop]',el=>el.textContent.trim()),'Done cropping');
+ assert.equal(await page.$eval('[data-image-crop]',el=>el.textContent.trim()),'Apply crop');
+ // Escape cancels changes made in the crop editor, including pan/zoom,
+ // rather than simply closing the tool and leaving those changes behind.
+ const beforeCancel=await page.$eval('#jsonEditor',el=>JSON.parse(el.value).items[1]);
+ const frame=await page.$eval('#jsonEditor',el=>JSON.parse(el.value).items[1]);
+ await page.$eval('.crop-zoom input',el=>{el.value='180';el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));});
+ const modified=await page.$eval('#jsonEditor',el=>JSON.parse(el.value).items[1]);
+ assert.notDeepEqual(modified,beforeCancel,'zoom edits native geometry');
  await page.keyboard.press('Escape');
  assert.equal(await page.$eval('[data-image-crop]',el=>el.textContent.trim()),'Edit crop');
- console.log('PASS: reopened crop frame remains editable; Escape exits crop');
+ const cancelled=await page.$eval('#jsonEditor',el=>JSON.parse(el.value).items[1]);
+ assert.deepEqual(cancelled,beforeCancel,'Escape restores the saved image framing');
+ await page.click('[data-image-crop="toggle"]');
+ await page.$eval('.crop-zoom input',el=>{el.value='150';el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));});
+ await page.click('[data-image-crop-cancel]');
+ assert.deepEqual(await page.$eval('#jsonEditor',el=>JSON.parse(el.value).items[1]),beforeCancel,'Cancel restores snapshot');
+ await page.click('[data-image-crop="toggle"]');
+ await page.$eval('.crop-zoom input',el=>{el.value='135';el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));});
+ await page.click('[data-image-crop="toggle"]');
+ assert.notDeepEqual(await page.$eval('#jsonEditor',el=>JSON.parse(el.value).items[1]),beforeCancel,'Apply keeps new framing');
+ console.log('PASS: crop Apply persists, Cancel and Escape restore exact prior framing');
  // Add a new image by using the Insert menu and the local file picker.
  const png=await fs.readFile('docs/images/studio-overview.webp');
  await page.$eval('#imageFileInput',(input,data)=>{const dt=new DataTransfer();dt.items.add(new File([new Uint8Array(data)],'studio.webp',{type:'image/webp'}));input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));},[...png]);

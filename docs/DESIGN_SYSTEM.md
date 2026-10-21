@@ -21,7 +21,7 @@ Cropping now uses **native XNotes v1 group clipping**, not a fake drag operation
 - Move the picture within the frame by dragging it directly on the canvas.
 - Resize the crop frame with its handles, changing what is visible without distorting the photo.
 - Zoom the picture while preserving its original aspect ratio. The image always covers the frame to avoid blank borders.
-- Finish cropping and return to standard object transforms, or reopen *Edit crop* later. Use **Reset framing** to recenter/recover the original cover fit.
+- Apply crop to keep the framing, or Cancel / Esc to restore its initial geometry, then return to standard object transforms, or reopen *Edit crop* later. Use **Reset framing** to recenter/recover the original cover fit.
 
 The exported structure is standard `.xtemplate` (`type: "group", clip: true` with a child `type: "image"`). The editor adds `x-studio-crop: true` only as an allowed `x-` metadata extension so it can recognize the pattern on reopen. Original image bytes are preserved in the ZIP; the crop is non-destructive. Unlike Photoshop, it does **not** rotate/straighten the crop or apply bitmap retouching. Verify specific Android renderer behavior before releasing.
 
