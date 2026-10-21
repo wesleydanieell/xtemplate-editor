@@ -64,3 +64,7 @@ XTemplate Studio targets the [official `.xtemplate` specification](https://githu
 ## Contribute
 
 Bug reports and pull requests are welcome through [Issues](https://github.com/wesleydanieell/xtemplate-editor/issues) and [Pull requests](https://github.com/wesleydanieell/xtemplate-editor/pulls). See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md). Source code is [MIT licensed](LICENSE); bundled example templates may have their own licenses.
+
+## UI and editing model
+
+The editor follows a clean [Layers → Canvas → Properties design system](docs/DESIGN_SYSTEM.md). For images, **Crop image** now lets you move and zoom the original picture within a freely resizable native clipping frame; no pixels are deleted.

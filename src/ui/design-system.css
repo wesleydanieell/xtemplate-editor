@@ -1,0 +1,140 @@
+/* XTemplate Studio UI v2 — product system
+   Mental model: Layers | canvas | Inspector. Progressive disclosure separates
+   layout and appearance from specialist expressions and variable wiring.
+   Tokens follow the existing three themes; visual components share one scale. */
+:root{--ux-radius:10px;--ux-small:6px;--ux-space:12px;--ux-action-height:34px;--ux-strong:#eaf2fb;--ux-accent:#80cfcd}
+:root[data-theme="graphite"]{--ux-accent:#d4bca2;--ux-strong:#f5f0e8}
+:root[data-theme="midnight"]{--ux-accent:#7acdcf;--ux-strong:#ecfbfc}
+body{font-size:12px;line-height:1.45;letter-spacing:.005em}
+:root[data-theme] .app{grid-template-columns:252px minmax(360px,1fr) 322px}
+:root[data-theme] .topbar{height:58px;padding:0 18px;gap:14px;border-color:var(--ui-divider);background:var(--ui-base)}
+:root[data-theme] .app{height:calc(100vh - 58px)}
+:root[data-theme] .brand{gap:9px}
+:root[data-theme] .brand-mark{width:36px;height:36px;padding:0;border:0;box-shadow:none;background:none;border-radius:9px;overflow:hidden}
+.brand-mark img{display:block;width:36px;height:36px;object-fit:contain}
+.app-name{font-size:13px;letter-spacing:-.02em;white-space:nowrap;font-weight:550;color:var(--ui-text)}
+.app-name b{font-weight:750;color:var(--ux-strong)}
+:root[data-theme] .app-menu-trigger{font-size:12px;font-weight:550;border-radius:6px}
+:root[data-theme] .top-export{height:36px;padding:0 17px;border-radius:8px;background:#4d7d88;border:1px solid #6a9ca3;color:white;font-weight:720;box-shadow:none}
+:root[data-theme] .top-export:hover{background:#6296a2}
+:root[data-theme] .left-panel,:root[data-theme] .right-panel{background:var(--ui-surface);border-color:var(--ui-divider)}
+:root[data-theme] .left-tabs{padding:10px 12px;gap:6px;height:auto;background:transparent;border-color:var(--ui-divider)}
+:root[data-theme] .left-tab{font-size:12px;min-height:34px;border-radius:7px;color:var(--ui-muted);border:1px solid transparent;background:transparent}
+:root[data-theme] .left-tab.active{background:var(--ui-selected);border-color:var(--ui-border);color:var(--ui-selected-text);box-shadow:none}
+:root[data-theme] .left-tab:hover:not(.active){background:var(--ui-hover)}
+:root[data-theme] .dock-heading{height:46px;padding:0 15px;font-size:10px;font-weight:750;color:var(--ui-heading);border-color:var(--ui-divider);background:transparent;letter-spacing:.10em}
+:root[data-theme] .dock-actions button{width:29px;height:29px;min-width:29px;font-size:17px;color:var(--ui-text);border:1px solid transparent;border-radius:7px}
+:root[data-theme] .dock-actions button:last-child{background:var(--ui-surface-alt);border-color:var(--ui-border)}
+:root[data-theme] .outline-subtitle{padding:13px 15px 10px;letter-spacing:0;font-size:10px;color:var(--ui-soft)}
+:root[data-theme] .tree{padding:0 9px 12px}
+:root[data-theme] .tree-item{min-height:41px;margin:2px 0;padding-top:5px;padding-bottom:5px;gap:10px;border:1px solid transparent;border-radius:8px;color:var(--ui-text)}
+:root[data-theme] .tree-item:hover{background:var(--ui-hover)}
+:root[data-theme] .tree-item.active{background:var(--ui-selected);border-color:color-mix(in srgb,var(--ux-accent) 38%,transparent);box-shadow:none}
+:root[data-theme] .tree-item.tree-page{background:var(--ui-surface-alt);border:1px solid var(--ui-divider);border-left:3px solid var(--ux-accent);padding:8px 9px;min-height:46px;margin-bottom:10px}
+.tree-item .tree-symbol{width:19px;min-width:19px;text-align:center;font-size:15px;color:var(--ui-muted)}
+.tree-item .tree-label{font-size:11.5px;font-weight:560;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tree-item .tree-meta{font-size:10px;opacity:.72;margin-top:2px;line-height:1.15}
+.tree-item .tree-index{display:none}
+:root[data-theme] .tree-item .tree-color-control{opacity:.22;min-width:16px;width:16px;margin:0}
+:root[data-theme] .tree-item:hover .tree-color-control,:root[data-theme] .tree-item.active .tree-color-control,:root[data-theme] .tree-item.tree-is-colored .tree-color-control{opacity:1}
+:root[data-theme] .workspace-toolbar{min-height:46px;background:var(--ui-surface);border-color:var(--ui-divider);padding:0 12px}
+:root[data-theme] .document-tabs{background:var(--ui-surface);border-color:var(--ui-divider);height:44px}
+:root[data-theme] .doc-tab.active{border-radius:6px 6px 0 0}
+:root[data-theme] .pane-title{background:var(--ui-surface);border-color:var(--ui-divider);font-size:10px;letter-spacing:.07em;color:var(--ui-muted)}
+:root[data-theme] .canvas-area{background-color:#131e2b;background-image:radial-gradient(#354459 .75px,transparent .75px);background-size:18px 18px}
+:root[data-theme="graphite"] .canvas-area{background-color:#1d232a;background-image:radial-gradient(#3b4950 .75px,transparent .75px)}
+:root[data-theme="midnight"] .canvas-area{background-color:#10212a;background-image:radial-gradient(#345362 .75px,transparent .75px)}
+:root[data-theme] .canvas-tools{border-radius:12px;background:var(--ui-surface);border:1px solid var(--ui-border);padding:6px;gap:5px;box-shadow:0 12px 25px #0005}
+:root[data-theme] .canvas-tools .canvas-tool{border-radius:8px}
+:root[data-theme] .canvas-tools .canvas-tool.active,:root[data-theme] .canvas-tools .canvas-tool[aria-pressed="true"]{background:var(--ui-selected);border-color:var(--ux-accent);color:var(--ux-strong);box-shadow:none}
+:root[data-theme] .right-tabs{height:48px;background:var(--ui-surface);border-color:var(--ui-divider);padding:5px 9px;gap:5px}
+:root[data-theme] .right-tab{font-size:12px;border-radius:7px;font-weight:620;border:1px solid transparent;background:transparent;color:var(--ui-muted)}
+:root[data-theme] .right-tab.active{background:var(--ui-selected);border-color:var(--ui-border);color:var(--ui-selected-text);box-shadow:none}
+:root[data-theme] .inspector-content{padding:14px 14px 24px}
+:root[data-theme] .inspector-content>.inspector-heading{margin-bottom:15px;min-height:24px;letter-spacing:.06em;color:var(--ui-heading)}
+:root[data-theme] .type-badge{background:var(--ui-surface-alt);color:var(--ui-muted);border:1px solid var(--ui-divider);border-radius:6px}
+:root[data-theme] #elementInspector .transform-panel{border:0;border-bottom:1px solid var(--ui-divider);border-radius:0;background:transparent;margin:0 0 16px;padding:0 2px 17px}
+:root[data-theme] .transform-title{font-size:11px;font-weight:750;letter-spacing:.075em;color:var(--ui-heading);margin:0 0 14px}
+:root[data-theme] #elementInspector .transform-panel>.field-row{margin:8px 0;gap:8px}
+:root[data-theme] .field{font-size:11px;color:var(--ui-muted);font-weight:530;line-height:1.45}
+:root[data-theme] .field>input,:root[data-theme] .field>select,:root[data-theme] .field>textarea{border-radius:7px;min-height:34px;background:var(--ui-input);border:1px solid var(--ui-input-border);color:var(--ui-text);font-size:12px}
+:root[data-theme] .field>input:focus,:root[data-theme] .field>textarea:focus{border-color:var(--ux-accent)}
+:root[data-theme] #elementInspector .appearance-section{padding:4px 2px 14px;border-bottom:1px solid var(--ui-divider);margin:0 0 12px}
+:root[data-theme] #elementInspector .appearance-section>label{font-size:11px;font-weight:750;letter-spacing:.075em;color:var(--ui-heading);display:block;margin:0 0 12px}
+:root[data-theme] #elementInspector .appearance-section .inspector-tip{margin:8px 0 0;color:var(--ui-soft);font-size:10px}
+:root[data-theme] .inspector-tip,:root[data-theme] .transform-note{font-size:10px;color:var(--ui-soft);line-height:1.55}
+:root[data-theme] #elementInspector .inspector-details{border:1px solid var(--ui-divider);border-radius:8px;margin:10px 0;background:var(--ui-surface-alt);overflow:hidden}
+:root[data-theme] #elementInspector .inspector-details>summary{font-size:11px;font-weight:650;padding:12px 11px;color:var(--ui-text);background:transparent;cursor:pointer}
+:root[data-theme] #elementInspector .inspector-details[open]>summary{border-bottom:1px solid var(--ui-divider)}
+:root[data-theme] #elementInspector .inspector-details>.details-body{padding:14px 11px}
+:root[data-theme] #elementInspector .alignment-tools{margin:0 0 14px;padding:0;border:1px solid var(--ui-divider);border-radius:8px;background:var(--ui-surface-alt)}
+:root[data-theme] #elementInspector .alignment-tools summary{list-style:none;padding:10px 12px;cursor:pointer;color:var(--ui-heading);font-size:11px;font-weight:650}
+:root[data-theme] #elementInspector .alignment-tools summary::-webkit-details-marker{display:none}
+:root[data-theme] #elementInspector .alignment-tools summary:before{content:'▸';margin-right:8px;color:var(--ui-muted)}
+:root[data-theme] #elementInspector .alignment-tools[open] summary:before{content:'▾'}
+:root[data-theme] #elementInspector .alignment-section-body{padding:0 10px 12px}
+:root[data-theme] #elementInspector .alignment-caption{display:none}
+:root[data-theme] #elementInspector .advanced-inspector{padding:0 2px 8px;margin-top:10px;border-top:0}
+:root[data-theme] #elementInspector .advanced-heading{font-size:10px;letter-spacing:.075em;margin:13px 0 7px;color:var(--ui-heading)}
+:root[data-theme] #elementInspector .inspector-actions{border-top:1px solid var(--ui-divider);margin:20px 0 8px;padding:17px 0 7px}
+:root[data-theme] .quiet,:root[data-theme] .primary,:root[data-theme] .danger-button{border-radius:7px;min-height:33px}
+:root[data-theme] .section-description{background:transparent;border:0;border-bottom:1px solid var(--ui-divider);padding:0 2px 14px;line-height:1.6;color:var(--ui-muted);font-size:11px}
+:root[data-theme] #paramsPanel .param-card{border:1px solid var(--ui-divider);border-radius:8px;background:var(--ui-surface-alt);margin:12px 0}
+:root[data-theme] .modal-card{border-radius:15px;box-shadow:0 25px 80px #0009}
+:root[data-theme] .empty-selection{border:1px dashed var(--ui-border);background:var(--ui-surface-alt);border-radius:10px;padding:26px 15px;color:var(--ui-muted)}
+:root[data-theme] .empty-selection b{color:var(--ui-text)}
+:root[data-theme] .template-picker select{margin-top:7px;min-height:37px;border-radius:7px}
+/* Non-destructive crop editor: the image is clipped by a native XNotes group. */
+.crop-controls{border:1px solid color-mix(in srgb,var(--ux-accent) 36%,var(--ui-divider));border-radius:10px;background:var(--ui-surface-alt);padding:13px;margin-top:14px;display:flex;flex-direction:column;gap:11px}
+.inspector-section-title{font-size:12px;font-weight:750;color:var(--ui-text);margin:0 0 1px}
+.crop-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.crop-actions button{font-size:11px;padding:7px 6px}
+.crop-actions .crop-active{background:#2e615d;border:1px solid var(--ux-accent);color:#ebfcf9}
+.crop-tip{margin:0;font-size:10px;line-height:1.55;color:var(--ui-muted)}
+.crop-zoom{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px;align-items:center;color:var(--ui-text);font-size:11px}
+.crop-zoom input{grid-column:1/-1;width:100%;margin:5px 0}
+.crop-scale-value{justify-self:end;color:var(--ux-accent);font-weight:650;font-variant-numeric:tabular-nums}
+.crop-reset{align-self:flex-start;font-size:11px}
+.crop-guides{pointer-events:none}
+.crop-guides line{stroke:#f3f7ff;stroke-opacity:.8;stroke-width:.48;vector-effect:non-scaling-stroke;stroke-dasharray:2 2}
+.crop-guides rect{fill:none;stroke:#fff;stroke-width:.8;vector-effect:non-scaling-stroke}
+:root[data-theme] .canvas-area:has(.crop-guides) .paper-wrap{cursor:move}
+@media(max-width:1160px){:root[data-theme] .app{grid-template-columns:210px minmax(300px,1fr) 294px}.pan-hint{display:none}}
+@media(max-width:880px){:root[data-theme] .app{grid-template-columns:180px minmax(270px,1fr) 260px}:root[data-theme] .inspector-content{padding:10px}:root[data-theme] .dock-heading{padding:0 10px}.topbar{padding:0 8px}}
+:root[data-theme="graphite"] .top-export{background:#87745a;border-color:#b8a080}
+:root[data-theme="graphite"] .top-export:hover{background:#a18b6c}
+:root[data-theme="midnight"] .top-export{background:#246d78;border-color:#4ea7b1}
+:root[data-theme="midnight"] .top-export:hover{background:#327f8a}
+/* Consistent inspector order: basic appearance before technical expressions. */
+#elementInspector{display:flex;flex-direction:column;min-width:0}
+#elementInspector .transform-panel{order:1}
+#elementInspector .appearance-section{order:2}
+#elementInspector .advanced-inspector{order:3}
+#elementInspector .inspector-details:not(.expression-settings){order:4}
+#elementInspector .expression-settings{order:5}
+#elementInspector .inspector-actions{order:6}
+#elementInspector>.inspector-tip{order:7}
+:root[data-theme] #elementInspector .transform-panel{padding:12px 12px 18px}
+:root[data-theme] #elementInspector .alignment-tools{padding:8px}
+:root[data-theme] #elementInspector .alignment-tools summary{padding:10px 8px}
+#elementInspector:has(.crop-controls) .appearance-section{display:none}
+.advanced-disclosure{margin:12px 0;border:1px solid var(--ui-divider);border-radius:9px;background:var(--ui-surface-alt);overflow:hidden}
+.advanced-disclosure>summary{padding:11px 12px;list-style:none;cursor:pointer;font-size:11px;font-weight:650;color:var(--ui-heading)}
+.advanced-disclosure>summary::-webkit-details-marker{display:none}
+.advanced-disclosure>summary:before{content:'▸';margin-right:9px;color:var(--ui-soft)}
+.advanced-disclosure[open]>summary{border-bottom:1px solid var(--ui-divider)}
+.advanced-disclosure[open]>summary:before{content:'▾'}
+.advanced-disclosure>.field,.advanced-disclosure>.field-row{margin:12px!important}
+/* Keep the toolbar focused on canvas controls; the inspector is the single
+   source of truth for editable selected-object properties. */
+:root[data-theme] #quickProperties{display:none}
+:root[data-theme] .workspace-toolbar>.toolbar-group:last-child{margin-left:auto}
+:root[data-theme] .preview-pane>.pane-title>.preview-colors-quick{display:none}
+:root[data-theme] .tree-item:not(.tree-page){min-height:33px}
+:root[data-theme] .tree-item:not(.tree-page) .tree-meta{display:none}
+:root[data-theme] .tree-item:not(.tree-page):is(.active,:hover) .tree-meta{display:block}
+/* A picture has no stroke or text attributes; these remain available for
+   other native elements instead of exposing disabled, misleading fields. */
+:root[data-theme] #elementInspector:has(.crop-controls)>.inspector-details:not(.expression-settings){display:none}
+
+:root[data-theme] .app-name{font-size:13px}
