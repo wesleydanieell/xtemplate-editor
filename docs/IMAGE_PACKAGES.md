@@ -8,6 +8,8 @@ The official [.xtemplate specification](https://github.com/shardulvs/xtemplate/b
 2. Click the **Image** button on the canvas toolbar or **Insert → Image from file…**.
 3. Select a PNG, JPEG or WebP. The editor adds an `image` element in Structure.
 4. Drag the image, resize via its handles or edit **X / Y / Width / Height**, **Image fit** (`contain`, `cover`, `stretch`), **Image position** and **Opacity** in the Element inspector. **Replace image…** substitutes the selected image without changing its size/placement.
+   - The selection box follows the **visible pixels** when `contain` adds empty space around the image.
+   - **Side/corner dragging** freely adjusts the image dimensions and switches the native fit mode to `stretch`; this can distort the image intentionally. **Shift + corner** retains the image's current proportions and `fit` choice (`contain`, `cover`, or `stretch`). If you want letterboxing or cropping again after a free drag, reselect `contain` or `cover` in the inspector.
 5. Arrange images behind a header, footer, shapes or text in Structure. For a watermark, lower its opacity, and put it behind the other content.
 6. **File → Export template** writes a ZIP package with the `.xtemplate` extension, containing `template.json` and the used assets under `images/`.
 

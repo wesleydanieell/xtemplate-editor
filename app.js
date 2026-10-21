@@ -14,6 +14,7 @@ import { valueHint, variableTypeHint } from "./src/features/value-hints.js";
 import { LAYER_COLORS, readLayerColors, validLayerColor } from "./src/features/layer-colors.js";
 import { screenToDocumentPoint } from "./src/features/pointer-geometry.js";
 import { paintedBounds } from "./src/features/painted-bounds.js";
+import { imageDisplayBounds, imageResizeFit } from "./src/features/image-frame.js";
 import { repeatPositions } from "./src/features/repeat-layout.js";
 import { inspectorSections } from "./src/features/inspector-priority.js";
 import { readPointPairs, requiresBake, replacePointCoordinate, addPoint, removePoint, reversePoints, midpoint, alignPoints, distributePoints } from "./src/features/vector/points.js";
@@ -41,9 +42,10 @@ todo:{xtemplate:1,id:"xtemplate.examples.todo",name:"Checklist",description:"Row
 };
 let doc=createBlankTemplate(),selectedPath=null,selectedPaths=[],dirty=false,drag=null,marqueeState=null,split=false,activeInspector="properties",suppressJson=false,toastTimer,clipboardNodes=[];
 let documentAssets=new Map();
+let documentImageSizes=new Map();
 const assetObjectUrls=new Map();
 function releaseAssetUrls(){for(const url of assetObjectUrls.values())URL.revokeObjectURL(url);assetObjectUrls.clear();}
-function replaceDocumentAssets(next){releaseAssetUrls();documentAssets=next;}
+function replaceDocumentAssets(next,sizes=new Map()){releaseAssetUrls();documentAssets=next;documentImageSizes=sizes;}
 function imageObjectUrl(src){const data=documentAssets.get(src);if(!data)return null;
  if(!assetObjectUrls.has(src))assetObjectUrls.set(src,URL.createObjectURL(new Blob([data],{type:imageFileType(data)})));
  return assetObjectUrls.get(src);
@@ -55,7 +57,7 @@ async function validateImageFile(file){
  const image=await createImageBitmap(new Blob([bytes],{type:imageFileType(bytes)}));
  const {width,height}=image;image.close();
  if(width>PACKAGE_LIMITS.maxPixels||height>PACKAGE_LIMITS.maxPixels)throw Error('Image dimensions exceed 8192px');
- return bytes;
+ return {bytes,width,height};
 }
 function availableImageName(filename){
  const ext=filename.match(/\.(png|jpe?g|webp)$/i)?.[1]?.toLowerCase()||'png';
@@ -65,11 +67,12 @@ function availableImageName(filename){
  return name;
 }
 async function addImageFromFile(file,replaceNode=null){
- const bytes=await validateImageFile(file);
+ const {bytes,width,height}=await validateImageFile(file);
  const name=availableImageName(file.name);
  // Adding an asset is an undoable node operation; its bytes remain attached
  // to the session so that Undo/Redo can restore image references.
  documentAssets.set(name,bytes);
+ documentImageSizes.set(name,{width,height});
  if(replaceNode){replaceNode.src=name;commit(()=>{});return;}
  const {parent,parentPath}=insertionContext();const arr=parent?parent.children:(doc.items||(doc.items=[]));
  arr.push({type:'image',src:name,x:'18mm',y:'18mm',w:'174mm',h:'155mm',fit:'contain',position:'center'});
@@ -383,7 +386,7 @@ const hitTypes=["image","rect","text","path","ellipse","circle","dot","line","hl
  g.appendChild(svg("circle",{class:"transform-handle rotate-handle","data-handle":"rotate",cx:b.x+b.w/2,cy:b.y-5,r:1.5}));
  }}
 return g;}
-function selectionBounds(n,b){const t=n.type,x=b.x+evalN(n.x??0,b,"x"),y=b.y+evalN(n.y??0,b,"y"),w=evalN(n.w??"100%",b,"x",b.w),h=evalN(n.h??"100%",b,"y",b.h);if(t==="hline"){const x1=evalN(n.x1??0,b,"x"),x2=evalN(n.x2??"100%",b,"x");return{x:b.x+Math.min(x1,x2),y:b.y+evalN(n.y??0,b,"y"),w:Math.abs(x2-x1),h:0.6};}if(t==="vline"){const y1=evalN(n.y1??0,b,"y"),y2=evalN(n.y2??"100%",b,"y");return{x:b.x+evalN(n.x??0,b,"x"),y:b.y+Math.min(y1,y2),w:0.6,h:Math.abs(y2-y1)};}if(t==="line"){const x1=evalN(n.x1??0,b,"x"),y1=evalN(n.y1??0,b,"y"),x2=evalN(n.x2??0,b,"x"),y2=evalN(n.y2??0,b,"y");return{x:b.x+Math.min(x1,x2),y:b.y+Math.min(y1,y2),w:Math.abs(x2-x1),h:Math.abs(y2-y1)};}if(t==="text")return{x,y,w:Math.max(10,String(n.text||"").length*1.8),h:5};if(t==="ellipse"){const rx=evalN(n.rx??"15mm",b,"short"),ry=evalN(n.ry??"8mm",b,"short");return{x:b.x+evalN(n.cx??0,b,"x")-rx,y:b.y+evalN(n.cy??0,b,"y")-ry,w:2*rx,h:2*ry};}if(["circle","dot"].includes(t)){const r=evalN(n.r??"0.35mm",b,"short");return{x:b.x+evalN(n.cx??0,b,"x")-r,y:b.y+evalN(n.cy??0,b,"y")-r,w:2*r,h:2*r};}if(["polyline","polygon"].includes(t)){let values=n.points;if(typeof values==="string")values=values.trim().split(/[\s,]+/).map(Number);if(Array.isArray(values)){const flat=values.flat(Infinity),xs=[],ys=[];for(let i=0;i+1<flat.length;i+=2){xs.push(b.x+evalN(flat[i],b,"x"));ys.push(b.y+evalN(flat[i+1],b,"y"));}if(xs.length)return{x:Math.min(...xs),y:Math.min(...ys),w:Math.max(...xs)-Math.min(...xs),h:Math.max(...ys)-Math.min(...ys)};}}return{x,y,w,h};}
+function selectionBounds(n,b){const t=n.type,x=b.x+evalN(n.x??0,b,"x"),y=b.y+evalN(n.y??0,b,"y"),w=evalN(n.w??"100%",b,"x",b.w),h=evalN(n.h??"100%",b,"y",b.h);if(t==='image')return imageDisplayBounds({x,y,w,h},documentImageSizes.get(n.src),n.fit,n.position);if(t==="hline"){const x1=evalN(n.x1??0,b,"x"),x2=evalN(n.x2??"100%",b,"x");return{x:b.x+Math.min(x1,x2),y:b.y+evalN(n.y??0,b,"y"),w:Math.abs(x2-x1),h:0.6};}if(t==="vline"){const y1=evalN(n.y1??0,b,"y"),y2=evalN(n.y2??"100%",b,"y");return{x:b.x+evalN(n.x??0,b,"x"),y:b.y+Math.min(y1,y2),w:0.6,h:Math.abs(y2-y1)};}if(t==="line"){const x1=evalN(n.x1??0,b,"x"),y1=evalN(n.y1??0,b,"y"),x2=evalN(n.x2??0,b,"x"),y2=evalN(n.y2??0,b,"y");return{x:b.x+Math.min(x1,x2),y:b.y+Math.min(y1,y2),w:Math.abs(x2-x1),h:Math.abs(y2-y1)};}if(t==="text")return{x,y,w:Math.max(10,String(n.text||"").length*1.8),h:5};if(t==="ellipse"){const rx=evalN(n.rx??"15mm",b,"short"),ry=evalN(n.ry??"8mm",b,"short");return{x:b.x+evalN(n.cx??0,b,"x")-rx,y:b.y+evalN(n.cy??0,b,"y")-ry,w:2*rx,h:2*ry};}if(["circle","dot"].includes(t)){const r=evalN(n.r??"0.35mm",b,"short");return{x:b.x+evalN(n.cx??0,b,"x")-r,y:b.y+evalN(n.cy??0,b,"y")-r,w:2*r,h:2*r};}if(["polyline","polygon"].includes(t)){let values=n.points;if(typeof values==="string")values=values.trim().split(/[\s,]+/).map(Number);if(Array.isArray(values)){const flat=values.flat(Infinity),xs=[],ys=[];for(let i=0;i+1<flat.length;i+=2){xs.push(b.x+evalN(flat[i],b,"x"));ys.push(b.y+evalN(flat[i+1],b,"y"));}if(xs.length)return{x:Math.min(...xs),y:Math.min(...ys),w:Math.max(...xs)-Math.min(...xs),h:Math.max(...ys)-Math.min(...ys)};}}return{x,y,w,h};}
 function pathCurrent(){return selectedPath&&nodeKey(selectedPath)===pathEditPath&&selectedPaths.length===1&&getAt(selectedPath)?.type==='path'?getAt(selectedPath):null;}
 function pathShape(){const key=pathEditPath;return [...paper.querySelectorAll('g[data-path="'+key+'"]')].map(g=>g.querySelector(':scope > path')).find(Boolean);}
 /** Map the authored path's local coordinates to *page viewBox units*, not CSS pixels.
@@ -1101,7 +1104,11 @@ function renderAdvanced(n){
   addField('Image fit','fit',{select:['contain','cover','stretch']});
   addField('Image position','position',{select:['center','top','bottom','left','right','top left','top right','bottom left','bottom right']});
   const replace=document.createElement('button');replace.type='button';replace.className='quiet';replace.textContent='Replace image…';replace.addEventListener('click',()=>{$('imageFileInput').dataset.replace='true';$('imageFileInput').click();});
-  const wrap=document.createElement('div');wrap.dataset.fieldKeys='src,fit,position';wrap.className='field';wrap.appendChild(replace);root.appendChild(wrap);
+  const wrap=document.createElement('div');wrap.dataset.fieldKeys='src,fit,position';wrap.className='field';
+  wrap.appendChild(replace);
+  const note=document.createElement('small');note.className='value-field-hint';
+  note.textContent='Contain keeps the full photo visible. Cover crops to fill. Free edge/corner resizing stretches the image; Shift + corner preserves the current proportions and fit.';
+  wrap.appendChild(note);root.appendChild(wrap);
  }
  if(n.type==="hatch"){addField("Period","period",{json:Array.isArray(n.period)});addField("Ângulo (graus)","angle",{numeric:true});addField("Deslocamento","offset");addField("Estender além da caixa","extend",{checkbox:true});}
  const styleHead=document.createElement("div");styleHead.className="advanced-heading";styleHead.textContent="TYPE & STROKE";root.appendChild(styleHead);
@@ -1449,7 +1456,7 @@ paper.addEventListener("pointerdown",e=>{
  if(!n)return;
  // Snapshot painted geometry before select() replaces this SVG subtree;
  // when dragging a repeated child, this is the clicked instance's bounds.
- const visibleBounds=paintedBounds(g,paper);
+ const visibleBounds=n.type==='image'?transformGeometry(n,path):paintedBounds(g,paper);
  if(isRepeatedPath(path))focusedRepeatInstance={key,instance:Number(g.dataset.instance)||0};
  else focusedRepeatInstance=null;
  if((e.ctrlKey||e.metaKey||e.shiftKey)&&!handle){selectFromTree(path,e);return;}
@@ -1564,7 +1571,10 @@ paper.addEventListener("pointermove",e=>{
    const points=Array.isArray(base.points)?base.points.flat(Infinity):String(base.points??"").trim().split(/[\s,]+/).map(Number),out=[];
    const originalLeft=g.x-box.x,originalTop=g.y-box.y,targetLeft=left-box.x,targetTop=top-box.y;
    for(let i=0;i+1<points.length;i+=2){const px=evalN(points[i],box,"x"),py=evalN(points[i+1],box,"y"),nx=g.w>0?targetLeft+(px-originalLeft)*((right-left)/g.w):targetLeft,ny=g.h>0?targetTop+(py-originalTop)*((bottom-top)/g.h):targetTop;out.push([fmt(nx),fmt(ny)]);}n.points=out;
-  }else{n.x=fmt(left-box.x);n.y=fmt(top-box.y);n.w=fmt(right-left);n.h=fmt(bottom-top);}
+  }else{
+   n.x=fmt(left-box.x);n.y=fmt(top-box.y);n.w=fmt(right-left);n.h=fmt(bottom-top);
+   if(type==='image')n.fit=imageResizeFit(base.fit,h,e.shiftKey);
+  }
  }
  render();
 });
@@ -1664,14 +1674,16 @@ $("fileInput").addEventListener("change",async e=>{
  try{
   const imported=await readTemplate(await f.arrayBuffer());validate(imported.document);
   validateImageAssets(imported.document,imported.assets);
+  const sizes=new Map();
   for(const [name,bytes] of imported.assets){
    const image=await createImageBitmap(new Blob([bytes],{type:imageFileType(bytes)}));
    const width=image.width,height=image.height;image.close();
    if(width>PACKAGE_LIMITS.maxPixels||height>PACKAGE_LIMITS.maxPixels)
     throw Error('Image exceeds 8192px: '+name);
+   sizes.set(name,{width,height});
   }
   // Do not discard the current document or its images on a failed import.
-  replaceDocumentAssets(imported.assets);doc=imported.document;resetVectorEditors();selectedPath=null;selectedPaths=[];
+  replaceDocumentAssets(imported.assets,sizes);doc=imported.document;resetVectorEditors();selectedPath=null;selectedPaths=[];
   setDirty(false);loadLayerColors();resetHistory();previewValues={};initializePreviewValues();syncJson();render();
   document.querySelectorAll('.template-card').forEach(b=>b.classList.remove('active'));
   toast(imported.packaged?'Image template package loaded.':'Template loaded.');setStatus('File opened: '+f.name);
@@ -1788,7 +1800,7 @@ function transformGeometry(n,path=selectedPath){
 }
 function transformRead(){
  const n=getAt(selectedPath),panel=document.querySelector(".transform-panel"),note=$("transformNote");
- const supported=!!n&&["group","rect","text","path","ellipse","circle","dot","line","hline","vline","polyline","polygon"].includes(n.type);
+ const supported=!!n&&["image","group","rect","text","path","ellipse","circle","dot","line","hline","vline","polyline","polygon"].includes(n.type);
  panel.classList.toggle("hidden",!supported);
  if(!supported)return;
  const g=transformGeometry(n),type=n.type;

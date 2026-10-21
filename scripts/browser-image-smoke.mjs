@@ -18,7 +18,7 @@ server.listen(0,'127.0.0.1');await once(server,'listening');
 const port=server.address().port;
 const originals={xtemplate:1,name:'Official-style cover',kind:'cover',items:[
  {type:'rect',fill:'#244658',stroke:'none'},
- {type:'image',src:'images/studio.webp',fit:'cover',position:'center'}]};
+ {type:'image',src:'images/studio.webp',x:'20mm',y:'30mm',w:'150mm',h:'140mm',fit:'cover',position:'center'}]};
 const artwork=await fs.readFile(path.join(repo,'docs/images/studio-overview.webp'));
 const asset=new Map([['images/studio.webp',new Uint8Array(artwork)]]);
 const sample=new Uint8Array(await writeTemplate(originals,asset).arrayBuffer());
@@ -48,6 +48,69 @@ try{
  assert.equal(fit,'cover');
  await page.select('#advancedInspector [data-field-keys="fit"] select','contain');
  assert.equal(await page.$eval('#jsonEditor',x=>JSON.parse(x.value).items[1].fit),'contain');
+ // A contained image can have a much taller authored viewport than its
+ // actual pixels. Eight handles must follow the *visible pixels*, not blanks.
+ const measure=()=>page.evaluate(()=>{
+  const sel=document.querySelector('#editor-selection-overlay g[data-path="items.1"] .svg-selection');
+  const image=document.querySelector('#page-artwork g[data-path="items.1"] image');
+  if(!sel||!image)return null;
+  const bounds=sel.getBBox();return {
+   x:bounds.x,y:bounds.y,w:bounds.width,h:bounds.height,
+   viewport:{x:Number(image.getAttribute('x')),y:Number(image.getAttribute('y')),
+    w:Number(image.getAttribute('width')),h:Number(image.getAttribute('height'))}
+  };
+ });
+ const originalSelection=await measure();
+ const aspect=1440/880; // native dimensions of docs/images/studio-overview.webp
+ assert(Math.abs(originalSelection.w-150)<.05);
+ assert(Math.abs(originalSelection.h-150/aspect)<.05,'contain handles match the painted image height');
+ assert(originalSelection.y>30,'handles must not surround the invisible letterbox');
+ const handlePoint=async name=>page.evaluate(name=>{
+  const handle=document.querySelector(`#editor-selection-overlay g[data-path="items.1"] [data-handle="${name}"]`);
+  const svg=document.querySelector('#paper'),box=handle.getBBox(),pt=svg.createSVGPoint();
+  pt.x=box.x+box.width/2;pt.y=box.y+box.height/2;
+  const coords=pt.matrixTransform(svg.getScreenCTM());return{x:coords.x,y:coords.y};
+ },name);
+ const shiftedScreen=async(x,y)=>page.evaluate(([x,y])=>{
+  const svg=document.querySelector('#paper'),pt=svg.createSVGPoint();pt.x=x;pt.y=y;
+  const screen=pt.matrixTransform(svg.getScreenCTM());return{x:screen.x,y:screen.y};
+ },[x,y]);
+ await page.$eval('#magneticGuidesToggle',el=>{el.checked=false;el.dispatchEvent(new Event('change',{bubbles:true}));});
+ const east=await handlePoint('e'),eastNext=await shiftedScreen(originalSelection.x+originalSelection.w+20,originalSelection.y+originalSelection.h/2);
+ await page.mouse.move(east.x,east.y);await page.mouse.down();await page.mouse.move(eastNext.x,eastNext.y,{steps:8});await page.mouse.up();
+ const freeSize=await page.$eval('#jsonEditor',x=>JSON.parse(x.value).items[1]);
+ assert.equal(freeSize.fit,'stretch','side resize becomes native independent-axis image scaling');
+ assert(Math.abs(parseFloat(freeSize.w)-(originalSelection.w+20))<.2);
+ assert(Math.abs(parseFloat(freeSize.h)-originalSelection.h)<.2,'east drag must not change image height');
+ const freeSelection=await measure();
+ assert(Math.abs(freeSelection.y-parseFloat(freeSize.y))<.1);
+ assert(Math.abs(freeSelection.h-parseFloat(freeSize.h))<.1);
+ assert(Math.abs(freeSelection.w-parseFloat(freeSize.w))<.1,'handles track the resized image exactly');
+ const handlePositions=await page.$$eval('#editor-selection-overlay g[data-path="items.1"] [data-handle]',els=>Object.fromEntries(els.map(el=>{
+  const r=el.getBBox();return[el.dataset.handle,{x:r.x+r.width/2,y:r.y+r.height/2}];
+ })));
+ for(const [key,expected] of Object.entries({
+  nw:[freeSelection.x,freeSelection.y],n:[freeSelection.x+freeSelection.w/2,freeSelection.y],
+  ne:[freeSelection.x+freeSelection.w,freeSelection.y],e:[freeSelection.x+freeSelection.w,freeSelection.y+freeSelection.h/2],
+  se:[freeSelection.x+freeSelection.w,freeSelection.y+freeSelection.h],s:[freeSelection.x+freeSelection.w/2,freeSelection.y+freeSelection.h],
+  sw:[freeSelection.x,freeSelection.y+freeSelection.h],w:[freeSelection.x,freeSelection.y+freeSelection.h/2]
+ })){
+  assert(Math.abs(handlePositions[key].x-expected[0])<.1,`image ${key} handle X matches bitmap`);
+  assert(Math.abs(handlePositions[key].y-expected[1])<.1,`image ${key} handle Y matches bitmap`);
+ }
+ // Undo the resize and verify a Shift corner drag preserves proportions.
+ await page.keyboard.down('Control');await page.keyboard.press('z');await page.keyboard.up('Control');
+ await page.$eval('.tree-item[data-path="items.1"]',el=>el.click());
+ const beforeCorner=await measure(),corner=await handlePoint('se');
+ const endCorner=await shiftedScreen(beforeCorner.x+beforeCorner.w+15,beforeCorner.y+beforeCorner.h+4);
+ await page.mouse.move(corner.x,corner.y);await page.keyboard.down('Shift');await page.mouse.down();
+ await page.mouse.move(endCorner.x,endCorner.y,{steps:7});await page.mouse.up();await page.keyboard.up('Shift');
+ const constrained=await page.$eval('#jsonEditor',x=>JSON.parse(x.value).items[1]);
+ assert.equal(constrained.fit,'contain','Shift + corner preserves chosen fit mode');
+ const constrainBounds=await measure();
+ assert(Math.abs(constrainBounds.w/constrainBounds.h-originalSelection.w/originalSelection.h)<.015,
+   'Shift must preserve the visible image aspect ratio');
+ console.log('PASS: visible image bounds, free side resize, aligned eight handles, Shift aspect lock');
  await page.click('[data-menu-action="export"]');
  await page.waitForFunction(()=>document.querySelector('#exportSummary')?.textContent.includes('Embedded images'));
  await page.click('#confirmExportBtn');
