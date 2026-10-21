@@ -1,0 +1,137 @@
+/* Workspace V3 — desktop editor adapted from Material principles, not a mobile
+   screen clone. Structural regions: layers / stage / contextual properties.
+   Four semantic levels: global actions, local actions, primary properties,
+   secondary technical controls. No functionality is removed. */
+:root{
+ --studio-space-1:4px;--studio-space-2:8px;--studio-space-3:12px;
+ --studio-space-4:16px;--studio-space-5:20px;--studio-space-6:24px;
+ --studio-radius-sm:8px;--studio-radius-md:12px;--studio-radius-lg:16px;
+ --studio-control:36px;
+}
+:root[data-theme] .app{grid-template-columns:minmax(210px,250px) minmax(300px,1fr) minmax(292px,328px)}
+:root[data-theme] .app.app--hide-layers{grid-template-columns:minmax(300px,1fr) minmax(292px,328px)}
+:root[data-theme] .app.app--hide-properties{grid-template-columns:minmax(210px,250px) minmax(320px,1fr)}
+:root[data-theme] .app.app--hide-layers.app--hide-properties{grid-template-columns:minmax(320px,1fr)}
+:root[data-theme] .app.app--hide-layers .left-panel,:root[data-theme] .app.app--hide-properties .right-panel{display:none}
+:root[data-theme] .left-panel,:root[data-theme] .right-panel{min-width:0}
+:root[data-theme] .left-tabs,:root[data-theme] .right-tabs{background:var(--ui-surface);border-bottom:1px solid var(--ui-divider)}
+:root[data-theme] .left-tab,:root[data-theme] .right-tab{transition:background .15s ease,color .15s ease,border-color .15s ease}
+:root[data-theme] .tree-item{transition:background .1s ease,border-color .1s ease;min-height:38px}
+:root[data-theme] .tree-item.active{border-color:color-mix(in srgb,var(--ux-accent) 62%,transparent)}
+:root[data-theme] .tree-item .tree-meta{margin-top:3px}
+:root[data-theme] .tree-item .tree-label{font-size:12px}
+:root[data-theme] .tree-item.tree-page{margin-bottom:13px}
+:root[data-theme] .outline-subtitle{padding:10px 16px}
+:root[data-theme] .inspector-content{padding:16px 16px 28px}
+:root[data-theme] .inspector-heading{font-weight:700;letter-spacing:.08em}
+/* The real inputs are moved, never replicated. One authoritative input per
+   property preserves hotkeys, numeric scrubbing, undo/redo and JSON bindings. */
+#elementInspector{display:block;min-width:0}
+#elementInspector .inspector-blocks{display:flex;flex-direction:column;gap:0;min-width:0}
+#elementInspector .property-block{display:flex;flex-direction:column;min-width:0;padding:15px 1px 17px;border-bottom:1px solid var(--ui-divider)}
+#elementInspector [hidden],.property-block[hidden],.inspector-legacy-values[hidden]{display:none!important}
+#elementInspector .property-block-title{font-size:11.5px;font-weight:730;letter-spacing:.006em;line-height:1.45;margin:0 0 13px;color:var(--ui-text)}
+#elementInspector .property-block[data-block="specific"]{order:2}
+#elementInspector .property-block[data-block="layout"]{order:1}
+#elementInspector .property-block[data-block="appearance"]{order:3}
+#elementInspector .property-block[data-block="content"]{order:0}
+#elementInspector .property-block[data-block="technical"]{order:4;border:0}
+#elementInspector .inspector-blocks[data-property-type="image"] [data-block="specific"],
+#elementInspector .inspector-blocks[data-property-type="repeat"] [data-block="specific"]{order:0}
+#elementInspector .inspector-blocks[data-property-type="text"] [data-block="specific"]{order:1}
+#elementInspector .property-block-footer{order:5;padding-top:10px}
+#elementInspector #contextualElementTools{order:-1}
+#elementInspector .inspector-legacy-values{order:9}
+:root[data-theme] #elementInspector .transform-panel{background:transparent;border:0!important;margin:0!important;padding:0!important}
+#elementInspector .transform-title{display:none}
+#elementInspector .property-block[data-block="layout"] .field-row{margin:0 0 11px!important}
+#elementInspector .property-block[data-block="appearance"] .appearance-section{display:flex;flex-direction:column;padding:0!important;margin:0!important;border:0!important}
+#elementInspector .appearance-section>label{display:none!important}
+#elementInspector .appearance-section>.field-row{gap:9px}
+#elementInspector .appearance-section .inspector-tip{display:none}
+#elementInspector .property-block[data-block="appearance"] > label.field{margin-top:12px}
+#elementInspector .property-block[data-block="appearance"] .opacity-slider-field{margin-top:12px;display:block}
+#elementInspector .property-block[data-block="content"] > label.field{font-weight:600}
+#elementInspector .property-block[data-block="content"] input{width:100%;min-height:40px}
+#elementInspector .property-block[data-block="specific"] .advanced-inspector{display:flex;flex-direction:column;min-width:0;border:0;margin:0;padding:0}
+#elementInspector .property-block[data-block="specific"] .advanced-heading{font-size:10.5px;letter-spacing:.015em;font-weight:650;margin:8px 0 9px;color:var(--ui-muted)}
+#elementInspector .property-block[data-block="specific"] .advanced-heading:first-child{display:none}
+#elementInspector .property-block[data-block="specific"] .field{margin:0 0 10px}
+#elementInspector .property-block[data-block="specific"] .field-row{gap:9px}
+#elementInspector .advanced-disclosure{margin:7px 0;background:var(--ui-surface-alt)}
+#elementInspector .advanced-disclosure summary{min-height:38px;display:flex;align-items:center}
+#elementInspector .property-block[data-block="technical"] .expression-settings{margin:0;border-color:var(--ui-divider);background:var(--ui-surface-alt)}
+#elementInspector .property-block[data-block="technical"] .expression-settings>summary{min-height:42px;display:flex;align-items:center;font-size:12px}
+#elementInspector .property-block[data-block="layout"] .alignment-tools{margin:9px 0 0;padding:0!important}
+#elementInspector .property-block[data-block="layout"] .alignment-tools summary{padding:10px 12px!important}
+#elementInspector .property-block[data-block="layout"] .alignment-section-body{padding:0 12px 14px}
+#elementInspector .transform-note,.property-block .value-field-hint{display:none}
+#elementInspector .property-block[data-block="specific"] .crop-controls{margin:0 0 12px;background:var(--ui-surface-alt);padding:13px;border:1px solid var(--ui-divider);border-radius:var(--studio-radius-md)}
+#elementInspector .property-block[data-block="specific"] .crop-controls .inspector-section-title{font-size:12px}
+#elementInspector .property-block[data-block="specific"] .crop-controls button{min-height:36px}
+#elementInspector .inspector-actions{margin:10px 0 0;padding:14px 0 0;display:flex;gap:8px}
+#elementInspector .inspector-actions>*{flex:1}
+#elementInspector .property-block[data-block="technical"] .visually-hidden{position:absolute!important;width:1px;height:1px;clip:rect(0,0,0,0);overflow:hidden;white-space:nowrap}
+:root[data-theme] input:focus-visible,:root[data-theme] select:focus-visible,
+:root[data-theme] textarea:focus-visible,:root[data-theme] button:focus-visible,
+:root[data-theme] summary:focus-visible{outline:2px solid var(--ux-accent);outline-offset:2px}
+/* Compact top-bar dock toggles make workspace focus a discoverable action. */
+.dock-toggle-group{display:flex;align-items:center;gap:5px;margin-right:6px;padding-right:10px;border-right:1px solid var(--ui-divider)}
+.dock-toggle{border:1px solid transparent;background:transparent;color:var(--ui-muted);border-radius:8px;min-height:34px;padding:0 9px;font-size:11px;font-weight:610;cursor:pointer}
+.dock-toggle.is-active{background:var(--ui-selected);border-color:var(--ui-border);color:var(--ui-text)}
+.dock-toggle:hover{background:var(--ui-hover);color:var(--ui-text)}
+/* Template library: simple facets, search, and a categorized native select.
+   Retains native keyboard navigation and the old select change contract. */
+.template-discovery{display:flex;flex-direction:column;gap:10px;padding:14px 14px 4px}
+.template-search{border-radius:9px;min-height:38px;width:100%;padding:9px 11px;background:var(--ui-input);color:var(--ui-text);border:1px solid var(--ui-input-border);font:inherit;font-size:12px}
+.template-search::placeholder{color:var(--ui-soft)}
+.template-categories{display:flex;flex-wrap:wrap;gap:6px}
+.template-chip{padding:6px 10px;min-height:32px;border:1px solid var(--ui-border);border-radius:100px;background:transparent;color:var(--ui-muted);font-size:11px;cursor:pointer}
+.template-chip.active{background:var(--ui-selected);border-color:var(--ux-accent);color:var(--ui-selected-text)}
+.template-chip:hover{background:var(--ui-hover)}
+.template-results{font-size:11px;color:var(--ui-soft);margin:0}
+:root[data-theme] .template-picker{padding:10px 14px}
+/* Desktop breakpoints: UI remains usable without reducing control sizes. */
+@media(max-width:1160px){
+ :root[data-theme] .app{grid-template-columns:205px minmax(300px,1fr) 290px}
+ :root[data-theme] .app.app--hide-properties{grid-template-columns:205px minmax(300px,1fr)}
+ :root[data-theme] .app.app--hide-layers{grid-template-columns:minmax(300px,1fr) 290px}
+ :root[data-theme] .inspector-content{padding:12px}
+ .dock-toggle{font-size:10.5px;padding:0 7px}
+}
+@media(max-width:880px){
+ :root[data-theme] .app{grid-template-columns:170px minmax(260px,1fr) 264px}
+ :root[data-theme] .app.app--hide-properties{grid-template-columns:170px minmax(260px,1fr)}
+ :root[data-theme] .app.app--hide-layers{grid-template-columns:minmax(260px,1fr) 264px}
+ :root[data-theme] .app.app--hide-layers.app--hide-properties{grid-template-columns:minmax(260px,1fr)}
+ .dock-toggle-group{gap:2px;margin:0;padding-right:5px}
+ .dock-toggle{padding:0 5px}
+}
+@media(prefers-reduced-motion:reduce){.dock-toggle,.tree-item,.left-tab,.right-tab{transition:none!important}}
+/* Interior spacing is part of the existing editor usability contract. */
+:root[data-theme] #elementInspector .property-block[data-block="layout"] .transform-panel{padding:10px!important}
+:root[data-theme] #elementInspector .property-block[data-block="layout"] .alignment-tools{padding:10px!important}
+
+/* Opacity is a frequent image operation, so show it with image framing and fit. */
+#elementInspector .primary-opacity{display:block;margin:10px 0 0;border-top:1px solid var(--ui-divider);padding-top:12px}
+#elementInspector .primary-opacity:empty{display:none}
+#elementInspector .primary-opacity .opacity-slider-field{margin:0}
+
+/* Insert popover: tools grouped by task, searchable by name. */
+:root[data-theme] .context-submenu{width:242px;max-height:min(70vh,600px);padding:8px;border-radius:12px;background:var(--ui-surface);border-color:var(--ui-border);box-shadow:0 18px 36px #0008}
+.context-submenu .insert-search{width:100%;min-height:38px;border-radius:8px;padding:8px 10px;background:var(--ui-input);color:var(--ui-text);border:1px solid var(--ui-input-border);margin-bottom:8px;font-size:12px}
+.context-submenu .insert-category-label{font-size:10px;font-weight:740;letter-spacing:.07em;color:var(--ui-soft);padding:13px 8px 4px;text-transform:uppercase}
+.context-submenu .insert-category:first-of-type .insert-category-label{padding-top:5px}
+.context-submenu .insert-category button{min-height:36px;width:100%;border-radius:7px;font-size:11.5px;padding:7px 10px}
+.context-submenu .insert-category button[hidden],.context-submenu .insert-category[hidden],.context-submenu .insert-no-results[hidden]{display:none!important}
+.context-submenu .insert-no-results{padding:10px;font-size:12px;color:var(--ui-soft);margin:0}
+
+/* Multi-select uses the same task vocabulary, even when capabilities differ. */
+#multiPropertyInspector .multi-property-block{padding:15px 2px;border-bottom:1px solid var(--ui-divider);display:flex;flex-direction:column;gap:8px}
+#multiPropertyInspector .multi-property-block .property-block-title{font-size:12px;color:var(--ui-text);font-weight:700;margin:0 0 5px}
+#multiPropertyInspector .multi-property-block>.field{margin:3px 0 7px;min-width:0}
+#multiPropertyInspector .value-field-hint{display:none}
+/* Avoid nested duplicate headings and keep image opacity after framing options. */
+#elementInspector .property-block[data-block="specific"] .advanced-inspector{order:0}
+#elementInspector .property-block[data-block="specific"] .advanced-inspector>.advanced-heading{display:none}
+#elementInspector .property-block[data-block="specific"] .primary-opacity{order:1}

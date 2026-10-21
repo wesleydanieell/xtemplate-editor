@@ -18,3 +18,10 @@ test('grouped coordinates stay together and no fields disappear',()=>{
  assert.deepEqual(sections.essential.map(g=>g.keys),[['x1','y1'],['x2','y2']]);
  assert.equal(Object.values(sections).flat().length,fields.length);
 });
+
+test('image fit and focus are primary, while raw ZIP source is safely behind advanced disclosure',()=>{
+ const fields=['src','position','fit'].map(key=>({keys:[key]}));
+ const sections=inspectorSections('image',fields);
+ assert.deepEqual(sections.essential.map(item=>item.keys[0]),['fit','position']);
+ assert.deepEqual(sections.advanced.map(item=>item.keys[0]),['src']);
+});

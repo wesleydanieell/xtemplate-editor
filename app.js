@@ -1,3 +1,7 @@
+import { initInsertMenu } from "./src/ui/insert-menu.js";
+import { buildInspectorLayout, updateInspectorLayout } from "./src/ui/inspector-layout.js";
+import { initWorkspacePanels } from "./src/ui/workspace-layout.js";
+import { initTemplateLibrary } from "./src/ui/template-library.js";
 import { createAlignmentTools } from "./src/features/alignment.js";
 import { validateTemplate } from "./src/core/validate-template.js";
 import { migrateLegacyLayerNames } from "./src/core/template-migration.js";
@@ -1020,6 +1024,7 @@ function showFilePropertiesDialog(){
 function renderInspector(){
  let contextual=$("contextualElementTools");
  if(!contextual){contextual=document.createElement('div');contextual.id='contextualElementTools';contextual.className='contextual-element-tools';$("elementInspector").prepend(contextual);}
+ buildInspectorLayout($("elementInspector"));
  const n=getAt(selectedPath),has=!!n,multi=selectedPaths.length>1;
  if(!has||multi||n?.type==='page')contextual.replaceChildren();
  if(n?.type!=="page"&&$("filePropertiesModal").classList.contains("hidden"))placeDocumentFields(false);
@@ -1052,11 +1057,17 @@ function renderInspector(){
  $("elementText").disabled=n.type!=="text";
  for(const id of ['elementStroke','elementFill','elementStrokeWidth'])$(id).disabled=n.type==='image';
  renderAdvanced(n);
+ updateInspectorLayout($("elementInspector"),n,{cropped:isCropGroup(n)});
  applyPropertyValueHints($("elementInspector"));
 }
 function renderMultiPropertyInspector(root){
  root.replaceChildren();root.className="multi-property-inspector";
- const lead=document.createElement("p");lead.className="section-description";lead.textContent="Editing "+selectedPaths.length+" selected elements. Only properties supported by every selected element are shown; missing optional values may be set together.";root.appendChild(lead);
+ const lead=document.createElement('p');lead.className='section-description';lead.textContent=selectedPaths.length+' layers selected · Changes apply to all compatible layers.';root.appendChild(lead);
+ const groups=new Map();for(const name of ['Appearance','Transform','Object options']){
+  const section=document.createElement('section');section.className='multi-property-block';
+  const header=document.createElement('h3');header.textContent=name;header.className='property-block-title';section.append(header);
+  groups.set(name,section);
+ }
  const nodes=selectedPaths.map(path=>getAt(path)).filter(Boolean);if(nodes.length!==selectedPaths.length)return;
  // Capabilities, not explicit JSON keys: defaults and inherited styles are valid.
  // A changed field writes a value to each node; unrelated keys are untouched.
@@ -1081,8 +1092,12 @@ function renderMultiPropertyInspector(root){
   input.addEventListener("change",()=>{let value=input.value;if(["italic","clip","extend"].includes(key))value=input.checked;else if(key==="opacity")value=Number(value)/100;else if(value.trim()===""){value=undefined;}else if(["inset","period","count","fit","index","points","viewBox","dash","text"].includes(key)&&value.trim().startsWith("[")){try{value=JSON.parse(value);}catch{toast("Invalid list for "+key);return;}}else if(["clip","extend","italic"].includes(key))value=input.checked;
    commit(()=>{for(const path of selectedPaths){const target=getAt(path);if(!target)continue;if(value===undefined)delete target[key];else target[key]=clone(value);}});
   });
-  lab.appendChild(input);root.appendChild(lab);
+  lab.appendChild(input);
+  const appearance=new Set(['stroke','fill','strokeWidth','opacity','dash','font','size','weight','italic','align','baseline']);
+  const transform=new Set(['x','y','w','h','rotate','x1','x2','y1','y2','cx','cy','r','rx','ry']);
+  groups.get(appearance.has(key)?'Appearance':transform.has(key)?'Transform':'Object options').append(lab);
  }
+ for(const group of groups.values())if(group.querySelector('.field'))root.append(group);
  applyPropertyValueHints(root);
 }
 function applyPropertyValueHints(scope){
@@ -1190,7 +1205,11 @@ function renderAdvanced(n){
  function addField(label,key,opt={}){
   const lab=document.createElement("label");lab.className="field"+(opt.wide?" wide":"");lab.append(document.createTextNode(label));
   let inp;
-  if(opt.select&&!opt.json){inp=document.createElement("select");opt.select.forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=v;inp.appendChild(o);});inp.value=n[key]===undefined?(opt.default||opt.select[0]):n[key];}
+  if(opt.select&&!opt.json){inp=document.createElement("select");opt.select.forEach(v=>{
+   const o=document.createElement('option');o.value=v;
+   const display=key==='fit'&&n.type==='image'?{contain:'Fit inside',cover:'Fill frame · crop',stretch:'Stretch · distort'}:null;
+   o.textContent=display?.[v]||v;inp.appendChild(o);
+  });inp.value=n[key]===undefined?(opt.default||opt.select[0]):n[key];}
   else if(opt.checkbox){inp=document.createElement("input");inp.type="checkbox";inp.checked=!!n[key];inp.className="check-input";}
   else if(opt.area){inp=document.createElement("textarea");inp.rows=3;inp.value=typeof n[key]==="string"?n[key]:n[key]===undefined?"":JSON.stringify(n[key]);}
   else{inp=document.createElement("input");inp.type=opt.type||"text";inp.value=getValue(n,key);}
@@ -2847,5 +2866,6 @@ window.addEventListener("keydown",e=>{
  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();e.stopPropagation();if(commandPalette.classList.contains("hidden"))openCommandPalette();else closeCommandPalette();return;}
  if(!commandPalette.classList.contains("hidden")&&e.key==="Escape"){closeCommandPalette();}
 },true);
+initWorkspacePanels();initTemplateLibrary();initInsertMenu();
 loadLayerColors();initializePreviewValues();syncJson();render();setInspectorTab("properties");setLeftTab("layers");resetHistory();
 })();

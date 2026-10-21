@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>XTemplate Studio</title><link rel="icon" type="image/svg+xml" href="./favicon.svg"><link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./src/ui/design-system.css"></head>
+<head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>XTemplate Studio</title><link rel="icon" type="image/svg+xml" href="./favicon.svg"><link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./src/ui/design-system.css"><link rel="stylesheet" href="./src/ui/workspace-v3.css"></head>
 <body>
 <header class="topbar">
   <div class="menubar-left">
@@ -60,7 +60,7 @@
   </div>
 </header>
 <main class="app">
-  <aside class="left-panel">
+  <aside class="left-panel" id="leftWorkspacePanel">
     <nav class="left-tabs" aria-label="Sidebar views"><button type="button" class="left-tab active" data-left-tab="layers" aria-pressed="true">Layers</button><button type="button" class="left-tab" data-left-tab="templates" aria-pressed="false">Templates</button></nav>
     <section class="dock-section outline-dock" data-left-panel="layers">
       <div class="dock-heading"><span>STRUCTURE</span><div class="dock-actions"><button id="expandTree" title="Expand all">⌄</button><button id="addElement" title="Add element (Insert)">+</button></div></div>
@@ -86,7 +86,7 @@
     </div>
     <footer class="statusbar"><span><i class="status-dot"></i> Local</span><span id="statusMessage">Ready</span><span id="nodeStatus">0 nodes</span><span>Offline</span></footer>
   </section>
-  <aside class="right-panel">
+  <aside class="right-panel" id="rightWorkspacePanel">
     <div class="right-tabs"><button class="right-tab active" data-inspector="properties">Element</button><button class="right-tab" data-inspector="params">Variables</button></div>
     <section class="inspector-content" id="propertiesPanel"><div class="inspector-heading"><span>PROPERTIES</span><span id="selectedType" class="type-badge">—</span></div><div id="emptySelection" class="empty-selection"><div class="empty-icon">↖</div><b>No element selected</b><p>Select a layer or click an object on the canvas to edit its properties.</p></div>
       <div id="selectionArrange" class="selection-arrange hidden"><div class="transform-title">ARRANGE SELECTION <span id="selectionArrangeCount">MULTI</span></div><div class="selection-arrange-grid"><button type="button" data-arrange-selection="left" title="Align left edges">Left</button><button type="button" data-arrange-selection="center-x" title="Align horizontal centers">Center X</button><button type="button" data-arrange-selection="right" title="Align right edges">Right</button><button type="button" data-arrange-selection="top" title="Align top edges">Top</button><button type="button" data-arrange-selection="center-y" title="Align vertical centers">Center Y</button><button type="button" data-arrange-selection="bottom" title="Align bottom edges">Bottom</button><button type="button" data-arrange-selection="distribute-x" title="Distribute horizontal gaps evenly">Distribute X</button><button type="button" data-arrange-selection="distribute-y" title="Distribute vertical gaps evenly">Distribute Y</button></div><p class="inspector-tip">Align or distribute multiple selected elements. Hold Ctrl/Cmd and click, or Shift-click in Layers.</p></div><div id="elementInspector" class="hidden"><div class="transform-panel"><div class="transform-title">LAYOUT <span>mm</span></div>
