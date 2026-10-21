@@ -1,0 +1,413 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xtemplate:schema:1",
+  "title": "xtemplate v1",
+  "description": "A page ruling or cover design that adapts to any page size. See SPEC.md.",
+  "type": "object",
+  "required": ["xtemplate", "name", "items"],
+  "allOf": [{"$ref": "#/$defs/style"}],
+  "properties": {
+    "xtemplate": {"const": 1},
+    "name": {"type": "string", "minLength": 1},
+    "id": {"type": "string"},
+    "description": {"type": "string"},
+    "author": {"type": "string"},
+    "license": {"type": "string"},
+    "version": {"type": "string"},
+    "tags": {"type": "array", "items": {"type": "string"}},
+    "kind": {"enum": ["page", "cover"]},
+    "comment": {"type": "string"},
+    "params": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+        "not": {
+          "enum": [
+            "W", "H", "i", "j", "pi", "min", "max", "abs", "floor", "ceil", "round", "mod", "sqrt",
+            "pow", "sin", "cos", "tan", "log10"
+          ]
+        }
+      },
+      "additionalProperties": {"$ref": "#/$defs/param"}
+    },
+    "items": {"$ref": "#/$defs/children"}
+  },
+  "patternProperties": {"^x-": true},
+  "unevaluatedProperties": false,
+  "$defs": {
+    "expression": {
+      "description": "An arithmetic expression (SPEC §3), e.g. \"100% - 15mm\" or \"gap * 10\".",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "number": {
+      "description": "A plain number, or an expression.",
+      "oneOf": [{"type": "number"}, {"$ref": "#/$defs/expression"}]
+    },
+    "length": {
+      "description": "Millimetres as a number, or an expression with units: \"12mm\", \"50%\", \"100% - 15mm\".",
+      "oneOf": [{"type": "number"}, {"$ref": "#/$defs/expression"}]
+    },
+    "literalLength": {
+      "description": "A literal length for parameter defaults and bounds: a number in mm or a number with mm, cm, in or pt.",
+      "oneOf": [
+        {"type": "number"},
+        {"type": "string", "pattern": "^\\s*[-+]?(\\d+(\\.\\d*)?|\\.\\d+)(mm|cm|in|pt)?\\s*$"}
+      ]
+    },
+    "lengthPair": {
+      "oneOf": [
+        {"$ref": "#/$defs/length"},
+        {"type": "array", "items": {"$ref": "#/$defs/length"}, "minItems": 2, "maxItems": 2}
+      ]
+    },
+    "numberPair": {
+      "oneOf": [
+        {"$ref": "#/$defs/number"},
+        {"type": "array", "items": {"$ref": "#/$defs/number"}, "minItems": 2, "maxItems": 2}
+      ]
+    },
+    "fit": {"enum": ["repeat", "space", "round", "center"]},
+    "color": {
+      "description": "\"ink\", \"accent\", \"none\", a hex colour, a CSS named colour, or the name of a color parameter.",
+      "type": "string",
+      "minLength": 1
+    },
+    "points": {
+      "oneOf": [
+        {
+          "type": "array",
+          "minItems": 2,
+          "items": {"type": "array", "items": {"$ref": "#/$defs/length"}, "minItems": 2, "maxItems": 2}
+        },
+        {"type": "string", "minLength": 1}
+      ]
+    },
+    "param": {
+      "type": "object",
+      "required": ["type", "default"],
+      "properties": {
+        "type": {"enum": ["length", "number", "integer", "color"]},
+        "default": true,
+        "min": true,
+        "max": true,
+        "step": true,
+        "label": {"type": "string"},
+        "role": {"enum": ["spacing"]},
+        "comment": {"type": "string"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"type": {"const": "length"}}},
+          "then": {
+            "properties": {
+              "default": {"$ref": "#/$defs/literalLength"},
+              "min": {"$ref": "#/$defs/literalLength"},
+              "max": {"$ref": "#/$defs/literalLength"},
+              "step": {"$ref": "#/$defs/literalLength"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"type": {"enum": ["number", "integer"]}}},
+          "then": {
+            "properties": {
+              "default": {"type": "number"},
+              "min": {"type": "number"},
+              "max": {"type": "number"},
+              "step": {"type": "number"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"type": {"const": "color"}}},
+          "then": {"properties": {"default": {"$ref": "#/$defs/color"}}}
+        },
+        {"if": {"required": ["role"]}, "then": {"properties": {"type": {"const": "length"}}}}
+      ],
+      "patternProperties": {"^x-": true},
+      "additionalProperties": false
+    },
+    "style": {
+      "properties": {
+        "stroke": {"$ref": "#/$defs/color"},
+        "strokeWidth": {"$ref": "#/$defs/length"},
+        "dash": {
+          "oneOf": [
+            {"const": "none"},
+            {"type": "array", "items": {"$ref": "#/$defs/length"}, "minItems": 2, "maxItems": 2}
+          ]
+        },
+        "fill": {"$ref": "#/$defs/color"},
+        "opacity": {"$ref": "#/$defs/number"},
+        "font": {"enum": ["sans", "serif", "mono"]},
+        "size": {"$ref": "#/$defs/length"},
+        "weight": {"enum": ["normal", "bold"]},
+        "italic": {"type": "boolean"},
+        "align": {"enum": ["start", "middle", "end"]},
+        "baseline": {"enum": ["alphabetic", "middle", "top"]},
+        "rotate": {"$ref": "#/$defs/number"}
+      }
+    },
+    "common": {"properties": {"id": {"type": "string"}, "comment": {"type": "string"}}},
+    "children": {"type": "array", "items": {"$ref": "#/$defs/node"}},
+    "node": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "anyOf": [
+            {
+              "enum": [
+                "group", "repeat", "line", "hline", "vline", "hatch", "rect", "circle", "ellipse",
+                "dot", "polyline", "polygon", "path", "text", "image"
+              ]
+            },
+            {"type": "string", "pattern": "^x-"}
+          ]
+        }
+      },
+      "allOf": [
+        {"if": {"properties": {"type": {"const": "group"}}}, "then": {"$ref": "#/$defs/group"}},
+        {"if": {"properties": {"type": {"const": "repeat"}}}, "then": {"$ref": "#/$defs/repeat"}},
+        {"if": {"properties": {"type": {"const": "line"}}}, "then": {"$ref": "#/$defs/line"}},
+        {"if": {"properties": {"type": {"const": "hline"}}}, "then": {"$ref": "#/$defs/hline"}},
+        {"if": {"properties": {"type": {"const": "vline"}}}, "then": {"$ref": "#/$defs/vline"}},
+        {"if": {"properties": {"type": {"const": "hatch"}}}, "then": {"$ref": "#/$defs/hatch"}},
+        {"if": {"properties": {"type": {"const": "rect"}}}, "then": {"$ref": "#/$defs/rect"}},
+        {"if": {"properties": {"type": {"const": "circle"}}}, "then": {"$ref": "#/$defs/circle"}},
+        {"if": {"properties": {"type": {"const": "ellipse"}}}, "then": {"$ref": "#/$defs/ellipse"}},
+        {"if": {"properties": {"type": {"const": "dot"}}}, "then": {"$ref": "#/$defs/dot"}},
+        {"if": {"properties": {"type": {"const": "polyline"}}}, "then": {"$ref": "#/$defs/poly"}},
+        {"if": {"properties": {"type": {"const": "polygon"}}}, "then": {"$ref": "#/$defs/poly"}},
+        {"if": {"properties": {"type": {"const": "path"}}}, "then": {"$ref": "#/$defs/path"}},
+        {"if": {"properties": {"type": {"const": "text"}}}, "then": {"$ref": "#/$defs/text"}},
+        {"if": {"properties": {"type": {"const": "image"}}}, "then": {"$ref": "#/$defs/image"}}
+      ]
+    },
+    "group": {
+      "allOf": [{"$ref": "#/$defs/common"}, {"$ref": "#/$defs/style"}],
+      "properties": {
+        "type": {"const": "group"},
+        "x": {"$ref": "#/$defs/length"},
+        "y": {"$ref": "#/$defs/length"},
+        "w": {"$ref": "#/$defs/length"},
+        "h": {"$ref": "#/$defs/length"},
+        "inset": {
+          "oneOf": [
+            {"$ref": "#/$defs/length"},
+            {"type": "array", "items": {"$ref": "#/$defs/length"}, "minItems": 1, "maxItems": 4}
+          ]
+        },
+        "clip": {"type": "boolean"},
+        "children": {"$ref": "#/$defs/children"}
+      },
+      "patternProperties": {"^x-": true},
+      "unevaluatedProperties": false
+    },
+    "repeat": {
+      "allOf": [
+        {"$ref": "#/$defs/common"},
+        {"$ref": "#/$defs/style"},
+        {"anyOf": [{"required": ["period"]}, {"required": ["count"]}]},
+        {
+          "if": {"properties": {"axis": {"const": "none"}}, "required": ["axis"]},
+          "then": {"required": ["count"]}
+        }
+      ],
+      "properties": {
+        "type": {"const": "repeat"},
+        "axis": {"enum": ["x", "y", "xy", "none"]},
+        "period": {"$ref": "#/$defs/lengthPair"},
+        "count": {"$ref": "#/$defs/numberPair"},
+        "fit": {
+          "oneOf": [
+            {"$ref": "#/$defs/fit"},
+            {"type": "array", "items": {"$ref": "#/$defs/fit"}, "minItems": 2, "maxItems": 2}
+          ]
+        },
+        "stagger": {"$ref": "#/$defs/length"},
+        "extend": {"type": "boolean"},
+        "index": {
+          "oneOf": [
+            {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+            {
+              "type": "array",
+              "items": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+              "minItems": 2,
+              "maxItems": 2
+            }
+          ]
+        },
+        "children": {"$ref": "#/$defs/children"}
+      },
+      "patternProperties": {"^x-": true},
+      "unevaluatedProperties": false
+    },
+    "line": {
+      "allOf": [{"$ref": "#/$defs/common"}, {"$ref": "#/$defs/style"}],
+      "properties": {
+        "type": {"const": "line"},
+        "x1": {"$ref": "#/$defs/length"},
+        "y1": {"$ref": "#/$defs/length"},
+        "x2": {"$ref": "#/$defs/length"},
+        "y2": {"$ref": "#/$defs/length"}
+      },
+      "patternProperties": {"^x-": true},
+      "unevaluatedProperties": false
+    },
+    "hline": {
+      "allOf": [{"$ref": "#/$defs/common"}, {"$ref": "#/$defs/style"}],
+      "properties": {
+        "type": {"const": "hline"},
+        "y": {"$ref": "#/$defs/length"},
+        "x1": {"$ref": "#/$defs/length"},
+        "x2": {"$ref": "#/$defs/length"}
+      },
+      "patternProperties": {"^x-": true},
+      "unevaluatedProperties": false
+    },
+    "vline": {
+      "allOf": [{"$ref": "#/$defs/common"}, {"$ref": "#/$defs/style"}],
+      "properties": {
+        "type": {"const": "vline"},
+        "x": {"$ref": "#/$defs/length"},
+        "y1": {"$ref": "#/$defs/length"},
+        "y2": {"$ref": "#/$defs/length"}
+      },
+      "patternProperties": {"^x-": true},
+      "unevaluatedProperties": false
+    },
+    "hatch": {
+      "allOf": [{"$ref": "#/$defs/common"}, {"$ref": "#/$defs/style"}],
+      "required": ["period"],
+      "properties": {
+        "type": {"const": "hatch"},
+        "angle": {"$ref": "#/$defs/number"},
+        "period": {"$ref": "#/$defs/length"},
+        "offset": {"$ref": "#/$defs/length"},
+        "extend": {"type": "boolean"}
+      },
+      "patternProperties": {"^x-": true},
+      "unevaluatedProperties": false
+    },
+    "rect": {
+      "allOf": [{"$ref": "#/$defs/common"}, {"$ref": "#/$defs/style"}],
+      "properties": {
+        "type": {"const": "rect"},
+        "x": {"$ref": "#/$defs/length"},
+        "y": {"$ref": "#/$defs/length"},
+        "w": {"$ref": "#/$defs/length"},
+        "h": {"$ref": "#/$defs/length"},
+        "rx": {"$ref": "#/$defs/length"}
+      },
+      "patternProperties": {"^x-": true},
+      "unevaluatedProperties": false
+    },
+    "circle": {
+      "allOf": [{"$ref": "#/$defs/common"}, {"$ref": "#/$defs/style"}],
+      "required": ["r"],
+      "properties": {
+        "type": {"const": "circle"},
+        "cx": {"$ref": "#/$defs/length"},
+        "cy": {"$ref": "#/$defs/length"},
+        "r": {"$ref": "#/$defs/length"}
+      },
+      "patternProperties": {"^x-": true},
+      "unevaluatedProperties": false
+    },
+    "ellipse": {
+      "allOf": [{"$ref": "#/$defs/common"}, {"$ref": "#/$defs/style"}],
+      "required": ["rx", "ry"],
+      "properties": {
+        "type": {"const": "ellipse"},
+        "cx": {"$ref": "#/$defs/length"},
+        "cy": {"$ref": "#/$defs/length"},
+        "rx": {"$ref": "#/$defs/length"},
+        "ry": {"$ref": "#/$defs/length"}
+      },
+      "patternProperties": {"^x-": true},
+      "unevaluatedProperties": false
+    },
+    "dot": {
+      "allOf": [{"$ref": "#/$defs/common"}, {"$ref": "#/$defs/style"}],
+      "properties": {
+        "type": {"const": "dot"},
+        "cx": {"$ref": "#/$defs/length"},
+        "cy": {"$ref": "#/$defs/length"},
+        "r": {"$ref": "#/$defs/length"}
+      },
+      "patternProperties": {"^x-": true},
+      "unevaluatedProperties": false
+    },
+    "poly": {
+      "allOf": [{"$ref": "#/$defs/common"}, {"$ref": "#/$defs/style"}],
+      "required": ["points"],
+      "properties": {"type": {"enum": ["polyline", "polygon"]}, "points": {"$ref": "#/$defs/points"}},
+      "patternProperties": {"^x-": true},
+      "unevaluatedProperties": false
+    },
+    "path": {
+      "allOf": [{"$ref": "#/$defs/common"}, {"$ref": "#/$defs/style"}],
+      "required": ["d"],
+      "properties": {
+        "type": {"const": "path"},
+        "d": {"type": "string", "minLength": 1, "maxLength": 100000},
+        "viewBox": {
+          "oneOf": [
+            {"type": "string"},
+            {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4}
+          ]
+        },
+        "x": {"$ref": "#/$defs/length"},
+        "y": {"$ref": "#/$defs/length"},
+        "w": {"$ref": "#/$defs/length"},
+        "h": {"$ref": "#/$defs/length"},
+        "aspect": {"enum": ["meet", "stretch"]}
+      },
+      "patternProperties": {"^x-": true},
+      "unevaluatedProperties": false
+    },
+    "text": {
+      "allOf": [{"$ref": "#/$defs/common"}, {"$ref": "#/$defs/style"}],
+      "required": ["text"],
+      "properties": {
+        "type": {"const": "text"},
+        "text": {
+          "oneOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}, "minItems": 1}]
+        },
+        "x": {"$ref": "#/$defs/length"},
+        "y": {"$ref": "#/$defs/length"},
+        "select": {"$ref": "#/$defs/number"}
+      },
+      "patternProperties": {"^x-": true},
+      "unevaluatedProperties": false
+    },
+    "image": {
+      "allOf": [{"$ref": "#/$defs/common"}, {"$ref": "#/$defs/style"}],
+      "required": ["src"],
+      "properties": {
+        "type": {"const": "image"},
+        "src": {
+          "description": "A path inside the package: no leading slash, no .. segment.",
+          "type": "string",
+          "pattern": "^(?!/)(?!(?:.*/)?\\.\\.(?:/|$)).+$"
+        },
+        "x": {"$ref": "#/$defs/length"},
+        "y": {"$ref": "#/$defs/length"},
+        "w": {"$ref": "#/$defs/length"},
+        "h": {"$ref": "#/$defs/length"},
+        "fit": {"enum": ["contain", "cover", "stretch"]},
+        "position": {
+          "enum": [
+            "center", "top", "bottom", "left", "right", "top left", "top right", "bottom left",
+            "bottom right"
+          ]
+        }
+      },
+      "patternProperties": {"^x-": true},
+      "unevaluatedProperties": false
+    }
+  }
+}

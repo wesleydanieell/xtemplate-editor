@@ -12,3 +12,7 @@ Source of truth reviewed: `xnotes-android/app/src/main/java/com/xnotes/core/temp
 Do not claim rotated non-text templates match Android rendering until the XNotes format/evaluator adds corresponding behavior or the Studio explicitly bakes transformations into supported primitive coordinates. Baking a rotated group/repeat requires flattening expressions, clipping and geometry and must not silently alter metadata.
 
 `src/core/xnotes-compatibility.js` detects static discrepancies without mutating input. `tests/validate-template.test.js` checks lossless JSON serialization of bundled examples, not Android render parity. Rendering parity requires device/runtime tests using XNotes itself.
+
+## Image packages (XNotes v0.9.3+)
+
+The format now natively supports images in ZIP packages (`template.json` plus embedded PNG, JPEG or WebP files). See the official [specification](https://github.com/shardulvs/xtemplate/blob/master/SPEC.md) and [our image-package guide](IMAGE_PACKAGES.md). Older XNotes readers do not support this. This capability is under development in Studio and was not part of `alpha.6`.
