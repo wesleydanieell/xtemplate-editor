@@ -2,8 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import { validateTemplate } from "../src/core/validate-template.js";
+import { readTemplate } from "../src/core/xtemplate-package.js";
 
-const valid = () => ({ xtemplate: 1, items: [] });
+const valid = () => ({ xtemplate: 1, name: "Minimal", items: [] });
 
 test("accepts the minimal valid template", () => {
   assert.equal(validateTemplate(valid()), true);
@@ -14,7 +15,7 @@ test("validates every shipped example", async () => {
   const files = (await readdir(dir)).filter(name => name.endsWith(".xtemplate"));
   assert.ok(files.length >= 1, "expected example templates to exist");
   for (const file of files) {
-    const parsed = JSON.parse(await readFile(new URL(file, dir), "utf8"));
+    const parsed = (await readTemplate(await readFile(new URL(file, dir)))).document;
     assert.equal(validateTemplate(parsed), true, file);
   }
 });
@@ -51,10 +52,14 @@ test("all bundled templates round-trip through formatted JSON without semantic c
   const dir = new URL("../examples/", import.meta.url);
   const files = (await readdir(dir)).filter(name => name.endsWith(".xtemplate"));
   for (const file of files) {
-    const original = JSON.parse(await readFile(new URL(file, dir), "utf8"));
+    const original = (await readTemplate(await readFile(new URL(file, dir)))).document;
     const exported = JSON.stringify(original, null, 2) + "\n";
     const imported = JSON.parse(exported);
     assert.deepEqual(imported, original, `${file} lost JSON metadata or nested structure`);
     assert.equal(validateTemplate(imported), true, `${file} became invalid after serialization`);
   }
+});
+
+test('renaming a layer via official x-name extension is valid',()=>{
+ assert.equal(validateTemplate({...valid(),items:[{type:'rect','x-name':'Colored border'}]}),true);
 });

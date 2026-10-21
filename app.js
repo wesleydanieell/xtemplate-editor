@@ -1,5 +1,6 @@
 import { createAlignmentTools } from "./src/features/alignment.js";
 import { validateTemplate } from "./src/core/validate-template.js";
+import { migrateLegacyLayerNames } from "./src/core/template-migration.js";
 import { readTemplate,writeTemplate,imageFileType,validateImageAssets,PACKAGE_LIMITS } from "./src/core/xtemplate-package.js";
 import { xnotesCompatibilityWarnings } from "./src/core/xnotes-compatibility.js";
 import { createDefaultNode } from "./src/core/template-schema.js";
@@ -41,11 +42,12 @@ engineering:{xtemplate:1,id:"xtemplate.examples.engineering",name:"Engineering p
 todo:{xtemplate:1,id:"xtemplate.examples.todo",name:"Checklist",description:"Rows with a tick box each, stretched slightly so the rows fill the page exactly.",license:"MIT",tags:["planner","lists"],params:{row:{type:"length",default:"9mm",min:"6mm",max:"14mm",label:"Row height",role:"spacing"}},items:[{type:"text",text:"To do",x:"15mm",y:"18mm",size:"5mm",weight:"bold"},{type:"group",inset:["25mm","15mm","15mm","15mm"],children:[{type:"repeat",axis:"y",period:"row",fit:"round",children:[{type:"rect",y:"50% - 2.25mm",w:"4.5mm",h:"4.5mm",rx:"0.8mm"},{type:"hline",y:"100%",x1:"8mm"}]}]}]}
 };
 let doc=createBlankTemplate(),selectedPath=null,selectedPaths=[],dirty=false,drag=null,marqueeState=null,split=false,activeInspector="properties",suppressJson=false,toastTimer,clipboardNodes=[];
+let imageCropPath=null; // Inspector-only edit mode; never written into .xtemplate.
 let documentAssets=new Map();
 let documentImageSizes=new Map();
 const assetObjectUrls=new Map();
 function releaseAssetUrls(){for(const url of assetObjectUrls.values())URL.revokeObjectURL(url);assetObjectUrls.clear();}
-function replaceDocumentAssets(next,sizes=new Map()){releaseAssetUrls();documentAssets=next;documentImageSizes=sizes;}
+function replaceDocumentAssets(next,sizes=new Map()){imageCropPath=null;releaseAssetUrls();documentAssets=next;documentImageSizes=sizes;}
 function imageObjectUrl(src){const data=documentAssets.get(src);if(!data)return null;
  if(!assetObjectUrls.has(src))assetObjectUrls.set(src,URL.createObjectURL(new Blob([data],{type:imageFileType(data)})));
  return assetObjectUrls.get(src);
@@ -838,10 +840,10 @@ function renderTree(){
   const typeNames={group:"Group",repeat:"Repeat",hline:"Horizontal line",vline:"Vertical line",rect:"Rectangle",circle:"Circle",ellipse:"Ellipse",dot:"Dot",line:"Line",text:"Text",path:"SVG path",polygon:"Polygon",polyline:"Polyline",hatch:"Hatch"};
   const baseName=typeNames[n.type]||String(n.type||"Element");
   const content=n.type==="text"?String(Array.isArray(n.text)?n.text[0]:n.text||"").trim():"";
-  label.textContent=n.name||(n.type==="text"&&content?baseName+" "+typeOrdinal+" · "+content:baseName+" "+typeOrdinal);
+  label.textContent=(n['x-name']||n.name)||(n.type==="text"&&content?baseName+" "+typeOrdinal+" · "+content:baseName+" "+typeOrdinal);
   label.title="Double-click or press F2 to rename this layer";
   function renameLayer(){
-   const oldName=n.name||"",initial=label.textContent;
+   const oldName=n['x-name']||n.name||"",initial=label.textContent;
    const edit=document.createElement("input");edit.type="text";edit.className="tree-rename";
    edit.value=oldName||initial;edit.maxLength=80;edit.setAttribute("aria-label","Layer name");
    label.replaceWith(edit);b.draggable=false;
@@ -849,7 +851,7 @@ function renderTree(){
    const finish=save=>{
     if(finished)return;finished=true;b.draggable=true;
     const value=edit.value.trim();
-    if(save&&value!==oldName){commit(()=>{if(value)n.name=value;else delete n.name;});}
+    if(save&&value!==oldName){commit(()=>{if(value)n['x-name']=value;else delete n['x-name'];delete n.name;});}
     else renderTree();
    };
    edit.addEventListener("pointerdown",e=>e.stopPropagation());
@@ -874,7 +876,7 @@ function renderTree(){
   else if(n.type==="text")info.push(String(n.text||"").slice(0,22));
   else if(["circle","dot","ellipse"].includes(n.type))info.push("r "+String(n.r??n.rx??"default"));
   meta.textContent=info.join(" · ");
-  b.title=(n.name||baseName+" "+typeOrdinal)+(info.length?" — "+info.join(" · "):"");
+  b.title=(n['x-name']||n.name||baseName+" "+typeOrdinal)+(info.length?" — "+info.join(" · "):"");
   textWrap.append(label,meta);
   const idx=document.createElement("span");idx.className="tree-index";idx.textContent=String(path.at(-1)+1);idx.title="Sibling position "+(path.at(-1)+1);
   const colorControl=document.createElement("span");
@@ -937,6 +939,7 @@ function moveTreeNodes(paths,target,place='after'){
  toast(moved.count+(moved.count===1?' layer':' layers')+' moved.');
 }
 function select(path){
+ if(imageCropPath && (!path || nodeKey(path)!==imageCropPath))imageCropPath=null;
  selectedPath=path;selectedPaths=path?[path.slice()]:[];
  if(path)for(let i=2;i<path.length;i+=2)collapsedTree.delete(nodeKey(path.slice(0,i)));
  render();setInspectorTab("properties");
@@ -951,6 +954,7 @@ function selectFromTree(path,e){
  selectedPaths=next.paths;
  treeSelectionAnchor=next.anchor;
  selectedPath=selectedPaths.at(-1)||null;
+ if(imageCropPath&&(!selectedPath||nodeKey(selectedPath)!==imageCropPath))imageCropPath=null;
  for(const p of selectedPaths)for(let i=2;i<p.length;i+=2)collapsedTree.delete(nodeKey(p.slice(0,i)));
  render();setInspectorTab("properties");
 }
@@ -1103,11 +1107,36 @@ function renderAdvanced(n){
   addField('Source (inside package)','src',{wide:true});
   addField('Image fit','fit',{select:['contain','cover','stretch']});
   addField('Image position','position',{select:['center','top','bottom','left','right','top left','top right','bottom left','bottom right']});
-  const replace=document.createElement('button');replace.type='button';replace.className='quiet';replace.textContent='Replace image…';replace.addEventListener('click',()=>{$('imageFileInput').dataset.replace='true';$('imageFileInput').click();});
-  const wrap=document.createElement('div');wrap.dataset.fieldKeys='src,fit,position';wrap.className='field';
-  wrap.appendChild(replace);
+  const wrap=document.createElement('div');wrap.dataset.fieldKeys='src,fit,position';wrap.className='field image-frame-tools';
+  const crop=document.createElement('button');crop.type='button';crop.className='quiet';
+  const cropping=imageCropPath===nodeKey(selectedPath);
+  crop.dataset.imageCrop='toggle';crop.setAttribute('aria-pressed',String(cropping));
+  crop.textContent=cropping?'Finish crop':'Crop frame…';
+  crop.addEventListener('click',()=>{
+   if(imageCropPath===nodeKey(selectedPath)){imageCropPath=null;renderInspector();return;}
+   imageCropPath=nodeKey(selectedPath);
+   // The spec crops an image through fit: cover and its rectangle. There is
+   // no separate source crop field in the exported format.
+   commit(()=>{n.fit='cover';});
+  });
+  const replace=document.createElement('button');replace.type='button';replace.className='quiet';
+  replace.dataset.imageReplace='true';replace.textContent='Replace image…';replace.addEventListener('click',()=>{$('imageFileInput').dataset.replace='true';$('imageFileInput').click();});
+  const actions=document.createElement('div');actions.className='image-frame-actions';actions.append(crop,replace);wrap.appendChild(actions);
+  const positions=[['top left','↖'],['top','↑'],['top right','↗'],['left','←'],['center','•'],['right','→'],['bottom left','↙'],['bottom','↓'],['bottom right','↘']];
+  const caption=document.createElement('label');caption.textContent='Image focus / crop alignment';caption.className='image-position-caption';wrap.appendChild(caption);
+  const grid=document.createElement('div');grid.className='image-position-grid';grid.setAttribute('role','group');grid.setAttribute('aria-label','Image focus within crop');
+  for(const [position,arrow] of positions){
+   const button=document.createElement('button');button.type='button';button.className='image-position-button';
+   button.textContent=arrow;button.dataset.imagePosition=position;button.title=position;
+   button.setAttribute('aria-label',position);button.setAttribute('aria-pressed',String((n.position||'center')===position));
+   button.addEventListener('click',()=>commit(()=>{n.position=position;}));
+   grid.appendChild(button);
+  }
+  wrap.appendChild(grid);
   const note=document.createElement('small');note.className='value-field-hint';
-  note.textContent='Contain keeps the full photo visible. Cover crops to fill. Free edge/corner resizing stretches the image; Shift + corner preserves the current proportions and fit.';
+  note.textContent=cropping
+   ?'Crop mode: resize the frame handles to change the crop without stretching the photo. Choose an alignment above to shift its focus; Finish crop to return to free resize.'
+   :'Contain shows the full image; cover crops to the frame. Free resize stretches; Shift + corner keeps proportions. Use Crop frame to edit the viewport without stretching.';
   wrap.appendChild(note);root.appendChild(wrap);
  }
  if(n.type==="hatch"){addField("Period","period",{json:Array.isArray(n.period)});addField("Ângulo (graus)","angle",{numeric:true});addField("Deslocamento","offset");addField("Estender além da caixa","extend",{checkbox:true});}
@@ -1573,7 +1602,7 @@ paper.addEventListener("pointermove",e=>{
    for(let i=0;i+1<points.length;i+=2){const px=evalN(points[i],box,"x"),py=evalN(points[i+1],box,"y"),nx=g.w>0?targetLeft+(px-originalLeft)*((right-left)/g.w):targetLeft,ny=g.h>0?targetTop+(py-originalTop)*((bottom-top)/g.h):targetTop;out.push([fmt(nx),fmt(ny)]);}n.points=out;
   }else{
    n.x=fmt(left-box.x);n.y=fmt(top-box.y);n.w=fmt(right-left);n.h=fmt(bottom-top);
-   if(type==='image')n.fit=imageResizeFit(base.fit,h,e.shiftKey);
+   if(type==='image')n.fit=imageResizeFit(base.fit,h,e.shiftKey,imageCropPath===nodeKey(drag.path));
   }
  }
  render();
@@ -1667,24 +1696,34 @@ paper.addEventListener('dblclick',e=>{
 });
 paper.addEventListener("pointercancel",e=>cancelCanvasGesture(e));
 paper.addEventListener("lostpointercapture",e=>cancelCanvasGesture(e));
+async function inspectImportedTemplate(bytes){
+ const imported=await readTemplate(bytes);
+ migrateLegacyLayerNames(imported.document);
+ validate(imported.document);
+ validateImageAssets(imported.document,imported.assets);
+ const sizes=new Map();
+ for(const [name,data] of imported.assets){
+  const img=await createImageBitmap(new Blob([data],{type:imageFileType(data)}));
+  const {width,height}=img;img.close();
+  if(width>PACKAGE_LIMITS.maxPixels||height>PACKAGE_LIMITS.maxPixels)
+   throw Error('Image exceeds 8192px: '+name);
+  sizes.set(name,{width,height});
+ }
+ return {imported,sizes};
+}
+function adoptImportedTemplate(imported,sizes){
+ replaceDocumentAssets(imported.assets,sizes);
+ doc=imported.document;resetVectorEditors();selectedPath=null;selectedPaths=[];collapsedTree.clear();
+ setDirty(false);loadLayerColors();resetHistory();previewValues={};initializePreviewValues();syncJson();render();
+ document.querySelectorAll('.template-card').forEach(b=>b.classList.remove('active'));
+}
 $("openBtn").addEventListener("click",()=>$("fileInput").click());
 $("fileInput").addEventListener("change",async e=>{
  const f=e.target.files?.[0];if(!f)return;
  if(dirty&&!confirm('There are unsaved changes. Open another file anyway?')){e.target.value='';return;}
  try{
-  const imported=await readTemplate(await f.arrayBuffer());validate(imported.document);
-  validateImageAssets(imported.document,imported.assets);
-  const sizes=new Map();
-  for(const [name,bytes] of imported.assets){
-   const image=await createImageBitmap(new Blob([bytes],{type:imageFileType(bytes)}));
-   const width=image.width,height=image.height;image.close();
-   if(width>PACKAGE_LIMITS.maxPixels||height>PACKAGE_LIMITS.maxPixels)
-    throw Error('Image exceeds 8192px: '+name);
-   sizes.set(name,{width,height});
-  }
-  // Do not discard the current document or its images on a failed import.
-  replaceDocumentAssets(imported.assets,sizes);doc=imported.document;resetVectorEditors();selectedPath=null;selectedPaths=[];
-  setDirty(false);loadLayerColors();resetHistory();previewValues={};initializePreviewValues();syncJson();render();
+  const {imported,sizes}=await inspectImportedTemplate(await f.arrayBuffer());
+  adoptImportedTemplate(imported,sizes);
   document.querySelectorAll('.template-card').forEach(b=>b.classList.remove('active'));
   toast(imported.packaged?'Image template package loaded.':'Template loaded.');setStatus('File opened: '+f.name);
  }catch(err){toast('Could not open: '+err.message);}
@@ -2264,7 +2303,12 @@ document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;hideContextMe
 async function loadOfficialExample(file,source){
  if(!file)return;
  if(dirty&&!confirm("Descartar alterações não exportadas e abrir este exemplo?")){if(source)source.value="";return;}
- try{const res=await fetch("./examples/"+encodeURIComponent(file));if(!res.ok)throw Error("Example not found.");const parsed=JSON.parse(await res.text());validate(parsed);replaceDocumentAssets(new Map());doc=parsed;resetVectorEditors();selectedPath=null;selectedPaths=[];collapsedTree.clear();loadLayerColors();resetHistory();previewValues={};initializePreviewValues();setDirty(false);syncJson();render();document.querySelectorAll(".template-card").forEach(b=>b.classList.remove("active"));toast("Template loaded.");setStatus("Template: "+file);}
+ try{
+  const res=await fetch("./examples/"+encodeURIComponent(file));if(!res.ok)throw Error("Example not found.");
+  const {imported,sizes}=await inspectImportedTemplate(await res.arrayBuffer());
+  adoptImportedTemplate(imported,sizes);
+  toast(imported.packaged?'Image template example loaded.':'Template loaded.');setStatus("Template: "+file);
+ }
  catch(err){toast("Could not open template: "+err.message);}
  if(source)source.value="";
 }

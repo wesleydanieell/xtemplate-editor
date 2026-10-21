@@ -16,7 +16,8 @@ export function imageDisplayBounds(frame, dimensions, fit='contain', position='c
  * crop/letterbox viewport. Shift-corner resizing explicitly keeps proportions.
  * Native `fit: stretch` is the only fit mode that follows independent X/Y
  * dimensions; switching on freeform resize is intentional and undoable. */
-export function imageResizeFit(fit,handle,shiftKey=false){
+export function imageResizeFit(fit,handle,shiftKey=false,cropMode=false){
+  if(cropMode)return 'cover'; // Resize the viewport; let the image crop within it.
   const isCorner=/[ew]/.test(handle)&&/[ns]/.test(handle);
   return isCorner&&shiftKey?(fit||'contain'):'stretch';
 }

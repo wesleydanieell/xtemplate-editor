@@ -1,3 +1,4 @@
+import officialSchemaValidator from './official-schema-validator.js';
 /**
  * Validation shared by the visual editor, JSON editor and file import/export.
  * Keep limits aligned with XNotes' TemplateReader.
@@ -58,5 +59,14 @@ export function validateTemplate(value) {
   }
 
   walk(value.items, 0);
+  // Standalone browser-safe validator generated from the pinned official v1
+  // JSON Schema. Validates every property, including images and expressions,
+  // on import, JSON edits, visual commits and export — with no runtime AJV.
+  if(!officialSchemaValidator(value)){
+    const error=officialSchemaValidator.errors?.[0];
+    const location=error?.instancePath||'(document)';
+    const missing=error?.params?.missingProperty;
+    throw new Error(`Official .xtemplate specification: ${location}${missing?'/'+missing:''} ${error?.message||'is invalid'}`);
+  }
   return true;
 }

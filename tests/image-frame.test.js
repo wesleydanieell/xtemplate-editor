@@ -22,3 +22,10 @@ test('free side/corner resize uses native stretch; shift corner preserves fit',(
   assert.equal(imageResizeFit(fit,'ne',true), fit);
  }
 });
+
+test('crop-frame resize keeps cover so changing the viewport crops rather than distorts',()=>{
+ for(const handle of ['n','e','sw','se']){
+  assert.equal(imageResizeFit('cover',handle,false,true),'cover');
+  assert.equal(imageResizeFit('contain',handle,true,true),'cover');
+ }
+});
