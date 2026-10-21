@@ -1918,7 +1918,9 @@ document.querySelectorAll("[data-rotation-preset]").forEach(button=>button.addEv
  commit(()=>applyTransformChange(node,"rotate",value));
 }));
 // Photoshop-style scrubby fields: drag the label horizontally to adjust the value in place.
-const scrubConfig={transformX:{step:.1,min:-300,max:300},transformY:{step:.1,min:-420,max:420},transformW:{step:.1,min:0,max:300},transformH:{step:.1,min:0,max:420},transformRotate:{step:1,min:-360,max:360},transformOpacity:{step:1,min:0,max:100}};
+// Geometry is not limited to the paper dimensions: elements can be edited
+// outside the page. Only intrinsically bounded fields are clamped.
+const scrubConfig={transformX:{step:.1},transformY:{step:.1},transformW:{step:.1,min:0},transformH:{step:.1,min:0},transformRotate:{step:1,min:-360,max:360},transformOpacity:{step:1,min:0,max:100}};
 for(const [id,cfg] of Object.entries(scrubConfig)){
  const input=$(id),label=input.closest("label");if(!input||!label)continue;
  label.classList.add("scrubby-field");label.title="Drag the label to adjust · Shift = fine control · Ctrl = fast";
@@ -1932,7 +1934,7 @@ for(const [id,cfg] of Object.entries(scrubConfig)){
  label.addEventListener("pointermove",e=>{
   if(!state||state.pointerId!==e.pointerId)return;
   const delta=e.clientX-state.startX;if(Math.abs(delta)<1&&!state.moved)return;state.moved=true;
-  const factor=e.shiftKey?0.1:(e.ctrlKey||e.metaKey)?10:1,raw=state.startValue+delta*cfg.step*factor,value=Math.max(cfg.min,Math.min(cfg.max,raw)),n=getAt(state.path);
+  const factor=e.shiftKey?0.1:(e.ctrlKey||e.metaKey)?10:1,raw=state.startValue+delta*cfg.step*factor,value=Math.max(cfg.min??-Infinity,Math.min(cfg.max??Infinity,raw)),n=getAt(state.path);
   if(!n)return;Object.assign(n,clone(state.origin));applyTransformChange(n,Object.entries({transformX:"x",transformY:"y",transformW:"w",transformH:"h",transformRotate:"rotate",transformOpacity:"opacity"}).find(([k])=>k===id)[1],value);
   input.value=Number(value.toFixed(2));renderCanvas();
  });

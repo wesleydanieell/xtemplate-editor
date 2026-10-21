@@ -141,5 +141,26 @@ try{
  const reverted=await page.$eval('#jsonEditor',x=>JSON.parse(x.value).items[2]);
  assert.equal(reverted.src,oldSrc,'replacing an image is a single undoable edit');
  console.log('PASS: add/replace images with name collision avoidance and undo');
+ // Numeric scrubber regression: Width used to clamp to 300mm even when the
+ // field accepted larger typed values. Test the real pointer interaction.
+ await page.$eval('.tree-item[data-path="items.2"]',el=>el.click());
+ await page.select('#advancedInspector [data-field-keys="fit"] select','stretch');
+ await page.$eval('#transformW',el=>{
+  el.value='330';el.dispatchEvent(new Event('change',{bubbles:true}));
+ });
+ assert.equal(parseFloat((await page.$eval('#jsonEditor',el=>JSON.parse(el.value).items[2].w))),330);
+ const scrubStart=await page.$eval('#transformW',el=>{
+  const label=el.closest('label').getBoundingClientRect();
+  const input=el.getBoundingClientRect();
+  return {x:label.left+10,y:(label.top+input.top)/2};
+ });
+ await page.mouse.move(scrubStart.x,scrubStart.y);
+ await page.keyboard.down('Control');
+ await page.mouse.down();
+ await page.mouse.move(scrubStart.x+54,scrubStart.y,{steps:8});
+ await page.mouse.up();await page.keyboard.up('Control');
+ const scrubbedWidth=parseFloat(await page.$eval('#jsonEditor',el=>JSON.parse(el.value).items[2].w));
+ assert(scrubbedWidth>350,`Ctrl + scrub must allow width above 300mm; got ${scrubbedWidth}`);
+ console.log('PASS: Width scrub extends beyond 300mm with direct numeric input and drag');
  assert.deepEqual(errors,[]);console.log('PASS: add local image to Studio with editable native node');
 }finally{await browser.close();server.close();await fs.rm(dir,{recursive:true,force:true});}
