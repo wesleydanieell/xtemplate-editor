@@ -13,7 +13,7 @@
     "desktop:assets": "python3 scripts/build-desktop-assets.py",
     "desktop:dev": "npm run desktop:assets && tauri dev",
     "desktop:build": "npm run desktop:assets && tauri build --bundles appimage",
-    "test:browser": "node scripts/browser-smoke.mjs && node scripts/browser-image-smoke.mjs && node scripts/browser-ux-smoke.mjs && node scripts/browser-mobile-smoke.mjs && node scripts/browser-icon-smoke.mjs && node scripts/browser-text-bounds-smoke.mjs && node scripts/browser-variable-ux-smoke.mjs",
+    "test:browser": "node scripts/browser-smoke.mjs && node scripts/browser-image-smoke.mjs && node scripts/browser-ux-smoke.mjs && node scripts/browser-mobile-smoke.mjs && node scripts/browser-icon-smoke.mjs && node scripts/browser-text-bounds-smoke.mjs && node scripts/browser-variable-ux-smoke.mjs && node scripts/browser-corner-smoke.mjs",
     "desktop:build:windows": "python scripts/build-desktop-assets.py && tauri build --bundles nsis,msi --config src-tauri/tauri.windows.conf.json"
   },
   "engines": {
