@@ -52,6 +52,31 @@ try{
   console.log('PASS',name,'actual text geometry and inspector aligned');
  }
 
+ // Rotated/anchored glyph editing shares the SVG transformation, so the
+ // caret rotates with the actual letters instead of floating elsewhere.
+ const rotatedEdit={xtemplate:1,name:'Rotated Edit',kind:'cover',items:[
+  {type:'text',text:'Vertical',x:'80mm',y:'80mm',size:'10mm',rotate:90,align:'end',font:'serif',fill:'#336699'}]};
+ await page.$eval('#fileInput',(input,raw)=>{const data=new DataTransfer();
+  data.items.add(new File([raw],'rotated-edit.xtemplate',{type:'application/json'}));
+  input.files=data.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },JSON.stringify(rotatedEdit));
+ await page.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Rotated Edit');
+ await page.$eval('.tree-item[data-path="items.0"]',x=>x.click());
+ await page.click('[data-edit-text]');
+ const oriented=await page.evaluate(()=>{
+  const glyph=document.querySelector('#page-artwork g[data-path="items.0"] > text');
+  const editor=document.querySelector('[data-canvas-text-editor]');
+  const editable=editor?.querySelector('[contenteditable]');
+  return {glyphTransform:glyph.getAttribute('transform'),editorTransform:editor?.getAttribute('transform'),
+   anchor:editable?.style.textAlign,typography:editable?.style.fontFamily,color:editable?.style.color};
+ });
+ assert.equal(oriented.editorTransform,oriented.glyphTransform);
+ assert.equal(oriented.anchor,'right');assert.match(oriented.typography,/serif/);
+ assert.equal(oriented.color,'rgb(51, 102, 153)');
+ await page.keyboard.press('End');await page.keyboard.type('!');await page.keyboard.press('Enter');
+ assert.equal(await page.$eval('#jsonEditor',x=>JSON.parse(x.value).items[0].text),'Vertical!');
+ console.log('PASS rotated/end-anchored text edits in the SVG orientation');
+
  const example={xtemplate:1,name:'Text UX test',kind:'cover',items:[{type:'text',x:'90mm',y:'94mm',size:'7mm',text:'Edit me',align:'start',baseline:'alphabetic'}]};
  await page.$eval('#fileInput',(input,raw)=>{const dt=new DataTransfer();dt.items.add(new File([raw],'edit.xtemplate',{type:'application/json'}));input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));},JSON.stringify(example));
  await page.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Text UX test');
@@ -84,15 +109,33 @@ try{
  await page.$eval('.tree-item[data-path="items.0"]',x=>x.click());
  await page.$eval('#page-artwork g[data-path="items.0"] > text',el=>el.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,clientX:el.getBoundingClientRect().left+12})));
  assert.equal(await page.$eval('[data-canvas-text-editor]',el=>!el.hidden),true,'double-click opens inline text editor');
- await page.$eval('.canvas-inline-text-editor',el=>{el.value='Updated directly';el.dispatchEvent(new Event('input',{bubbles:true}));});
+ const inline=await page.evaluate(()=>{
+  const fo=document.querySelector('[data-canvas-text-editor]');
+  const input=fo?.querySelector('[contenteditable]');
+  const glyph=fo?.parentNode.querySelector(':scope > text');
+  return {tag:fo?.tagName.toLowerCase(),svg:fo?.ownerSVGElement?.id,
+   isNativeEditable:input?.isContentEditable,focused:document.activeElement===input,
+   noTextarea:document.querySelectorAll('.canvas-inline-text-editor textarea, textarea[data-canvas-text-editor]').length===0,
+   noFloatingShell:document.querySelectorAll('body > .canvas-text-edit-shell').length===0,
+   noFloatingButtons:document.querySelectorAll('.canvas-inline-text-actions').length===0,
+   originalHidden:glyph?.style.opacity==='0',background:getComputedStyle(input).backgroundColor,
+   border:getComputedStyle(input).borderTopWidth,position:getComputedStyle(fo).position};
+ });
+ assert.equal(inline.tag,'foreignobject');assert.equal(inline.svg,'paper');
+ assert(inline.isNativeEditable&&inline.focused&&inline.noTextarea&&inline.noFloatingShell&&inline.noFloatingButtons);
+ assert(inline.originalHidden,'original glyph is temporarily hidden, not duplicated');
+ assert.equal(inline.background,'rgba(0, 0, 0, 0)','editing must have no box/background');
+ assert.equal(inline.border,'0px','editing must have no input border');
+ console.log('PASS true on-canvas SVG text editing with no floating textarea or dialog');
+ await page.$eval('.canvas-inline-text-editor',el=>{el.textContent='Updated directly';el.dispatchEvent(new Event('input',{bubbles:true}));});
  assert.equal((await visual()).node.text,initial.node.text,'live editing must not push an undo snapshot until accepted');
  // JSON is deliberately synced when editing is committed, but SVG previews live.
  assert.equal(await page.$eval('#page-artwork g[data-path="items.0"] > text',el=>el.textContent),'Updated directly');
- await page.click('[data-text-cancel]');
+ await page.keyboard.press('Escape');
  assert.equal((await visual()).node.text,'Edit me','Cancel restores original text');
  await page.$eval('#page-artwork g[data-path="items.0"] > text',el=>el.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,clientX:el.getBoundingClientRect().left+15})));
- await page.$eval('.canvas-inline-text-editor',el=>{el.value='Final typography';el.dispatchEvent(new Event('input',{bubbles:true}));});
- await page.click('[data-text-apply]');
+ await page.$eval('.canvas-inline-text-editor',el=>{el.textContent='Final typography';el.dispatchEvent(new Event('input',{bubbles:true}));});
+ await page.keyboard.press('Enter');
  assert.equal((await visual()).node.text,'Final typography','Done persists edited text');
  await page.keyboard.down('Control');await page.keyboard.press('z');await page.keyboard.up('Control');
  assert.equal((await visual()).node.text,'Edit me','Undo restores text after single commit');
@@ -104,7 +147,9 @@ try{
  await page.$eval('#page-artwork g[data-path="items.0"] > text',el=>el.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,clientX:el.getBoundingClientRect().left+10})));
  await page.keyboard.type('Direct');
  await page.keyboard.press('Enter');
- assert.match((await visual()).node.text,/^EdiDirectt me$/,'Enter commits text at the clicked caret position');
+ const typed=(await visual()).node.text;
+ assert(typed.startsWith('E')&&typed.endsWith('me')&&typed.includes('Direct')&&typed.indexOf('Direct')<5,
+  'Enter inserts near the selected glyph instead of appending at text end: '+typed);
  await page.click('#undoBtn');
  assert.equal((await visual()).node.text,'Edit me','Undo of actual keyboard edit restores original text');
  console.log('PASS inline editor Escape, Enter, caret and real keyboard input');
@@ -269,11 +314,11 @@ try{
  await phone.click('[data-edit-text]');
  assert.equal(await phone.$eval('[data-canvas-text-editor]',el=>!el.hidden),true,'phone text editing opens');
  assert.equal(await phone.$eval('.app',el=>el.classList.contains('app--hide-properties')),true,'mobile drawer closed for canvas editor');
- const editing=await phone.$eval('[data-canvas-text-editor]',el=>({visible:!el.hidden,rect:el.getBoundingClientRect().toJSON(),input:el.querySelector('textarea').getBoundingClientRect().toJSON(),actions:el.querySelector('.canvas-inline-text-actions').getBoundingClientRect().toJSON()}));
+ const editing=await phone.$eval('[data-canvas-text-editor]',el=>({visible:el.isConnected,rect:el.getBoundingClientRect().toJSON(),input:el.querySelector('[contenteditable]').getBoundingClientRect().toJSON(),actions:null}));
  assert(editing.visible && editing.rect.left>=0&&editing.input.right<=392,`phone editor must fit viewport ${JSON.stringify(editing)}`);
  await phone.screenshot({path:'/tmp/xt-inline-mobile-390.png'});
- await phone.$eval('.canvas-inline-text-editor',el=>{el.value='Phone text';el.dispatchEvent(new Event('input',{bubbles:true}));});
- await phone.click('[data-text-apply]');
+ await phone.$eval('.canvas-inline-text-editor',el=>{el.textContent='Phone text';el.dispatchEvent(new Event('input',{bubbles:true}));});
+ await phone.keyboard.press('Enter');
  assert.equal(await phone.$eval('#jsonEditor',el=>JSON.parse(el.value).items[0].text),'Phone text');
  console.log('PASS phone inline edit reclaims canvas from Properties drawer');
  // Mobile taps must be able to begin a new text edit without requiring
@@ -286,7 +331,7 @@ try{
  await phone.touchscreen.tap(phoneTarget.x,phoneTarget.y);
  assert.equal(await phone.$eval('[data-canvas-text-editor]',el=>!el.hidden),true,
   'double tap on phone should reopen direct text editor');
- await phone.$eval('[data-text-cancel]',el=>el.click());
+ await phone.keyboard.press('Escape');
  console.log('PASS mobile double-tap opens direct canvas editor');
  await phone.close();
  assert.deepEqual(errors,[]);

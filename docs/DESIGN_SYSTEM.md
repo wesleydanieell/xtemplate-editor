@@ -131,3 +131,12 @@ Clicking a blank location with the **Text (T)** tool now creates a native empty 
 The Character panel now makes two different native actions explicit: **Text anchor** changes how text is distributed around its existing authored X coordinate (`start`, `middle`, `end`), whereas **Place on page** uses the existing document-level alignment commands to move the *painted glyph bounds* left/center/right or top/middle/bottom. The latter preserves native group-relative coordinates and supports undo; it is distinct from alignment within a text box (which the current `.xtemplate` v1 text format does not represent).
 
 Browser regression coverage performs actual pointer clicks on a blank canvas, verifies immediate keyboard focus and persisted text on Enter, and tests left-to-right positioning of glyphs through the Character panel without inventing unsupported attributes. Use `Ctrl+Shift+R` to bypass cached editor assets in the development browser; for LAN clients the staged `dist-web` must be regenerated with `npm run desktop:assets`.
+
+
+## V3.6 — genuine SVG in-place text editing
+
+The former fixed-position HTML `textarea` with a background, border, and Done/Cancel popup has been removed entirely. The editor now inserts a temporary, transparent **SVG `foreignObject` / HTML `contenteditable`** directly next to the actual text glyph in the same SVG group and transformation. The original glyph is hidden only while typing and restored upon completion; this gives native caret, text selection, paste and IME inside the actual page rather than a floating panel. The `foreignObject` inherits the glyph transform, respects its font family, weight, size, color and start/center/end anchor, and grows without changing the authored anchor. The click-to-caret position is computed from the SVG's per-character coordinates, including rotations.
+
+Press **Enter** to apply, **Escape** to cancel, or click elsewhere to apply. A single undo step reverses a committed change. Existing templates, native `text` attributes, JSON/ZIP import/export and editable layer data remain unchanged. No `foreignObject` is exported; it is only an editor UI node.
+
+Automated browser checks reject the former floating editor shell and textarea, verify transparent editing directly under `#paper`, and exercise typing, cancellation, Undo, page placement, rotation/zoom, and mobile double-tap.
