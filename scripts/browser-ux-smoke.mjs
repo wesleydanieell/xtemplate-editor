@@ -75,7 +75,7 @@ try{
  await page.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Inspector test');
  const select=path=>page.$eval(`.tree-item[data-path="${path}"]`,el=>el.click());
  await select('items.0');
- const textState=await page.evaluate(()=>({kind:document.querySelector('.inspector-blocks')?.dataset.propertyType,content:!document.querySelector('[data-block="content"]').hidden,typography:document.querySelector('[data-block="specific"] .property-block-title')?.textContent.trim(),fields:[...document.querySelectorAll('[data-block="content"] input')].map(x=>x.id),styles:!document.querySelector('[data-block="appearance"]').hidden}));
+ const textState=await page.evaluate(()=>({kind:document.querySelector('.inspector-blocks')?.dataset.propertyType,content:!document.querySelector('[data-block="content"]').hidden,typography:document.querySelector('[data-block="specific"] .property-block-title')?.textContent.trim(),fields:[...document.querySelectorAll('[data-block="content"] input')].map(x=>x.id),styles:!!document.querySelector('[data-block="content"] #elementFill')&&!document.querySelector('[data-block="content"] .appearance-section').hidden}));
  assert.equal(textState.kind,'text');assert(textState.content);assert.equal(textState.typography,'Typography');assert(textState.fields.includes('elementText'));assert(textState.styles);
  const chars=await page.$$eval('#advancedInspector .character-controls [data-character-field]',items=>items.map(item=>({key:item.dataset.characterField,rect:item.getBoundingClientRect().toJSON()})));
  assert.deepEqual(chars.map(x=>x.key),['font','size','weight','italic','align','baseline']);
@@ -104,8 +104,8 @@ try{
  assert.equal(await page.$eval('[data-block="content"]',x=>x.hidden),true);
  assert.equal(await page.$eval('#advancedInspector [data-field-keys="axis"] select',x=>x.value),'y');
  await select('items.2');
- assert.equal(await page.$eval('[data-block="specific"] .property-block-title',x=>x.textContent),'Shape settings');
- assert.equal(await page.$eval('#advancedInspector [data-field-keys="rx"] input',x=>x.value),'3mm');
+ assert.equal(await page.$eval('.radius-field-slot [data-field-keys="rx"] input',x=>x.value),'3mm');
+ assert.equal(await page.$eval('[data-block="appearance"] .compact-paint-row',x=>!x.hidden),true);
  assert.equal(await page.$eval('[data-block="technical"] details',x=>x.open),false);
  const ids=await page.$$eval('#elementInspector input[id]',xs=>xs.map(x=>x.id));
  assert.equal(ids.length,new Set(ids).size,'inspector must have one authoritative input per property');

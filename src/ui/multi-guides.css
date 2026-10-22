@@ -1,0 +1,109 @@
+/* Equidistant neighbor guides are separate from existing alignment guides. */
+#paper .smart-spacing-layer{pointer-events:none}
+#paper .smart-spacing-guide{stroke:#d91b67;stroke-width:1.2;stroke-dasharray:2 1;vector-effect:non-scaling-stroke;pointer-events:none}
+#paper .smart-spacing-tick{stroke:#d91b67;stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
+#paper .smart-spacing-label{
+ fill:#d91b67;stroke:none;paint-order:normal;
+ font-family:ui-sans-serif,sans-serif;font-weight:500;pointer-events:none}
+
+/* Smart selection: Figma-like pink mark rings and equal-gap handles.
+ * Visual strokes are vector-effect non-scaling-stroke, never scaled with art. */
+#smart-selection-overlay .smart-marker-visual{
+ fill:#fffdfc;stroke:#d91b67;stroke-width:1.6;vector-effect:non-scaling-stroke}
+#smart-selection-overlay [data-smart-marked="true"] .smart-marker-visual{
+ fill:#d91b67;stroke:#fffdfc;stroke-width:1.5}
+#smart-selection-overlay .smart-marker-hit{cursor:pointer;touch-action:none}
+#smart-selection-overlay .smart-selection-gap-connector{
+ stroke:#d91b67;stroke-width:1;stroke-dasharray:2.5 2;
+ vector-effect:non-scaling-stroke;pointer-events:none}
+#smart-selection-overlay .smart-selection-gap-bar{
+ stroke:#d91b67;stroke-width:2.4;stroke-linecap:round;
+ vector-effect:non-scaling-stroke;pointer-events:none}
+#smart-selection-overlay .smart-selection-gap-hit{cursor:ew-resize;touch-action:none}
+#smart-selection-overlay [data-smart-gap] .smart-selection-gap-hit{cursor:grab}
+#smart-selection-overlay [data-smart-gap]:active .smart-selection-gap-hit{cursor:grabbing}
+#multi-scale-controls .multi-scale-outline{
+ fill:none;stroke:#4d82df;stroke-width:1.2;
+ vector-effect:non-scaling-stroke;pointer-events:none}
+#multi-scale-controls .multi-scale-knob{
+ fill:#fefefe;stroke:#467fe5;stroke-width:1;
+ vector-effect:non-scaling-stroke;pointer-events:none}
+#multi-scale-controls .multi-scale-hit{cursor:nwse-resize;touch-action:none}
+#multi-scale-controls .multi-scale-hit[data-scale-handle="n"],
+#multi-scale-controls .multi-scale-hit[data-scale-handle="s"]{cursor:ns-resize}
+#multi-scale-controls .multi-scale-hit[data-scale-handle="e"],
+#multi-scale-controls .multi-scale-hit[data-scale-handle="w"]{cursor:ew-resize}
+#multi-scale-controls .multi-scale-hit[data-scale-handle="ne"],
+#multi-scale-controls .multi-scale-hit[data-scale-handle="sw"]{cursor:nesw-resize}
+#selectionArrange .selection-transform-mode{display:flex;gap:5px;margin:8px 0}
+#selectionArrange .selection-transform-mode span[data-multi-mode]{
+ flex:1;min-height:29px;padding:5px 7px;border:1px solid var(--ui-border);
+ border-radius:5px;background:var(--ui-input);font-size:10px;color:var(--ui-muted);
+ display:flex;align-items:center;justify-content:center;gap:5px}
+#selectionArrange .selection-transform-mode span[data-multi-mode][aria-current="true"]{
+ border-color:var(--ux-accent);background:var(--ui-selected);color:var(--ui-selected-text)}
+#selectionArrange .smart-selection-settings{
+ display:flex;align-items:center;gap:7px;margin:8px 0 7px;
+ border-top:1px solid var(--ui-divider);padding-top:9px}
+#selectionArrange .smart-selection-settings[hidden]{display:none}
+#selectionArrange .smart-selection-settings label{flex:1;color:var(--ui-muted);font-size:10px}
+#selectionArrange .smart-selection-settings input{width:76px;min-width:0;height:28px;
+ padding:4px 7px;font-size:11px;text-align:right}
+#selectionArrange .smart-selection-settings .smart-axis{color:var(--ui-soft);font-size:10px}
+#selectionArrange .smart-selection-hint{font-size:10px;line-height:1.45;color:var(--ui-muted);margin:5px 0 9px}
+
+/* In Smart Selection, unmarked layers retain their blue outlines but not 8
+ * misleading active resize targets. Clicking a pink ring exposes its handles. */
+#editor-selection-overlay[data-smart-selection="true"]
+ .selection-control-layer[data-smart-marked="false"] .transform-handle,
+#editor-selection-overlay[data-smart-selection="true"]
+ .selection-control-layer[data-smart-marked="false"] .transform-hit-area,
+#editor-selection-overlay[data-smart-selection="true"]
+ .selection-control-layer[data-smart-marked="false"] .rotation-stem{
+ display:none;pointer-events:none}
+
+/* Secondary alignment actions stay available without dominating Smart Selection. */
+#selectionArrange .selection-arrange-disclosure{margin:9px 0 6px;border-top:1px solid var(--ui-divider);padding-top:4px}
+#selectionArrange .selection-arrange-disclosure>summary{cursor:pointer;color:var(--ui-muted);font-size:10.5px;padding:6px 2px;min-height:28px;display:list-item}
+#selectionArrange .selection-arrange-disclosure>.selection-arrange-grid{margin-top:5px}
+#selectionArrange .smart-selection-settings{border-top:0;margin:4px 0 6px;padding-top:4px}
+
+/* Visible escape hatch: restore all Smart Selection handles without reselection. */
+#selectionArrange .smart-mark-toolbar{display:flex;align-items:center;gap:8px;
+ justify-content:space-between;padding:4px 0 6px;min-height:31px}
+#selectionArrange .smart-mark-toolbar[hidden]{display:none}
+#selectionArrange .smart-mark-toolbar span{font-size:10px;color:var(--ui-muted)}
+#selectionArrange .smart-mark-toolbar button{padding:4px 10px;min-height:27px;
+ border-radius:6px;border:1px solid var(--ui-border);background:var(--ui-input);
+ color:var(--ui-text);font-size:10.5px;cursor:pointer}
+#selectionArrange .smart-mark-toolbar button:not(:disabled):hover{border-color:var(--ux-accent)}
+#selectionArrange .smart-mark-toolbar button:disabled{opacity:.5;cursor:default}
+#smart-selection-overlay [data-smart-marker] .smart-marker-hit{cursor:grab}
+#smart-selection-overlay [data-smart-marker]:active .smart-marker-hit{cursor:grabbing}
+#smart-selection-overlay [data-smart-marker][data-smart-drop="true"] .smart-marker-visual{
+ stroke:#e61e71;stroke-width:2.6}
+#smart-selection-overlay .smart-reorder-guide{stroke:#d91b67;stroke-width:2;
+ stroke-linecap:round;vector-effect:non-scaling-stroke;pointer-events:none}
+#smart-selection-overlay .smart-reorder-label{fill:#d91b67;stroke:none;
+ font-family:ui-sans-serif,sans-serif;font-weight:600;pointer-events:none}
+#paper .smart-resize-readout{pointer-events:none}
+#paper .smart-resize-readout-background{fill:#172339;fill-opacity:.91;stroke:#749bea;
+ stroke-width:1;vector-effect:non-scaling-stroke}
+#paper .smart-resize-readout-text{fill:#fff;stroke:none;
+ font-family:ui-sans-serif,sans-serif;font-weight:500}
+
+/* Contextual shortcut is visible in the upper stage toolbar for 2+ layers;
+   no redundant mode-change buttons: K is the explicit toggle. */
+:root[data-theme] .multi-mode-shortcut{
+ display:inline-flex;align-items:center;justify-content:center;gap:7px;
+ min-height:27px;max-width:250px;padding:3px 8px;
+ border:1px solid var(--ui-border);border-radius:6px;
+ background:var(--ui-surface-alt);color:var(--ui-muted);
+ font-size:10px;white-space:nowrap;flex:0 1 auto;
+}
+:root[data-theme] .multi-mode-shortcut.hidden{display:none!important}
+.multi-mode-shortcut #multiModeShortcutText{color:var(--ui-text);font-weight:600}
+.multi-mode-shortcut kbd{flex-shrink:0;border-color:var(--ux-accent);color:var(--ui-text)}
+@media(max-width:1180px){.multi-mode-shortcut #multiModeShortcutText{max-width:112px;overflow:hidden;text-overflow:ellipsis}}
+@media(max-width:850px){:root[data-theme] .multi-mode-shortcut{max-width:145px;gap:4px;padding:3px 5px}
+ .multi-mode-shortcut #multiModeShortcutText{display:none}}

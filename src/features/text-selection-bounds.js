@@ -24,7 +24,7 @@ export function textPaintedBounds(node,paper){
  return {...result,w:Math.max(result.w,.5),h:Math.max(result.h,.5)};
 }
 
-export function syncTextSelection(node,paper){
+export function syncTextSelection(node,paper,{handles:showHandles=true}={}){
  const bounds=textPaintedBounds(node,paper);
  if(!bounds)return null;
  const {x,y,w,h}=bounds;
@@ -33,6 +33,7 @@ export function syncTextSelection(node,paper){
   rect.setAttribute('width',String(Math.max(rect.classList.contains('svg-hitbox')?2:1,w)));
   rect.setAttribute('height',String(Math.max(rect.classList.contains('svg-hitbox')?2:1,h)));
  }
+ if(!showHandles)return bounds;
  const handles={nw:[x,y],n:[x+w/2,y],ne:[x+w,y],e:[x+w,y+h/2],se:[x+w,y+h],s:[x+w/2,y+h],sw:[x,y+h],w:[x,y+h/2]};
  for(const rect of node.querySelectorAll(':scope > rect.transform-handle[data-handle]')){
   const center=handles[rect.dataset.handle];if(!center)continue;

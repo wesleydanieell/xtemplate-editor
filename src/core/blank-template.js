@@ -14,10 +14,10 @@ export function createBlankTemplate({
     xtemplate: 1,
     id,
     name,
+    kind: kind === 'cover' ? 'cover' : 'page',
     params: {},
     items: [],
   };
-  if(kind==='cover')template.kind='cover';
   if(description)template.description=description;
   if(author)template.author=author;
   if(license)template.license=license;

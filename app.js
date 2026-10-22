@@ -1,6 +1,7 @@
 import {initIcons} from "./src/ui/icons.js";
 import { initInsertMenu } from "./src/ui/insert-menu.js";
 import { buildInspectorLayout, updateInspectorLayout } from "./src/ui/inspector-layout.js";
+import {syncCompactControls,enhanceMultiInspector} from "./src/ui/compact-properties.js";
 import { initWorkspacePanels } from "./src/ui/workspace-layout.js";
 import { initTemplateLibrary } from "./src/ui/template-library.js";
 import { createAlignmentTools } from "./src/features/alignment.js";
@@ -14,6 +15,7 @@ import { evalExpr, mm } from "./src/core/expressions.js";
 import { createHistory } from "./src/core/history.js";
 import { anchoredPan, nextZoomLevel } from "./src/features/zoom.js";
 import { calculateSnap, calculateObjectSnap, calculateResizeSnap } from "./src/features/snapping.js";
+import {calculateEqualSpacingSnap} from "./src/features/equal-spacing.js";
 import { rotationFromPointer, normalizeDialAngle } from "./src/features/rotation-wheel.js";
 import { variableChoices, completeExpression, completeTextInterpolation } from "./src/features/variable-completion.js";
 import {variableFieldKind} from "./src/features/variable-field-support.js";
@@ -30,13 +32,17 @@ import {isCropGroup,createNativeCropGroup,moveCropPicture,constrainCrop,zoomCrop
 import { repeatPositions } from "./src/features/repeat-layout.js";
 import { inspectorSections } from "./src/features/inspector-priority.js";
 import { readPointPairs, requiresBake, replacePointCoordinate, addPoint, removePoint, reversePoints, midpoint, alignPoints, distributePoints } from "./src/features/vector/points.js";
-import { editablePathNodes, replaceSvgPathPoint, appendSvgLine, toggleSvgClosed, removeSvgPathAnchor, pathHandleConnections, closedSvgAnchorAlias } from "./src/features/vector/svg-path.js";
-import {clampRectCorner,straightPathCorners,roundStraightPath} from "./src/features/vector/corner-rounding.js";
+import { editablePathNodes, replaceSvgPathPoint, appendSvgLine, toggleSvgClosed, translateEditableSvgPath, scaleEditableSvgPath, removeSvgPathAnchor, pathHandleConnections, closedSvgAnchorAlias } from "./src/features/vector/svg-path.js";
+import {clampRectCorner,straightPathCorners,roundStraightPath,editableCornerPath,roundEditableCornerPath} from "./src/features/vector/corner-rounding.js";
 import { PEN_MODES,createPenNode,snapPenAngle,snapPenOrthogonal,penIncoming,penOutgoing,penPathData,resetOutgoingTangent } from "./src/features/vector/pen-model.js";
 import { FLIPPABLE_TYPES, flipNativeNode, flipNeedsExpressionConfirmation } from "./src/features/vector/flip-geometry.js";
 import { translate as matrixTranslate, scale as matrixScale, rotate as matrixRotate, around as matrixAround, multiply as matrixMultiply, toSVG as matrixSVG } from "./src/features/affine-transform.js";
 import { resizePreviewTransform, rotationPreviewTransform, resizedBounds } from "./src/features/resize-preview.js";
 import { resizeGestureBounds } from "./src/features/constrained-resize.js";
+import {selectionFrame,remapSelectedPoint,remapSelectedBounds} from "./src/features/multi-transform.js";
+import {planIndependentResize,scaleBoundsAtHandle,stretchBoundsAtHandle,uniformScaleFromDrag} from "./src/features/multi-resize.js";
+import {detectSmartSelection,adjustSmartGap,reflowSmartResize,smartGapLocations,smartReorderIndex,reorderSmartSelection} from "./src/features/smart-selection.js";
+import {renderSmartSelectionOverlay,renderScaleSelectionOverlay} from "./src/ui/smart-selection-overlay.js";
 import { deleteSiblingNodes, duplicateSiblingNodes, getSiblingSelection as getTreeSiblingSelection, groupSiblingNodes, normalizePaths, sameParent, moveNodes, nudgeSiblingNodes } from "./src/core/tree-operations.js";
 import { arrangeBounds } from "./src/features/arrange-selection.js";
 import { sharedEditableProperties, editablePropertyValue } from "./src/core/common-properties.js";
@@ -54,6 +60,7 @@ engineering:{xtemplate:1,id:"xtemplate.examples.engineering",name:"Engineering p
 todo:{xtemplate:1,id:"xtemplate.examples.todo",name:"Checklist",description:"Rows with a tick box each, stretched slightly so the rows fill the page exactly.",license:"MIT",tags:["planner","lists"],params:{row:{type:"length",default:"9mm",min:"6mm",max:"14mm",label:"Row height",role:"spacing"}},items:[{type:"text",text:"To do",x:"15mm",y:"18mm",size:"5mm",weight:"bold"},{type:"group",inset:["25mm","15mm","15mm","15mm"],children:[{type:"repeat",axis:"y",period:"row",fit:"round",children:[{type:"rect",y:"50% - 2.25mm",w:"4.5mm",h:"4.5mm",rx:"0.8mm"},{type:"hline",y:"100%",x1:"8mm"}]}]}]}
 };
 let doc=createBlankTemplate(),selectedPath=null,selectedPaths=[],dirty=false,drag=null,marqueeState=null,split=false,activeInspector="properties",suppressJson=false,toastTimer,clipboardNodes=[];
+let multiSelectionMode='scale',smartSelectionSignature='',smartMarkedPaths=new Set();
 let cornerDrag=null; // Temporary rounded-corner gesture, never exported.
 let imageCropPath=null; // Active crop interaction; image stays in native clipped group.
 let imageCropSession=null; // Baseline for Apply / Cancel; never persisted into .xtemplate.
@@ -105,7 +112,7 @@ async function addImageFromFile(file,replaceNode=null,cropGroup=null){
  commit(()=>{});setInspectorTab('properties');
 }
 
-let smartGuides={x:null,y:null},smartGuideSegments={x:null,y:null};
+let smartGuides={x:null,y:null},smartGuideSegments={x:null,y:null},smartSpacingSegments=[];
 // A repeated template node is one model object but has several visible SVG
 // instances. Only the focused copy gets handles, avoiding hundreds of knobs.
 let focusedRepeatInstance=null;
@@ -315,7 +322,7 @@ function childrenRender(n,path,box,style){const g=svg("g");(n.children||[]).forE
 
 function renderNode(n,path,box,parentStyle={stroke:"ink",strokeWidth:0.25,fill:null,opacity:1,font:"sans",size:3.5,weight:"normal",italic:false,align:"start",baseline:"alphabetic"}){if(!n||typeof n!=="object")return null;const type=n.type,st=mergedStyle(n,parentStyle),attrs=svgStyle(st),key=nodeKey(path),isSelected=selectedPaths.some(p=>nodeKey(p)===key),instance=renderInstanceCounts.get(key)||0;
 renderInstanceCounts.set(key,instance+1);
-const repeatChild=isRepeatedPath(path),showHandles=isSelected&&(!repeatChild||instance===(focusedRepeatInstance?.key===key?focusedRepeatInstance.instance:0));
+const repeatChild=isRepeatedPath(path),showHandles=isSelected&&(selectedPaths.length===1||multiSelectionMode!=='scale')&&(!repeatChild||instance===(focusedRepeatInstance?.key===key?focusedRepeatInstance.instance:0));
 const g=svg("g",{"data-path":key,"data-instance":instance,class:"svg-node",tabindex:0,role:"button","aria-label":type||"element"});const x=evalN(n.x??0,box,"x"),y=evalN(n.y??0,box,"y"),w=evalN(n.w??"100%",box,"x",box.w),h=evalN(n.h??"100%",box,"y",box.h);
 // An SVG subtree is detached while renderNode runs; getBBox() on the repeat
 // container reports an empty rectangle in Chromium. Accumulate the actual
@@ -469,20 +476,20 @@ function renderPathOverlay(){
 }
 function renderSvgPathControls(root,node){
  const title=document.createElement('div');title.className='advanced-heading';title.textContent='SVG PATH EDITOR';root.appendChild(title);
- const corners=straightPathCorners(node.d);
+ const corners=editableCornerPath(node.d);
  if(corners){
   const row=document.createElement('div');row.className='path-corner-settings';
   const label=document.createElement('label');label.className='field';
   label.textContent='Round corners (mm)';
-  const input=document.createElement('input');input.type='number';input.min='0';input.step='0.5';input.value='4';
+  const input=document.createElement('input');input.type='number';input.min='0';input.step='0.5';input.value=String(Number((corners.radius||4).toFixed(2)));
   input.setAttribute('aria-label','Path corner smoothing in millimeters');
   label.appendChild(input);
   const apply=document.createElement('button');apply.type='button';apply.className='quiet';
   apply.textContent='Apply';apply.title='Bake rounded corners to native SVG path Q commands (Undo to reverse)';
   apply.addEventListener('click',()=>{
    const radius=Number(input.value);
-   if(!Number.isFinite(radius)||radius<=0)return;
-   try{const next=roundStraightPath(node.d,radius);commit(()=>{node.d=next;});}
+   if(!Number.isFinite(radius)||radius<0)return;
+   try{const next=roundEditableCornerPath(node.d,radius);commit(()=>{node.d=next;});}
    catch(e){toast(e.message);}
   });
   row.append(label,apply);root.appendChild(row);
@@ -804,7 +811,7 @@ function renderCornerOverlay(){
    {x:bounds.x+inset,y:bounds.y+bounds.height-inset,index:3}
   ];
  }else{
-  const info=cornerDrag?.pathKey===key&&cornerDrag.type==='path'?straightPathCorners(cornerDrag.origin.d):straightPathCorners(node.d);
+  const info=cornerDrag?.pathKey===key&&cornerDrag.type==='path'?editableCornerPath(cornerDrag.origin.d):editableCornerPath(node.d);
   if(!info)return;
   const {vertices,closed}=info;
   const bounds=shape.getBBox(),center={x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};
@@ -812,7 +819,7 @@ function renderCornerOverlay(){
    if(!closed&&(i===0||i===vertices.length-1))return[];
    const direction=Math.hypot(center.x-v.x,center.y-v.y)||1;
    const shift=Math.min(3,Math.max(1,Math.min(bounds.width,bounds.height)/12));
-   const offset=(cornerDrag?.pathKey===key&&cornerDrag.type==='path'?cornerDrag.radius:0);
+   const offset=(cornerDrag?.pathKey===key&&cornerDrag.type==='path'?cornerDrag.radius:info.radius);
    const distance=shift+offset;
    return [{x:v.x+(center.x-v.x)/direction*distance,y:v.y+(center.y-v.y)/direction*distance,index:i}];
   });
@@ -828,6 +835,28 @@ function renderCornerOverlay(){
  if(controls.length)paper.appendChild(group);
 }
 function initializePreviewValues(){const previous=previewValues,next={};for(const [name,p] of Object.entries(doc.params||{})){const d=p.default;if(p.type==="color")next["$"+name]=previous["$"+name]||d||"#333333";else next[name]=previous[name]!==undefined?previous[name]:(typeof d==="number"?d:(mm(d,1) ?? (Number(d)||0)));}previewValues=next;}
+/** SVG paths do not necessarily have x/y/w/h. Derive hitboxes and resize
+ * handles from their painted path geometry, not a default full-page box.
+ * Using a full-page hitbox made paths intercept unrelated selected objects. */
+function syncPathSelection(node){
+ const path=node.querySelector(':scope > path');if(!path)return;
+ const bounds=paintedBounds(node,paper);
+ if(!bounds)return;
+ const {x,y,w,h}=bounds;
+ for(const box of node.querySelectorAll(':scope > rect.svg-hitbox,:scope > rect.svg-selection')){
+  box.setAttribute('x',String(x));box.setAttribute('y',String(y));
+  box.setAttribute('width',String(Math.max(box.classList.contains('svg-hitbox')?2:1,w)));
+  box.setAttribute('height',String(Math.max(box.classList.contains('svg-hitbox')?2:1,h)));
+ }
+ const pts={nw:[x,y],n:[x+w/2,y],ne:[x+w,y],e:[x+w,y+h/2],
+  se:[x+w,y+h],s:[x+w/2,y+h],sw:[x,y+h],w:[x,y+h/2]};
+ for(const handle of node.querySelectorAll(':scope > rect.transform-handle[data-handle]')){
+  const position=pts[handle.dataset.handle];if(!position)continue;
+  const size=Number(handle.getAttribute('width'))||1.7;
+  handle.setAttribute('x',String(position[0]-size/2));
+  handle.setAttribute('y',String(position[1]-size/2));
+ }
+}
 function renderCanvas(){renderInstanceCounts.clear();repeatFrameBounds.clear();paper.replaceChildren();paper.setAttribute("viewBox","0 0 "+pageSize[0]+" "+pageSize[1]);paper.appendChild(svg("rect",{x:0,y:0,width:pageSize[0],height:pageSize[1],fill:"#fffefa"}));
 // The artwork must *always* be clipped to the physical XNotes page, even in
 // pasteboard edit mode. The unmasked sibling overlays remain available for
@@ -842,7 +871,8 @@ const box={x:0,y:0,w:pageSize[0],h:pageSize[1],vars:{...previewValues,W:pageSize
 // is attached to the actual SVG so the browser can measure painted glyphs;
 // ensure hitboxes and transform handles share those exact measurements.
 for(const node of artwork.querySelectorAll('g.svg-node[data-path]')){
- if(node.querySelector(':scope > text'))syncTextSelection(node,paper);
+ if(node.querySelector(':scope > path'))syncPathSelection(node);
+ if(node.querySelector(':scope > text'))syncTextSelection(node,paper,{handles:(selectedPaths.length===1||multiSelectionMode!=='scale')&&selectedPaths.some(p=>nodeKey(p)===node.dataset.path)});
 }
 // Overlay for editor controls lives OUTSIDE the clipped artwork. Selected
 // off-page objects still expose their eight resize handles and selection box.
@@ -875,11 +905,12 @@ if(imageCropPath&&selectedPath&&imageCropPath===nodeKey(selectedPath)){
   selectionOverlay.appendChild(grid);
  }
 }
+renderSelectionSmartControls(selectionOverlay);
 paper.appendChild(selectionOverlay);
 paper.appendChild(svg('rect',{id:'page-edit-boundary',x:0,y:0,width:pageSize[0],height:pageSize[1],fill:'none',stroke:'#8599bc','stroke-width':.45,'stroke-dasharray':'2 1.5','pointer-events':'none'}));
 renderSmartGuideOverlay();renderVectorOverlay();renderHatchOverlay();renderPathOverlay();renderCornerOverlay();}
 function render(){renderCanvas();
-$("pageDimensions").textContent=pageSize[0]+" × "+pageSize[1]+" mm";if($("filePageSize"))$("filePageSize").value=$("paperSize").value;$("docName").textContent=doc.name||"Untitled";$("nodeStatus").textContent=countNodes(doc.items||[])+" nodes";if(document.activeElement!==$("metaKind"))$("metaKind").value=doc.kind==='cover'?'cover':'page';if(document.activeElement!==$("metaName"))$("metaName").value=doc.name||"";if(document.activeElement!==$("metaId"))$("metaId").value=doc.id||"";if(document.activeElement!==$("metaDescription"))$("metaDescription").value=doc.description||"";if(document.activeElement!==$("metaAuthor"))$("metaAuthor").value=doc.author||"";if(document.activeElement!==$("metaLicense"))$("metaLicense").value=doc.license||"";if(document.activeElement!==$("metaVersion"))$("metaVersion").value=doc.version||"";if(document.activeElement!==$("metaTags"))$("metaTags").value=(doc.tags||[]).join(", ");renderTree();renderInspector();renderParams();refreshVariableSuggestions();renderQuickProperties();fitPaper();}
+$("canvasArea").querySelector(".canvas-hint").textContent=(doc.kind==='cover'?'COVER':'PAGE')+' · mm';$("pageDimensions").textContent=pageSize[0]+" × "+pageSize[1]+" mm";if($("filePageSize"))$("filePageSize").value=$("paperSize").value;$("docName").textContent=doc.name||"Untitled";$("nodeStatus").textContent=countNodes(doc.items||[])+" nodes";if(document.activeElement!==$("metaKind"))$("metaKind").value=doc.kind==='cover'?'cover':'page';if($("templateKindQuick"))$("templateKindQuick").value=doc.kind==='cover'?'cover':'page';if(document.activeElement!==$("metaName"))$("metaName").value=doc.name||"";if(document.activeElement!==$("metaId"))$("metaId").value=doc.id||"";if(document.activeElement!==$("metaDescription"))$("metaDescription").value=doc.description||"";if(document.activeElement!==$("metaAuthor"))$("metaAuthor").value=doc.author||"";if(document.activeElement!==$("metaLicense"))$("metaLicense").value=doc.license||"";if(document.activeElement!==$("metaVersion"))$("metaVersion").value=doc.version||"";if(document.activeElement!==$("metaTags"))$("metaTags").value=(doc.tags||[]).join(", ");renderTree();renderInspector();renderParams();refreshVariableSuggestions();renderQuickProperties();fitPaper();}
 function countNodes(items){return items.reduce((sum,n)=>sum+1+((n.type==="group"||n.type==="repeat")?countNodes(n.children||[]):0),0);}
 const layerColorPicker=document.createElement("div");
 layerColorPicker.className="layer-color-picker hidden";
@@ -1113,6 +1144,8 @@ function renderInspector(){
  let multiRoot=$("multiPropertyInspector");
  if(!multiRoot){multiRoot=document.createElement("div");multiRoot.id="multiPropertyInspector";$("elementInspector").before(multiRoot);}
  multiRoot.classList.toggle("hidden",!multi);$("selectionArrange")?.classList.toggle("hidden",!multi);document.querySelector(".transform-panel")?.classList.toggle("hidden",multi);
+ $("multiModeShortcut").classList.toggle("hidden",!multi);
+ if(multi)renderSmartSelectionInspector();
  if(n?.type==="page"){
   $("selectedType").textContent="PAGE";$("emptySelection").classList.add("hidden");$("elementInspector").classList.add("hidden");multiRoot.classList.add("hidden");
   if($("filePropertiesModal").classList.contains("hidden"))placeDocumentFields(true);
@@ -1180,6 +1213,7 @@ function renderMultiPropertyInspector(root){
   groups.get(appearance.has(key)?'Appearance':transform.has(key)?'Transform':'Object options').append(lab);
  }
  for(const group of groups.values())if(group.querySelector('.field'))root.append(group);
+ enhanceMultiInspector(root,resolveColor);
  applyPropertyValueHints(root);
 }
 function applyPropertyValueHints(scope){
@@ -1515,7 +1549,9 @@ $("formatJson").addEventListener("click",()=>{try{const next=JSON.parse(jsonEdit
 $("resetJson").addEventListener("click",()=>{syncJson();initializePreviewValues();render();toast("JSON editor reverted to the last valid version.");});
 function toggleSplit(force){split=force===undefined?!split:force;$("jsonPane").classList.toggle("hidden",!split);$("splitToggle").classList.toggle("active",split);$("splitToggle").setAttribute("aria-pressed",String(split));$("splitToggle").querySelector("span").textContent=split?"Close JSON":"Split editor";if(split){syncJson();$("jsonEditor").focus();}fitPaper();}
 $("splitToggle").addEventListener("click",()=>toggleSplit());
-$("metaKind").addEventListener('change',e=>commit(()=>{if(e.target.value==='cover')doc.kind='cover';else delete doc.kind;}));
+const applyTemplateKind=value=>commit(()=>{doc.kind=value==='cover'?'cover':'page';});
+$("metaKind").addEventListener('change',e=>applyTemplateKind(e.target.value));
+$("templateKindQuick").addEventListener('change',e=>applyTemplateKind(e.target.value));
 $("metaName").addEventListener("change",e=>commit(()=>doc.name=e.target.value.trim()||"Untitled"));$("metaId").addEventListener("change",e=>commit(()=>{if(e.target.value)doc.id=e.target.value;else delete doc.id;}));$("metaDescription").addEventListener("change",e=>commit(()=>{if(e.target.value)doc.description=e.target.value;else delete doc.description;}));$("metaAuthor").addEventListener("change",e=>commit(()=>{if(e.target.value)doc.author=e.target.value;else delete doc.author;}));$("metaLicense").addEventListener("change",e=>commit(()=>{if(e.target.value)doc.license=e.target.value;else delete doc.license;}));$("metaVersion").addEventListener("change",e=>commit(()=>{if(e.target.value)doc.version=e.target.value;else delete doc.version;}));$("metaTags").addEventListener("change",e=>commit(()=>{doc.tags=e.target.value.split(",").map(s=>s.trim()).filter(Boolean);}));
 for(const [main,quick] of [["inkColor","quickInkColor"],["accentColor","quickAccentColor"]]){
  for(const [source,target] of [[main,quick],[quick,main]]){
@@ -1571,9 +1607,21 @@ function snapTargetsFor(excludedPaths=[]){
  return targets;
 }
 function snapToGuides(proposed,excludedPaths=[],targets=null){
- if(!magneticGuidesEnabled)return{dx:0,dy:0,guides:{x:null,y:null},segments:{x:null,y:null}};
+ if(!magneticGuidesEnabled)return{dx:0,dy:0,guides:{x:null,y:null},segments:{x:null,y:null},spacing:[]};
  const rect=paper.getBoundingClientRect(),toleranceX=7*pageSize[0]/Math.max(1,rect.width),toleranceY=7*pageSize[1]/Math.max(1,rect.height);
- return calculateObjectSnap(proposed,targets||snapTargetsFor(excludedPaths),{w:pageSize[0],h:pageSize[1]},toleranceX,toleranceY);
+ const candidates=targets||snapTargetsFor(excludedPaths);
+ const aligned=calculateObjectSnap(proposed,candidates,{w:pageSize[0],h:pageSize[1]},toleranceX,toleranceY);
+ const spaced=calculateEqualSpacingSnap(proposed,candidates.filter(t=>t.kind!=='page'),toleranceX,toleranceY);
+ const result={...aligned,spacing:[]};
+ for(const axis of ['x','y']){
+  const delta=axis==='x'?'dx':'dy',candidate=spaced[delta];
+  if(candidate===null)continue;
+  // Prefer a closer alignment snap; otherwise complete a matching gap.
+  if(aligned.guides[axis]!==null&&Math.abs(aligned[delta])+.05<Math.abs(candidate))continue;
+  result[delta]=candidate;result.guides[axis]=null;result.segments[axis]=null;
+  result.spacing.push(...spaced.segments.filter(segment=>segment.axis===axis));
+ }
+ return result;
 }
 function snappedResizeBounds(bounds,handle,excludedPaths=[],targets=null){
  if(!magneticGuidesEnabled)return{bounds,guides:{x:null,y:null},segments:{x:null,y:null}};
@@ -1590,9 +1638,9 @@ function resizeForGesture(bounds,handle,dx,dy,shiftKey,paths,targets,options={})
   toleranceX,toleranceY
  });
 }
-function clearSmartGuides(){smartGuides={x:null,y:null};smartGuideSegments={x:null,y:null};}
+function clearSmartGuides(){smartGuides={x:null,y:null};smartGuideSegments={x:null,y:null};smartSpacingSegments=[];}
 function renderSmartGuideOverlay(){
- paper.querySelectorAll(".smart-guide,.smart-guide-point").forEach(el=>el.remove());
+ paper.querySelectorAll('.smart-guide,.smart-guide-point,.smart-spacing-layer').forEach(el=>el.remove());
  const x=smartGuideSegments.x,y=smartGuideSegments.y;
  if(x){
   paper.appendChild(svg("line",{class:"smart-guide"+(x.kind==="object"?" object-guide":""),x1:x.x,y1:x.y1,x2:x.x,y2:x.y2}));
@@ -1601,6 +1649,29 @@ function renderSmartGuideOverlay(){
  if(y){
   paper.appendChild(svg("line",{class:"smart-guide"+(y.kind==="object"?" object-guide":""),x1:y.x1,y1:y.y,x2:y.x2,y2:y.y}));
   if(y.kind==="object")for(const cx of [y.x1,y.x2])paper.appendChild(svg("circle",{class:"smart-guide-point",cx,cy:y.y,r:0.7}));
+ }
+ if(smartSpacingSegments.length){
+  const overlay=svg('g',{class:'smart-spacing-layer','pointer-events':'none'});
+  const scale=Math.max(.3,paper.getBoundingClientRect().width/pageSize[0]);
+  const tick=5/scale;
+  for(const gap of smartSpacingSegments){
+   const {axis,start,end,cross,value}=gap;
+   if(end<=start)continue;
+   const horizontal=axis==='x';
+   overlay.appendChild(svg('line',{class:'smart-spacing-guide',
+    x1:horizontal?start:cross,y1:horizontal?cross:start,
+    x2:horizontal?end:cross,y2:horizontal?cross:end}));
+   for(const pos of [start,end])overlay.appendChild(svg('line',{class:'smart-spacing-tick',
+    x1:horizontal?pos:cross-tick/2,y1:horizontal?cross-tick/2:pos,
+    x2:horizontal?pos:cross+tick/2,y2:horizontal?cross+tick/2:pos}));
+   if((end-start)*scale<24)continue;
+   const label=svg('text',{class:'smart-spacing-label','font-size':10/scale,
+    x:horizontal?(start+end)/2:cross+tick,y:horizontal?cross-tick:(start+end)/2,
+    'text-anchor':horizontal?'middle':'start','dominant-baseline':'central'});
+   label.textContent=Number(value.toFixed(1))+' mm';
+   overlay.appendChild(label);
+  }
+  paper.appendChild(overlay);
  }
 }
 function captureDragTransforms(paths){
@@ -1614,6 +1685,28 @@ function captureDragTransforms(paths){
 function applyDragPreview(transforms,dx,dy){
  const translation="translate("+dx+" "+dy+")";
  for(const item of transforms)item.element.setAttribute("transform",translation+(item.transform?" "+item.transform:""));
+}
+/** Selection controls and Smart Selection are SVG siblings of #page-artwork,
+ * so they do not inherit the artwork drag transform. Capture their baseline
+ * transforms once at pointerdown, then apply exactly the same page-space
+ * translation during the live preview. This keeps handles, frame, pink dots
+ * and spacing bars attached without rebuilding SVG or losing pointer capture.
+ */
+function captureSelectionDragControls(paths){
+ const keys=new Set(paths.map(nodeKey)),controls=[];
+ const store=element=>{
+  if(element)controls.push({element,transform:element.getAttribute('transform')||''});
+ };
+ for(const layer of paper.querySelectorAll('#editor-selection-overlay > .selection-control-layer[data-path]')){
+  if(keys.has(layer.dataset.path))store(layer);
+ }
+ const allSelected=selectedPaths.length>1&&
+  selectedPaths.every(path=>keys.has(nodeKey(path)));
+ if(allSelected){
+  store(paper.querySelector('#multi-scale-controls'));
+  store(paper.querySelector('#smart-selection-overlay'));
+ }
+ return controls;
 }
 function updateResizePreviewFields(state){
  const bounds=state.previewBounds;if(!bounds)return;
@@ -1638,7 +1731,401 @@ function updateTransformPreview(dx,dy){
 
 function isRepeatedPath(path){for(let i=0;i<path.length-2;i+=2)if(getAt(path.slice(0,i+2))?.type==="repeat")return true;return false;}
 function replaceAt(path,value){const parent=getAt(path.slice(0,-1)),index=path.at(-1);if(Array.isArray(parent)&&Number.isInteger(index)&&index>=0&&index<parent.length)parent[index]=clone(value);}
-function unionBounds(items){const bounds=items.map(item=>item.bounds).filter(Boolean);if(!bounds.length)return null;const x=Math.min(...bounds.map(b=>b.x)),y=Math.min(...bounds.map(b=>b.y)),right=Math.max(...bounds.map(b=>b.x+b.w)),bottom=Math.max(...bounds.map(b=>b.y+b.h));return{x,y,w:right-x,h:bottom-y};}
+function unionBounds(items){return selectionFrame(items);}
+
+
+/** Multi-object frame uses the actually painted geometry of each selected node.
+ * It intentionally does not modify the .xtemplate hierarchy. */
+function selectedTransformItems(){
+ const paths=normalizeSelectedPaths(selectedPaths).filter(p=>draggableTypes.has(getAt(p)?.type));
+ return paths.map(path=>{
+  const key=nodeKey(path),node=getAt(path);
+  const instances=[...paper.querySelectorAll('#page-artwork g.svg-node[data-path]')].filter(el=>el.dataset.path===key);
+  const painted=instances.map(el=>paintedBounds(el,paper)).filter(Boolean);
+  const bounds=selectionFrame(painted.map(bounds=>({bounds})))||transformGeometry(node,path);
+  return {path:path.slice(),origin:clone(node),bounds,parentBox:clone(parentBoxForPath(path)),
+   repeated:isRepeatedPath(path)};
+ }).filter(item=>item.bounds&&[item.bounds.x,item.bounds.y,item.bounds.w,item.bounds.h].every(Number.isFinite));
+}
+/** Persist Smart Selection marks only while the same layers stay selected.
+ * This state is visual/editor-only and not part of the .xtemplate format. */
+function smartSelectionDetails(){
+ if(selectedPaths.length<2)return null;
+ const members=normalizeSelectedPaths(selectedPaths).map(nodeKey).sort();
+ const signature=members.join('|');
+ if(signature!==smartSelectionSignature){
+  multiSelectionMode='scale';
+  smartSelectionSignature=signature;
+  smartMarkedPaths=new Set(members);
+ }
+ const items=selectedTransformItems();
+ if(items.length!==members.length)return null;
+ const mmPerPx=pageSize[0]/Math.max(100,paper.getBoundingClientRect().width);
+ const smart=detectSmartSelection(items,{
+  alignmentTolerance:Math.max(1.5,Math.min(3,5*mmPerPx)),
+  gapTolerance:Math.max(1.25,Math.min(3,5*mmPerPx))
+ });
+ return {items,smart,signature};
+}
+function renderSelectionSmartControls(overlay){
+ if(selectedPaths.length<2){smartSelectionSignature='';smartMarkedPaths.clear();return;}
+ const selection=smartSelectionDetails();if(!selection)return;
+ const {items}=selection;
+ const pixelsPerUnit=Math.max(.15,paper.getBoundingClientRect().width/pageSize[0]);
+ const scaling=multiSelectionMode==='scale';
+ if(scaling){
+  const frame=selectionFrame(items);
+  if(frame&&frame.w>.5&&frame.h>.5&&items.every(supportsMultiResize))
+   overlay.append(renderScaleSelectionOverlay(frame,pixelsPerUnit));
+ }
+ // Keep pink Smart Selection markers accessible in BOTH modes: dots reorder
+ // visual slots, while the scale frame remains the default transform tool.
+ const smart=selection.smart||(drag?.smart&&drag?.mode==='multi-resize'?drag.smart:null);
+ if(!smart)return;
+ if(!scaling){
+  overlay.dataset.smartSelection='true';
+  for(const layer of overlay.querySelectorAll('.selection-control-layer'))
+   layer.dataset.smartMarked=smartMarkedPaths.has(layer.dataset.path)?'true':'false';
+ }
+ const gaps=smartGapLocations(items,smart);
+ overlay.append(renderSmartSelectionOverlay({
+  items,smart,marked:smartMarkedPaths,pxPerUnit:pixelsPerUnit,gaps
+ }));
+ renderSmartReorderIndicator(overlay,drag,items,pixelsPerUnit);
+}
+function renderSmartSelectionInspector(){
+ if(selectedPaths.length<2)return;
+ const selection=smartSelectionDetails();
+ const smart=selection?.smart;
+ const editing=multiSelectionMode==='edit';
+ const settings=$('smartSelectionSettings'),hint=$('smartSelectionHint');
+ const markToolbar=$('smartMarkToolbar');
+ markToolbar.hidden=!smart||!editing;
+ if(smart){
+  const count=[...smartMarkedPaths].filter(key=>selection.items.some(item=>nodeKey(item.path)===key)).length;
+  $('smartMarkedCount').textContent=count===selection.items.length?'All '+count+' active':count+' of '+selection.items.length+' active';
+  $('smartMarkAll').disabled=count===selection.items.length;
+ }
+ $('selectionArrangeCount').textContent=multiSelectionMode==='scale'?'SCALE':smart?'SMART':'MULTI';
+ for(const option of document.querySelectorAll('[data-multi-mode]'))
+  option.setAttribute('aria-current',String(option.dataset.multiMode===multiSelectionMode));
+ $('multiModeShortcutText').textContent=multiSelectionMode==='scale'
+  ?'Scale · selection + spacing':'Resize · proportions locked';
+ $('multiModeShortcutAction').textContent=multiSelectionMode==='scale'
+  ?'Resize objects':'Scale selection';
+ settings.hidden=!smart;
+ if(smart){
+  $('smartSelectionAxis').textContent=smart.axis==='x'?'↔':'↕';
+  if(document.activeElement!==$('smartSelectionGap'))
+   $('smartSelectionGap').value=Number(smart.gap.toFixed(2));
+  hint.textContent=(smart.axis==='x'?'Smart row':'Smart column')+
+   (editing
+    ?' · Pink dots select targets; drag to reorder. Press K to scale all elements and gaps.'
+    :' · Drag pink dots to reorder; click a dot to edit one object. Scale is default; press K for individual Resize.');
+ }else{
+  hint.textContent=multiSelectionMode==='scale'
+   ?'Scale: proportional. Shift + drag: one axis. Ctrl + Shift + drag: one object, preserve gaps. K: Resize.'
+   :'Resize keeps proportions. Shift + drag frees one axis; Ctrl + Shift edits one object and keeps gaps. K: Scale.';
+ }
+}
+function setMultiSelectionMode(mode){
+ multiSelectionMode=mode==='scale'?'scale':'edit';
+ renderCanvas();renderInspector();
+}
+$('smartMarkAll').addEventListener('click',()=>{
+ if(selectedPaths.length<2||!smartSelectionDetails()?.smart)return;
+ smartMarkedPaths=new Set(selectedPaths.map(nodeKey));
+ renderCanvas();
+ renderSmartSelectionInspector();
+});
+/** Click markers to choose resize targets, but do not change the marking on
+ * pointerdown: it might be the start of a drag-to-reorder gesture. */
+function finishSmartMarkerClick(state){
+ const all=new Set(state.smart.orderedKeys),key=state.movingKey;
+ if(multiSelectionMode==='scale'){
+  // A click targets one object for resizing; drag remains reordering in Scale.
+  multiSelectionMode='edit';
+  smartMarkedPaths=state.detail>=2?all:new Set([key]);
+  renderCanvas();renderSmartSelectionInspector();
+  return;
+ }
+ if(state.detail>=2||(smartMarkedPaths.size===1&&smartMarkedPaths.has(key)&&!state.shiftKey))
+  smartMarkedPaths=all;
+ else if(state.shiftKey){
+  if(smartMarkedPaths.has(key)&&smartMarkedPaths.size>1)smartMarkedPaths.delete(key);
+  else smartMarkedPaths.add(key);
+ }else smartMarkedPaths=new Set([key]);
+ renderCanvas();
+ renderSmartSelectionInspector();
+}
+function beginSmartReorderGesture(e,key){
+ const selection=smartSelectionDetails();
+ if(!selection?.smart)return false;
+ drag={pointerId:e.pointerId,mode:'smart-reorder',
+  path:selectedPath?.slice(),items:selection.items,smart:selection.smart,
+  movingKey:key,detail:e.detail||1,shiftKey:e.shiftKey,
+  startX:e.clientX,startY:e.clientY,startPoint:pagePoint(e),
+  previewIndex:selection.smart.orderedKeys.indexOf(key),changed:false,moved:false};
+ try{paper.setPointerCapture(e.pointerId);}catch{}
+ return true;
+}
+function updateSmartReorderGesture(state,e){
+ if(!state.moved&&Math.hypot(e.clientX-state.startX,e.clientY-state.startY)<4)return;
+ state.moved=true;
+ const point=pagePoint(e);
+ const candidate=smartReorderIndex(state.items,state.smart,state.movingKey,point[state.smart.axis]);
+ if(candidate===state.previewIndex)return;
+ state.previewIndex=candidate;
+ const layout=reorderSmartSelection(state.items,state.smart,state.movingKey,candidate);
+ state.changed=layout.order.some((key,i)=>key!==state.smart.orderedKeys[i]);
+ for(const item of state.items){
+  replaceAt(item.path,item.origin);
+  const target=layout.bounds.get(nodeKey(item.path));
+  const dx=target.x-item.bounds.x,dy=target.y-item.bounds.y;
+  if(dx||dy)moveBy(getAt(item.path),dx,dy,item.parentBox);
+ }
+ clearSmartGuides();
+ renderCanvas();
+}
+function renderSmartReorderIndicator(overlay,state,items,pixelsPerUnit){
+ if(!state?.moved||state.mode!=='smart-reorder')return;
+ const active=items.find(item=>nodeKey(item.path)===state.movingKey);
+ if(!active)return;
+ const box=active.bounds,horizontal=state.smart.axis==='x';
+ const pos=horizontal?box.x:box.y;
+ const cx=box.x+box.w/2,cy=box.y+box.h/2;
+ const offset=6/pixelsPerUnit;
+ const start=horizontal?box.y-offset:box.x-offset;
+ const end=horizontal?box.y+box.h+offset:box.x+box.w+offset;
+ overlay.append(svg('line',{class:'smart-reorder-guide',
+  x1:horizontal?pos:start,y1:horizontal?start:pos,
+  x2:horizontal?pos:end,y2:horizontal?end:pos,'pointer-events':'none'}));
+ const label=svg('text',{class:'smart-reorder-label','font-size':10/pixelsPerUnit,
+  x:horizontal?pos+offset:end+offset,y:horizontal?start-offset:pos,
+  'text-anchor':'start','dominant-baseline':'central','pointer-events':'none'});
+ label.textContent=(state.previewIndex+1)+' / '+state.smart.orderedKeys.length;
+ overlay.append(label);
+}
+function renderResizeDimensionReadout(state,e){
+ if(!state.moved)return;
+ const item=state.items.find(item=>nodeKey(item.path)===state.anchorKey)||
+  state.items.find(item=>state.resizeKeys.has(nodeKey(item.path)))||state.items[0];
+ const box=item?.previewBounds;if(!box)return;
+ const factor=Math.max(.2,paper.getBoundingClientRect().width/pageSize[0]);
+ const p=pagePoint(e);
+ const label=Number(box.w.toFixed(2))+' × '+Number(box.h.toFixed(2))+' mm'+
+  (e.shiftKey&&(e.ctrlKey||e.metaKey)?' · one · keep gaps':e.shiftKey?' · free aspect':e.ctrlKey||e.metaKey?' · fine':'');
+ const padding=7/factor,width=(label.length*5.9+14)/factor,height=22/factor;
+ const x=Math.min(pageSize[0]-width,p.x+13/factor);
+ const y=Math.max(0,p.y-height-14/factor);
+ const g=svg('g',{class:'smart-resize-readout','pointer-events':'none'});
+ g.append(svg('rect',{class:'smart-resize-readout-background',x,y,width,height,rx:4/factor}));
+ const t=svg('text',{class:'smart-resize-readout-text',
+  x:x+padding,y:y+height/2,'font-size':11/factor,'dominant-baseline':'central'});
+ t.textContent=label;g.append(t);paper.append(g);
+}
+$('smartSelectionGap').addEventListener('change',()=>{
+ const details=smartSelectionDetails();
+ if(!details?.smart)return;
+ const raw=Number($('smartSelectionGap').value);
+ if(!Number.isFinite(raw)||raw<0){renderInspector();return;}
+ const next=adjustSmartGap(details.items,details.smart,raw);
+ commit(()=>{
+  for(const item of details.items){
+   const target=next.get(nodeKey(item.path));
+   const dx=target.x-item.bounds.x,dy=target.y-item.bounds.y;
+   if(dx||dy)moveBy(getAt(item.path),dx,dy,item.parentBox);
+  }
+ });
+});
+function supportsMultiResize(item){
+ if(item.repeated||['group','repeat'].includes(item.origin.type))return false;
+ if(item.origin.type==='path'&&!item.origin.viewBox){
+  try{editablePathNodes(item.origin.d);}catch{return false;}
+ }
+ return item.bounds.w>.05&&item.bounds.h>.05;
+}
+/** A single snapshot powers each drag frame; different shape types use their
+ * native resize policy, while the grabbed object's handle remains the driver. */
+function beginMultiTransformGesture(e,handle,{scale=false,anchorKey=null}={}){
+ const selection=smartSelectionDetails(),items=selection?.items||selectedTransformItems();
+ if(items.length<2||items.length!==selectedPaths.length)return;
+ const smart=selection?.smart||null;
+ const marked=smart?smartMarkedPaths:new Set(items.map(item=>nodeKey(item.path)));
+ const eligible=items.filter(item=>marked.has(nodeKey(item.path)));
+ if(!eligible.length||eligible.some(item=>!supportsMultiResize(item))||
+    scale&&items.some(item=>!supportsMultiResize(item))){
+  toast('Some marked layers cannot be resized safely. Try compatible vector shapes or resize them separately.');
+  return;
+ }
+ const startPoint=pagePoint(e),frame=selectionFrame(items);
+ if(scale&&(!frame||frame.w<.5||frame.h<.5))return;
+ drag={pointerId:e.pointerId,path:selectedPath.slice(),mode:'multi-resize',
+  handle,startX:e.clientX,startY:e.clientY,startPoint,
+  items,resizeKeys:new Set(eligible.map(item=>nodeKey(item.path))),
+  scale,frame,smart,anchorKey:anchorKey||nodeKey(selectedPath),lastPoint:startPoint,delta:{dx:0,dy:0},moved:false};
+ try{paper.setPointerCapture(e.pointerId);}catch{}
+}
+function updateMultiResizeGesture(state,e){
+ const point=pagePoint(e);
+ // Integrate pointer movement incrementally. Switching Ctrl/Cmd fine mode
+ // mid-drag must not cause a jump or reset the grabbed handle position.
+ const oneOnly=e.shiftKey&&(e.ctrlKey||e.metaKey);
+ const speed=(e.ctrlKey||e.metaKey)&&!oneOnly?.2:1;
+ state.delta.dx+=(point.x-state.lastPoint.x)*speed;
+ state.delta.dy+=(point.y-state.lastPoint.y)*speed;
+ state.lastPoint=point;
+ if(!state.moved&&Math.hypot(e.clientX-state.startX,e.clientY-state.startY)<1.25)return;
+ state.moved=true;
+ state.singleAxisOne=!!oneOnly;
+ const {dx,dy}=state.delta;
+ let next;
+ if(oneOnly){
+  // Ctrl/Cmd + Shift: change only the dragged width/height of one layer.
+  // Other layers keep their original size; their positions reflow along the
+  // Smart Selection axis to preserve inter-object gaps.
+  const driver=state.anchorKey;
+  next=planIndependentResize(state.items,{
+   handle:state.handle,dx,dy,anchorKey:driver,
+   activeKeys:new Set([driver]),stretch:true
+  });
+  if(state.smart)next=reflowSmartResize(state.items,state.smart,next,
+   {anchorKey:driver,handle:state.handle});
+ }else if(state.scale){
+  // Default Scale: proportional unless Shift is held. Shift unlocks W/H,
+  // allowing a width-only or height-only drag of the whole selection.
+  const frame=e.shiftKey
+   ?stretchBoundsAtHandle(state.frame,state.handle,dx,dy)
+   :scaleBoundsAtHandle(state.frame,state.handle,
+     uniformScaleFromDrag(state.frame,state.handle,dx,dy));
+  next=new Map(state.items.map(item=>[nodeKey(item.path),
+   remapSelectedBounds(item.bounds,state.frame,frame)]));
+ }else{
+  // Resize (default): preserve each object's aspect ratio, including
+  // rectangles. The K/Scale mode is the *only* separate interaction that
+  // scales the entire selection and the gaps between its objects.
+  next=planIndependentResize(state.items,{
+   handle:state.handle,dx,dy,anchorKey:state.anchorKey,
+   activeKeys:state.resizeKeys,stretch:e.shiftKey
+  });
+  // Automatic Figma-like gap reflow is a special case for height editing of
+  // aligned rectangular rows. It must never translate images, text, SVG
+  // paths or unrelated width/corner adjustments behind the user's pointer.
+  const eligible=state.items.filter(item=>state.resizeKeys.has(nodeKey(item.path)));
+  if(state.smart?.axis==='y'&&['n','s'].includes(state.handle)&&
+     eligible.length&&eligible.every(item=>item.origin.type==='rect')){
+   next=reflowSmartResize(state.items,state.smart,next,
+    {anchorKey:state.anchorKey,handle:state.handle});
+  }
+ }
+ for(const item of state.items)item.previewBounds=next.get(nodeKey(item.path));
+ applyMultiResizeGesture(state);
+ clearSmartGuides();
+ // Rebuild the authored objects and separate, fixed-pixel handles each frame.
+ // Never apply an SVG scale() to the selection overlay.
+ renderCanvas();
+ renderResizeDimensionReadout(state,e);
+}
+function beginSmartGapGesture(e){
+ const selection=smartSelectionDetails();
+ if(!selection?.smart)return;
+ drag={pointerId:e.pointerId,mode:'smart-gap',path:selectedPath?.slice(),
+  items:selection.items,smart:selection.smart,
+  startPoint:pagePoint(e),startX:e.clientX,startY:e.clientY,
+  moved:false,previewGap:selection.smart.gap};
+ try{paper.setPointerCapture(e.pointerId);}catch{}
+}
+function updateSmartGapGesture(state,e){
+ const point=pagePoint(e),axis=state.smart.axis;
+ if(!state.moved&&Math.hypot(e.clientX-state.startX,e.clientY-state.startY)<3)return;
+ state.moved=true;
+ // There are N-1 equal intervals. One dragged gap bar changes every gap
+ // by the same amount; the first layer stays anchored.
+ const delta=(axis==='x'?point.x-state.startPoint.x:point.y-state.startPoint.y);
+ const gap=Math.max(0,state.smart.gap+delta);
+ const positions=adjustSmartGap(state.items,state.smart,gap);
+ for(const item of state.items){
+  replaceAt(item.path,item.origin);
+  const target=positions.get(nodeKey(item.path));
+  const dx=target.x-item.bounds.x,dy=target.y-item.bounds.y;
+  if(dx||dy)moveBy(getAt(item.path),dx,dy,item.parentBox);
+ }
+ state.previewGap=gap;
+ if(document.activeElement!==$('smartSelectionGap'))
+  $('smartSelectionGap').value=Number(gap.toFixed(2));
+ renderCanvas();
+}
+function applyMultiResizeGesture(state){
+ const fmt=value=>Number(value.toFixed(3))+'mm';
+ for(const item of state.items){
+  const from=item.bounds,to=item.previewBounds;
+  if(!to||from.w<=0||from.h<=0)continue;
+  const sx=to.w/from.w,sy=to.h/from.h;
+  const node=getAt(item.path),original=item.origin,box=item.parentBox,type=original.type;
+  if(!node)continue;
+  replaceAt(item.path,original);
+  const n=getAt(item.path);
+  // Scale also scales explicitly authored stroke weights and text dimensions;
+  // preserve variable expressions rather than silently baking them.
+  if(state.scale&&!state.singleAxisOne&&original.strokeWidth!==undefined&&!requiresBake(original.strokeWidth))
+   n.strokeWidth=Number(Math.max(0,evalN(original.strokeWidth,box,'short')*Math.sqrt(sx*sy)).toFixed(3))+'mm';
+  const target=remapSelectedBounds(item.bounds,from,to);
+  const deltaX=target.x-from.x,deltaY=target.y-from.y;
+  if(Math.abs(to.w-from.w)<1e-6&&Math.abs(to.h-from.h)<1e-6){
+   if(Math.abs(deltaX)+Math.abs(deltaY)>1e-6)moveBy(n,deltaX,deltaY,box);
+   continue;
+  }
+  const point=(x,y)=>remapSelectedPoint(x,y,from,to);
+  const get=(key,axis,defaultValue=0)=>evalN(original[key]??defaultValue,box,axis);
+  if(type==='text'){
+   resizeTextFromFrame(n,target,Math.abs(sx-1)>Math.abs(sy-1)?'w':'h',item.path,item.bounds);
+  }else if(type==='circle'||type==='dot'){
+   const center=point(box.x+get('cx','x'),box.y+get('cy','y'));
+   const radius=get('r','short',type==='dot'?'0.35mm':'5mm');
+   const factor=Math.sqrt(sx*sy);
+   n.cx=fmt(center.x-box.x);n.cy=fmt(center.y-box.y);n.r=fmt(Math.max(.05,radius*factor));
+  }else if(type==='ellipse'){
+   const center=point(box.x+get('cx','x'),box.y+get('cy','y'));
+   n.cx=fmt(center.x-box.x);n.cy=fmt(center.y-box.y);
+   n.rx=fmt(Math.max(.05,get('rx','short','15mm')*sx));
+   n.ry=fmt(Math.max(.05,get('ry','short','8mm')*sy));
+  }else if(type==='line'||type==='hline'||type==='vline'){
+   const first=point(box.x+get(type==='vline'?'x':'x1','x'),box.y+get(type==='hline'?'y':'y1','y'));
+   const second=point(box.x+get(type==='vline'?'x':'x2','x',type==='hline'?'100%':0),
+                      box.y+get(type==='hline'?'y':'y2','y',type==='vline'?'100%':0));
+   if(type==='line'){
+    n.x1=fmt(first.x-box.x);n.x2=fmt(second.x-box.x);
+    n.y1=fmt(first.y-box.y);n.y2=fmt(second.y-box.y);
+   }else if(type==='hline'){
+    n.x1=fmt(first.x-box.x);n.x2=fmt(second.x-box.x);n.y=fmt(first.y-box.y);
+   }else{
+    n.x=fmt(first.x-box.x);n.y1=fmt(first.y-box.y);n.y2=fmt(second.y-box.y);
+   }
+  }else if(['polygon','polyline'].includes(type)){
+   const points=Array.isArray(original.points)?original.points.flat(Infinity):
+    String(original.points??'').trim().split(/[\s,]+/);
+   const out=[];
+   for(let i=0;i+1<points.length;i+=2){
+    const mapped=point(box.x+evalN(points[i],box,'x'),box.y+evalN(points[i+1],box,'y'));
+    out.push([fmt(mapped.x-box.x),fmt(mapped.y-box.y)]);
+   }
+   n.points=out;
+  }else if(type==='path'&&!original.viewBox){
+   n.d=scaleEditableSvgPath(original.d,
+    {x:item.bounds.x-box.x,y:item.bounds.y-box.y,w:item.bounds.w,h:item.bounds.h},
+    {x:target.x-box.x,y:target.y-box.y,w:target.w,h:target.h});
+  }else{
+   const base=point(box.x+get('x','x'),box.y+get('y','y'));
+   n.x=fmt(base.x-box.x);n.y=fmt(base.y-box.y);
+   n.w=fmt(Math.max(.05,get('w','x','100%')*sx));
+   n.h=fmt(Math.max(.05,get('h','y','100%')*sy));
+   if(type==='rect'&&original.rx!==undefined){
+    n.rx=fmt(clampRectCorner(get('rx','short',0)*Math.min(sx,sy),
+     get('w','x','100%')*sx,get('h','y','100%')*sy));
+   }
+  }
+ }
+}
 
 const draggableTypes=new Set(["image","group","rect","path","text","ellipse","circle","dot","line","hline","vline","polyline","polygon"]);
 let previousTextClick=null;
@@ -1653,14 +2140,14 @@ paper.addEventListener("pointerdown",e=>{
   if(!matrix)return;
   const parent=parentBoxForPath(path),bounds=shape.getBBox();
   const point=pagePoint(e),local=new DOMPoint(point.x,point.y).matrixTransform(matrix.inverse());
-  const info=type==='path'?straightPathCorners(node.d):null;
+  const info=type==='path'?editableCornerPath(node.d):null;
   if(type==='path'&&!info)return;
   const center={x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};
   const vertex=info?.vertices[Number(corner.dataset.cornerIndex)];
   const distance=vertex?Math.hypot(center.x-vertex.x,center.y-vertex.y)||1:1;
   cornerDrag={pointerId:e.pointerId,path,pathKey:key,type,origin:clone(node),start:local,
    index:Number(corner.dataset.cornerIndex),matrix,center,vertex,distance,
-   radius:type==='rect'?clampRectCorner(evalN(node.rx??0,parent,'short'),bounds.width,bounds.height):0,
+   radius:type==='rect'?clampRectCorner(evalN(node.rx??0,parent,'short'),bounds.width,bounds.height):info.radius,
    width:bounds.width,height:bounds.height,moved:false};
   paper.setPointerCapture(e.pointerId);e.preventDefault();e.stopImmediatePropagation();return;
  }
@@ -1729,6 +2216,23 @@ paper.addEventListener("pointerdown",e=>{
  // render() replaces SVG descendants; stop this event before the outer canvas
  // sees a detached target and incorrectly clears the freshly made selection.
  e.stopPropagation();
+ // Smart Selection controls live outside the XNotes artwork and never select
+ // another document layer by accident.
+ if(selectedPaths.length>1){
+  const mark=e.target.closest('[data-smart-marker]');
+  if(mark){
+   beginSmartReorderGesture(e,mark.dataset.smartMarker);
+   e.preventDefault();return;
+  }
+  if(e.target.closest('[data-smart-gap]')){
+   beginSmartGapGesture(e);e.preventDefault();return;
+  }
+  const scale=e.target.closest('[data-scale-handle]');
+  if(scale){
+   beginMultiTransformGesture(e,scale.dataset.scaleHandle,{scale:true});
+   e.preventDefault();return;
+  }
+ }
  const g=e.target.closest("[data-path]");
  if(!g){const pt=pagePoint(e);marqueeState={pointerId:e.pointerId,start:pt,current:pt};paper.appendChild(svg("rect",{id:"marquee-selection",class:"marquee-selection",x:pt.x,y:pt.y,width:0,height:0,fill:"#6485f526",stroke:"#6485f5","stroke-width":0.55,"stroke-dasharray":"2 1","pointer-events":"none"}));paper.setPointerCapture(e.pointerId);e.preventDefault();return;}
  let path=toPath(g.dataset.path),n=getAt(path);
@@ -1737,6 +2241,12 @@ paper.addEventListener("pointerdown",e=>{
  }
  const handle=e.target.closest("[data-handle]")?.dataset.handle,key=nodeKey(path);
  if(!n)return;
+ // A handle on any selected layer edits all selected layers without discarding
+ // selection or scaling a shared bounding box. Rotation stays individual.
+ if(handle&&handle!=='rotate'&&selectedPaths.length>1&&
+    selectedPaths.some(p=>nodeKey(p)===key)&&multiSelectionMode==='edit'){
+  beginMultiTransformGesture(e,handle,{anchorKey:key});e.preventDefault();return;
+ }
  // Rendering the selected layer replaces the SVG hit element between clicks.
  // Recognize a genuine double-press at the pointer level instead of relying
  // exclusively on the browser dblclick event (which loses its original target).
@@ -1773,8 +2283,8 @@ paper.addEventListener("pointerdown",e=>{
  const repeatRect=n.type==="repeat"?g.querySelector(':scope > .repeat-selection'):null;
  const repeatBounds=repeatRect?{x:Number(repeatRect.getAttribute('x')),y:Number(repeatRect.getAttribute('y')),w:Number(repeatRect.getAttribute('width')),h:Number(repeatRect.getAttribute('height'))}:null;
  const bounds=repeatBounds||(multi?(unionBounds(items)||geometry):(handle&&!isRepeatedPath(path)?geometry:(visibleBounds||geometry)));if(!bounds)return;
- const point=pagePoint(e),snapTargets=snapTargetsFor(items.map(item=>item.path)),previewTransforms=captureDragTransforms(items.map(item=>item.path));
- drag={pointerId:e.pointerId,path,mode:handle?"transform":"move",handle,modelBounds:geometry,startX:e.clientX,startY:e.clientY,startPoint:point,parentBox:clone(parentBox),bounds,origin:clone(n),items,moved:false,repeated:isRepeatedPath(path),snapTargets,previewTransforms,lastDelta:{dx:0,dy:0},startAngle:Math.atan2(point.y-(bounds.y+bounds.h/2),point.x-(bounds.x+bounds.w/2))*180/Math.PI};
+ const point=pagePoint(e),snapTargets=snapTargetsFor(items.map(item=>item.path)),previewTransforms=captureDragTransforms(items.map(item=>item.path)),previewControls=captureSelectionDragControls(items.map(item=>item.path));
+ drag={pointerId:e.pointerId,path,mode:handle?"transform":"move",handle,modelBounds:geometry,startX:e.clientX,startY:e.clientY,startPoint:point,parentBox:clone(parentBox),bounds,origin:clone(n),items,moved:false,repeated:isRepeatedPath(path),snapTargets,previewTransforms,previewControls,lastDelta:{dx:0,dy:0},startAngle:Math.atan2(point.y-(bounds.y+bounds.h/2),point.x-(bounds.x+bounds.w/2))*180/Math.PI};
  try{paper.setPointerCapture(e.pointerId);}catch{}e.preventDefault();
 });
 paper.addEventListener('pointermove',e=>{
@@ -1792,12 +2302,12 @@ paper.addEventListener('pointermove',e=>{
  }else{
   const vector={x:(state.center.x-state.vertex.x)/state.distance,y:(state.center.y-state.vertex.y)/state.distance};
   const change=(local.x-state.start.x)*vector.x+(local.y-state.start.y)*vector.y;
-  radius=Math.max(0,Math.min(1000,change));
+  radius=Math.max(0,Math.min(1000,state.radius+change));
  }
  if(Math.hypot(local.x-state.start.x,local.y-state.start.y)<.15&&!state.moved)return;
  state.moved=true;if(state.type==='path')state.radius=radius;
  if(state.type==='rect')node.rx=Number(radius.toFixed(3))+'mm';
- else node.d=roundStraightPath(state.origin.d,radius);
+ else node.d=roundEditableCornerPath(state.origin.d,radius);
  renderCanvas();e.preventDefault();e.stopImmediatePropagation();
 });
 paper.addEventListener("pointermove",e=>{
@@ -1838,6 +2348,15 @@ paper.addEventListener("pointermove",e=>{
  }
  if(marqueeState&&marqueeState.pointerId===e.pointerId){marqueeState.current=pagePoint(e);const a=marqueeState.start,b=marqueeState.current,el=paper.querySelector("#marquee-selection");if(el){el.setAttribute("x",Math.min(a.x,b.x));el.setAttribute("y",Math.min(a.y,b.y));el.setAttribute("width",Math.abs(b.x-a.x));el.setAttribute("height",Math.abs(b.y-a.y));}return;}
  if(!drag||drag.pointerId!==e.pointerId)return;
+ if(drag.mode==='smart-reorder'){
+  updateSmartReorderGesture(drag,e);e.preventDefault();return;
+ }
+ if(drag.mode==='smart-gap'){
+  updateSmartGapGesture(drag,e);e.preventDefault();return;
+ }
+ if(drag.mode==='multi-resize'){
+  updateMultiResizeGesture(drag,e);e.preventDefault();return;
+ }
  if(drag.mode==='crop-pan'){
   const pt=pagePoint(e),delta={dx:pt.x-drag.startPoint.x,dy:pt.y-drag.startPoint.y};
   if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)<2&&!drag.moved)return;
@@ -1877,8 +2396,20 @@ paper.addEventListener("pointermove",e=>{
  if(drag.mode==="move"){
   const g=drag.bounds,proposed={x:g.x+dx,y:g.y+dy,w:g.w,h:g.h};
   const snap=snapToGuides(proposed,drag.items.map(item=>item.path),drag.snapTargets);
-  dx+=snap.dx;dy+=snap.dy;drag.lastDelta={dx,dy};smartGuides=snap.guides;smartGuideSegments=snap.segments||{x:null,y:null};
-  applyDragPreview(drag.previewTransforms,dx,dy);renderSmartGuideOverlay();updateTransformPreview(dx,dy);return;
+  dx+=snap.dx;dy+=snap.dy;drag.lastDelta={dx,dy};smartGuides=snap.guides;smartGuideSegments=snap.segments||{x:null,y:null};smartSpacingSegments=snap.spacing||[];
+  applyDragPreview(drag.previewTransforms,dx,dy);
+  applyDragPreview(drag.previewControls||[],dx,dy);
+  const draggedKeys=new Set(drag.items.map(item=>nodeKey(item.path)));
+  // Both editor-only overlays are siblings of the artwork: translate their
+  // handles and guide lines with the same snapped page-space movement.
+  // Only move an overlay if its selected node participates in this drag.
+  if(selectedPath&&draggedKeys.has(nodeKey(selectedPath))){
+   for(const id of ['corner-control-overlay','svg-path-overlay']){
+    const overlay=paper.querySelector('#'+id);
+    if(overlay)overlay.setAttribute('transform',`translate(${dx} ${dy})`);
+   }
+  }
+  renderSmartGuideOverlay();updateTransformPreview(dx,dy);return;
  }
  replaceAt(drag.path,drag.origin);const n=getAt(drag.path);if(!n)return;
  const base=drag.origin,g=drag.modelBounds||drag.bounds,type=base.type,fmt=v=>Number(v.toFixed(2))+"mm",box=drag.parentBox;
@@ -1975,6 +2506,24 @@ paper.addEventListener("pointerup",e=>{
  }
  if(!drag||drag.pointerId!==e.pointerId)return;
  const state=drag;drag=null;
+ if(state.mode==='smart-reorder'){
+  if(state.moved){
+   // Recompute from release position, including coalesced final mouse moves.
+   updateSmartReorderGesture(state,e);
+   if(state.changed)commit(()=>{});else render();
+  }else finishSmartMarkerClick(state);
+  e.preventDefault();return;
+ }
+ if(state.mode==='smart-gap'){
+  if(state.moved){updateSmartGapGesture(state,e);commit(()=>{});}
+  else render();
+  e.preventDefault();return;
+ }
+ if(state.mode==='multi-resize'){
+  if(state.moved){updateMultiResizeGesture(state,e);commit(()=>{});}
+  else render();
+  e.preventDefault();return;
+ }
  if(state.mode==='crop-pan'){
   if(state.moved)commit(()=>{});else render();
   e.preventDefault();return;
@@ -2042,7 +2591,6 @@ const inlineTextEditor=createTextInlineEditor({
   if(wasNew)undo();else render();
  }
 });
-document.addEventListener('click',e=>{if(e.target.closest('[data-edit-text]'))beginCanvasTextEdit();});
 function beginCanvasTextEdit(path=selectedPath,{caret='all',clientX,clientY}={}){
  const n=getAt(path);if(n?.type!=='text')return false;
  // Mobile: close the Properties drawer so the text and keyboard aren't
@@ -2120,7 +2668,6 @@ $('imageFileInput').addEventListener('change',async e=>{
  }catch(err){toast('Could not add image: '+err.message);}
 });
 $('insertImageBtn').addEventListener('click',()=>{$('imageFileInput').click();});
-$('canvasAddImage').addEventListener('click',()=>{$('imageFileInput').click();});
 document.querySelectorAll(".template-card").forEach(b=>b.addEventListener("click",()=>{const key=b.dataset.template;if(dirty&&!confirm("Discard unexported changes and open this template?"))return;replaceDocumentAssets(new Map());doc=clone(samples[key]);resetVectorEditors();selectedPath=null;selectedPaths=[];loadLayerColors();resetHistory();previewValues={};initializePreviewValues();setDirty(false);syncJson();render();document.querySelectorAll(".template-card").forEach(x=>x.classList.toggle("active",x===b));}));
 $("paperSize").addEventListener("change",e=>{pageSize=SIZES[e.target.value]||SIZES.a4;wrap.style.aspectRatio=pageSize[0]+"/"+pageSize[1];render();});
 $("filePageSize").addEventListener("change",e=>{
@@ -2156,7 +2703,7 @@ function stepZoom(direction,anchor=null){
 }
 $("zoom").addEventListener("change",e=>setZoom(e.target.value));$("zoomOut").addEventListener("click",()=>stepZoom(-1));$("zoomIn").addEventListener("click",()=>stepZoom(1));
 window.addEventListener("resize",fitPaper);
-window.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s"){e.preventDefault();$("saveBtn").click();}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="o"){e.preventDefault();$("openBtn").click();}if(e.key==="Escape")$("addMenu")?.classList.add("hidden");if((e.ctrlKey||e.metaKey)&&e.key==="Enter"){e.preventDefault();toggleSplit();}});
+window.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s"){e.preventDefault();$("saveBtn").click();}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="o"){e.preventDefault();$("openBtn").click();}if((e.ctrlKey||e.metaKey)&&!e.altKey&&!e.shiftKey&&e.key.toLowerCase()==="i"){e.preventDefault();$("insertImageBtn").click();}if(e.key==="Escape")$("addMenu")?.classList.add("hidden");if((e.ctrlKey||e.metaKey)&&e.key==="Enter"){e.preventDefault();toggleSplit();}});
 // Ergonomic editing: transform controls, context menu, canvas navigation, and shortcuts.
 function numericMm(value, fallback=0){if(typeof value==="number")return value;const m=String(value??"").trim().match(/^([-+]?(?:\d+(?:\.\d*)?|\.\d+))\s*(mm|cm|in|pt)?$/i);if(!m)return fallback;const n=Number(m[1]);return n*(({cm:10,in:25.4,pt:25.4/72})[(m[2]||"mm").toLowerCase()]||1);}
 function transformContext(){return{x:0,y:0,w:pageSize[0],h:pageSize[1],vars:{...previewValues,W:pageSize[0],H:pageSize[1],i:0,j:0}};}
@@ -2249,6 +2796,13 @@ function moveBy(n,dx,dy,box=parentBoxForPath(selectedPath)){
  else if(type==="line"){n.x1=(evalN(n.x1??0,box,"x")+dx)+"mm";n.x2=(evalN(n.x2??0,box,"x")+dx)+"mm";n.y1=(evalN(n.y1??0,box,"y")+dy)+"mm";n.y2=(evalN(n.y2??0,box,"y")+dy)+"mm";}
  else if(type==="hline"){n.x1=(evalN(n.x1??0,box,"x")+dx)+"mm";n.x2=(evalN(n.x2??"100%",box,"x")+dx)+"mm";n.y=(evalN(n.y??0,box,"y")+dy)+"mm";}
  else if(type==="vline"){n.x=(evalN(n.x??0,box,"x")+dx)+"mm";n.y1=(evalN(n.y1??0,box,"y")+dy)+"mm";n.y2=(evalN(n.y2??"100%",box,"y")+dy)+"mm";}
+ else if(type==='path'&&!n.viewBox){
+  // Paths without viewBox are positioned by their native SVG d coordinates.
+  // Editing x/y leaves their rendering unchanged, so translate d directly.
+  try{n.d=translateEditableSvgPath(n.d,dx,dy);}catch{
+   n.x=(evalN(n.x??0,box,'x')+dx)+'mm';n.y=(evalN(n.y??0,box,'y')+dy)+'mm';
+  }
+ }
  else if(["polyline","polygon"].includes(type)){const points=Array.isArray(n.points)?n.points.flat(Infinity):String(n.points??"").trim().split(/[\s,]+/).map(Number);const moved=[];for(let i=0;i+1<points.length;i+=2)moved.push([(evalN(points[i],box,"x")+dx)+"mm",(evalN(points[i+1],box,"y")+dy)+"mm"]);n.points=moved;}
  else{n.x=(evalN(n.x??0,box,"x")+dx)+"mm";n.y=(evalN(n.y??0,box,"y")+dy)+"mm";}
 }
@@ -2393,7 +2947,7 @@ for(const [id,cfg] of Object.entries(scrubConfig)){
 }
 
 const originalRenderInspector=renderInspector;
-renderInspector=function(){originalRenderInspector();transformRead();};
+renderInspector=function(){originalRenderInspector();transformRead();syncCompactControls($("elementInspector"),resolveColor);};
 let contextPoint=null;
 let confirmationResolver=null;
 function requestConfirmation(title,message,actionLabel="Confirm"){
@@ -3034,6 +3588,9 @@ paper.addEventListener("pointerup",finishDrawing);
 paper.addEventListener("pointercancel",()=>{drawState=null;renderDrawPreview();});
 // Additional editor shortcuts. Inputs retain normal text-editing behavior.
 window.addEventListener("keydown",e=>{const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)||document.activeElement.isContentEditable;if(activeTool==="pen"&&curveState&&!typing&&e.key==="Backspace"){e.preventDefault();if(curveState.pointerId!==null)return;curveState.points.pop();curveState.activeIndex=curveState.points.length-1;if(!curveState.points.length){curveState=null;toast("Path cleared.");}renderPenPreview();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){if(typing)return;e.preventDefault();if(e.shiftKey)redo();else undo();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="y"){if(typing)return;e.preventDefault();redo();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="n"){e.preventDefault();$("newBtn").click();}if(typing)return;
+ if(e.key.toLowerCase()==='k'&&!e.ctrlKey&&!e.altKey&&!e.metaKey&&selectedPaths.length>1){
+  e.preventDefault();setMultiSelectionMode(multiSelectionMode==='scale'?'edit':'scale');return;
+ }
  if(e.key==='Enter'&&!e.ctrlKey&&!e.altKey&&!e.metaKey&&activeTool==='select'&&
   selectedPath&&getAt(selectedPath)?.type==='text'){
   e.preventDefault();beginCanvasTextEdit(selectedPath,{caret:'end'});return;
@@ -3109,6 +3666,7 @@ const commands=[
  {label:"Insert grid",group:"Tools",keywords:"grid squares math",run:()=>addPattern("grid")},
  {label:"New template",group:"File",shortcut:"Ctrl+N",keywords:"create document",run:()=> $("newBtn").click()},
  {label:"Open .xtemplate file",group:"File",shortcut:"Ctrl+O",keywords:"import load",run:()=> $("openBtn").click()},
+ {label:"Import image",group:"File",shortcut:"Ctrl+I",keywords:"picture photo PNG JPEG WebP",run:()=> $("insertImageBtn").click()},
  {label:"Export template",group:"File",shortcut:"Ctrl+S",keywords:"save download",run:()=> $("saveBtn").click()},
  {label:"Undo",group:"Edit",shortcut:"Ctrl+Z",keywords:"undo voltar",run:()=>undo()},
  {label:"Redo",group:"Edit",shortcut:"Ctrl+Shift+Z",keywords:"redo repetir",run:()=>redo()},
