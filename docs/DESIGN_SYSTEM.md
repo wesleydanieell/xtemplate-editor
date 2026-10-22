@@ -106,3 +106,20 @@ All inspector Transform X/Y/W/H numeric fields use consistent two-column baselin
 **Text transform bounds** use the actual rendered SVG `getBBox()` projected through the glyph-to-page transform. The selected outline, hit target, rotation stem/handle and numeric inspector X/Y/W/H now share this measured rectangle instead of an approximation based on character count. Empty text retains a small selectable anchor. The text transformation remains constrained by the official format (e.g. 90° rotation steps). Browser regressions cover variable font sizes, typefaces, alignments, baseline positions, 90°/270° rotations and empty strings.
 
 Automated layout assertions check the icon count, text-button baselines, X/Y/W/H column alignment and Character field placement at both desktop and phone widths. The new behavior is covered by `scripts/browser-text-bounds-smoke.mjs` and extended icon/UX tests.
+
+
+## V3.4 — direct-on-canvas text editing and reliable visual geometry
+
+- Text selection and transform handles use actual rendered SVG glyph bounds. Four corner resize handles (with additional side handles when the text is tall enough) are available, and resizing scales the supported `size` attribute proportionally while preserving the opposite visual corner; it does **not** save unsupported width/height fields.
+- The native x/y model remains the text's authored anchor; the inspector's X/Y/W/H describe the actual painted bounding rectangle. `align` repositions the rendered text around that anchor, with separate tested start/middle/end controls.
+- Double-click text to edit directly on the canvas. A light inline input follows the glyph bounds/anchor and responds to actual keystrokes; Done/Enter applies, Cancel/Esc restores, and a single Undo reverts the committed edit. Clicking a specific part of the text positions the caret near the click rather than always selecting all.
+- `Edit on canvas` in the Content section makes direct editing discoverable. On phones, using it closes the Properties drawer so the keyboard and inline text are unobstructed.
+- Split Editor now uses a bundled Lucide two-column icon, explicit pressed state, and an icon-only accessible control on narrow phone screens.
+- Browser tests now cover visual alignment, glyph-based width controls, pointer resizing, inline editing and Undo, and phone-sized direct editing.
+
+
+### V3.5 — precision and alignment corrections
+
+Confirmed bugs fixed: text's Align-to-page buttons were using glyph bounding-box coordinates as authored anchor coordinates; the correct implementation translates the anchor by the measured painted-frame delta. On compact glyphs, eight oversized invisible transform targets blocked almost every click, preventing real double-click editing. Short text now exposes just the four corner targets, with 14px screen-constant hit regions.
+
+Text editing is available by double click/tap, Enter on selected text, Edit on canvas in Properties, or clicking existing text with the Text tool. Dragged text scales its native font size proportionally and the pointer-up event uses the exact final cursor position; magnetic snapping is reduced to 3px for text and may be bypassed with Alt. Alignment-to-page uses the actual painted rectangle even for right/center anchored and 90° rotated text; Character paragraph alignment keeps the authored anchor stable. Browser tests include genuine pointer clicks, six page alignment actions, rotated 150% zoom, touch double-tap and non-destructive native template export.
