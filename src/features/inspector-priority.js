@@ -9,6 +9,7 @@ const IMPORTANT = Object.freeze({
   text:['size','font','weight','align','baseline','rotate'],
   polygon:['points'],polyline:['points'],
   path:['d','viewBox','aspect'],
+  image:['src','fit','position'],
   hatch:['period','angle','offset'],
 });
 const ADVANCED=new Set(['index','stagger','extend','select','italic','dash']);

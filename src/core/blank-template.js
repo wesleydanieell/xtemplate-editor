@@ -4,6 +4,7 @@ export function createBlankTemplate({
   name = 'Untitled template',
   id = 'xtemplate.custom.untitled',
   description = '',
+  kind = 'page',
   author = '',
   license = '',
   version = '',
@@ -16,6 +17,7 @@ export function createBlankTemplate({
     params: {},
     items: [],
   };
+  if(kind==='cover')template.kind='cover';
   if(description)template.description=description;
   if(author)template.author=author;
   if(license)template.license=license;

@@ -1019,3 +1019,12 @@
 .variable-edit-color-field>input[type=text]{flex:1;min-width:110px}
 .variable-edit-color-picker,.variable-preview-color-picker{width:38px;height:29px;padding:3px;border:1px solid var(--ui-border,#556071);border-radius:6px;background:transparent;cursor:pointer;flex-shrink:0}
 .param-color .variable-preview-color-picker{width:34px;height:28px}
+
+/* Native image crop/position tools — edit-only controls, never exported. */
+.image-frame-tools{display:flex;flex-direction:column;gap:7px;margin-top:6px}
+.image-frame-actions{display:flex;flex-wrap:wrap;gap:5px}
+.image-frame-actions button[aria-pressed="true"]{border-color:#76a6ff;background:#314875;color:#eaf2ff}
+.image-position-caption{font-size:11px;font-weight:600;color:var(--text-muted,#aab5c8)}
+.image-position-grid{display:grid;grid-template-columns:repeat(3,31px);gap:3px;justify-content:center;margin:2px 0 6px}
+.image-position-button{min-width:0;width:31px;height:27px;border:1px solid #4a5367;border-radius:4px;background:#2c3445;color:#e4eafa;cursor:pointer}
+.image-position-button:hover,.image-position-button[aria-pressed="true"]{border-color:#85a5ef;background:#425d8d}

@@ -1,6 +1,6 @@
 /** Canonical editable node catalog for the XTemplate format. */
 export const NODE_TYPES = Object.freeze([
-  "group", "repeat", "line", "hline", "vline", "rect", "circle",
+  "group", "repeat", "line", "hline", "vline", "rect", "image", "circle",
   "ellipse", "dot", "polyline", "polygon", "text", "path", "hatch",
 ]);
 
@@ -10,6 +10,7 @@ const DEFAULTS = Object.freeze({
   hline: () => ({ type: "hline", y: "50%", stroke: "ink", strokeWidth: "0.25mm" }),
   vline: () => ({ type: "vline", x: "50%", stroke: "ink", strokeWidth: "0.25mm" }),
   line: () => ({ type: "line", x1: "10mm", y1: "10mm", x2: "50mm", y2: "40mm", stroke: "ink", strokeWidth: "0.3mm" }),
+  image: () => ({ type: "image", src: "", x: "20mm", y: "20mm", w: "170mm", h: "120mm", fit: "contain", position: "center" }),
   rect: () => ({ type: "rect", x: "20mm", y: "20mm", w: "60mm", h: "35mm", stroke: "ink", fill: "none", strokeWidth: "0.3mm" }),
   circle: () => ({ type: "circle", cx: "50%", cy: "50%", r: "10mm", stroke: "ink", fill: "none", strokeWidth: "0.3mm" }),
   ellipse: () => ({ type: "ellipse", cx: "50%", cy: "50%", rx: "15mm", ry: "8mm", stroke: "ink", fill: "none", strokeWidth: "0.3mm" }),

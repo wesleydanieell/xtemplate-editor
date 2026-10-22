@@ -22,6 +22,7 @@
 ## Features
 
 - **Visual canvas + JSON editor:** draw, inspect and edit native XNotes elements with undo/redo and optional split view.
+- **Image covers and watermarks (development):** insert PNG/JPEG/WebP, adjust crop frames and image focus, then export a portable ZIP `.xtemplate`. Try the [bundled image-based examples](examples/README.md) or read the [image-package guide](docs/IMAGE_PACKAGES.md).
 - **Pen and vector tools:** lines, polygons, polylines, Bézier paths, Hatch patterns, snapping, node editing and horizontal/vertical mirroring.
 - **Layer organization:** nested groups, `repeat`, multi-selection, drag-and-drop in **Structure**, and alignment guides.
 - **Cover design:** place shapes and control points outside the page; only the portion inside the sheet is rendered, while editing handles stay accessible.
@@ -56,7 +57,7 @@ If Chromium is not detected, set `XTEMPLATE_BROWSER_PATH` to its executable. Git
 
 ## Compatibility & docs
 
-XTemplate Studio targets the `.xtemplate` parser in XNotes, **not arbitrary SVG files**. Editor-only guides, handles and preview settings are not written into exported templates. There is currently no native gradient-fill support in `.xtemplate`. Always verify complex paths, Hatch patterns, `repeat` layouts and expressions in XNotes itself; **export your work before closing or loading another file**.
+XTemplate Studio targets the [official `.xtemplate` specification](https://github.com/shardulvs/xtemplate), **not arbitrary SVG files**. Editor-only guides, handles and preview settings are not written into exported templates. There is currently no native gradient-fill support in `.xtemplate`. Always verify complex paths, Hatch patterns, `repeat` layouts and expressions in XNotes itself; **export your work before closing or loading another file**.
 
 [`.xtemplate` authoring guide](docs/GUIA-XTEMPLATE.md) · [Vector tools](docs/VECTOR_TOOLS.md) · [XNotes compatibility](docs/XNOTES_COMPATIBILITY.md) · [Release notes](RELEASE_NOTES.md)
 

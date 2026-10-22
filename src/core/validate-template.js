@@ -1,3 +1,4 @@
+import officialSchemaValidator from './official-schema-validator.js';
 /**
  * Validation shared by the visual editor, JSON editor and file import/export.
  * Keep limits aligned with XNotes' TemplateReader.
@@ -6,6 +7,8 @@ export const TEMPLATE_LIMITS = Object.freeze({
   maxBytes: 1024 * 1024,
   maxDepth: 32,
   maxNodes: 10_000,
+  maxPackageBytes: 16 * 1024 * 1024,
+  maxImageDimension: 8192,
 });
 
 export function validateTemplate(value) {
@@ -38,6 +41,14 @@ export function validateTemplate(value) {
       if (!node || typeof node !== "object" || Array.isArray(node)) {
         throw new Error("Há um nó que não é objeto.");
       }
+      if(node.type==='image'){
+        const src=node.src;
+        if(typeof src!=='string'||!src||src.startsWith('/')||src.includes('\\')||src.split('/').some(p=>!p||p==='.'||p==='..')){
+          throw new Error('Image src must be a relative path inside the .xtemplate package');
+        }
+        if(node.fit!==undefined&&!['contain','cover','stretch'].includes(node.fit))throw new Error('Invalid image fit');
+        if(node.position!==undefined&&!['center','top','bottom','left','right','top left','top right','bottom left','bottom right'].includes(node.position))throw new Error('Invalid image position');
+      }
       if (["group", "repeat"].includes(node.type)) {
         if (node.children !== undefined && !Array.isArray(node.children)) {
           throw new Error("A propriedade children precisa ser uma lista.");
@@ -48,5 +59,14 @@ export function validateTemplate(value) {
   }
 
   walk(value.items, 0);
+  // Standalone browser-safe validator generated from the pinned official v1
+  // JSON Schema. Validates every property, including images and expressions,
+  // on import, JSON edits, visual commits and export — with no runtime AJV.
+  if(!officialSchemaValidator(value)){
+    const error=officialSchemaValidator.errors?.[0];
+    const location=error?.instancePath||'(document)';
+    const missing=error?.params?.missingProperty;
+    throw new Error(`Official .xtemplate specification: ${location}${missing?'/'+missing:''} ${error?.message||'is invalid'}`);
+  }
   return true;
 }
