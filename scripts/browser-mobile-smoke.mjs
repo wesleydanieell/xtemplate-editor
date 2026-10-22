@@ -6,7 +6,7 @@ import {existsSync,readdirSync} from 'node:fs';import {homedir} from 'node:os';
 const root=resolve(fileURLToPath(new URL('..',import.meta.url)));
 const server=createServer(async(req,res)=>{try{const file=resolve(root,decodeURIComponent(new URL(req.url,'http://localhost').pathname).replace(/^\/+/, '')||'index.html');if(!file.startsWith(root+sep))throw Error('invalid path');const body=await readFile(file);const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.json':'application/json','.webp':'image/webp'};res.writeHead(200,{'content-type':mime[extname(file)]||'application/octet-stream'});res.end(body);}catch{res.writeHead(404);res.end();}});
 server.listen(0,'127.0.0.1');await once(server,'listening');
-const cached=resolve(homedir(),'.cache/ms-playwright');const candidates=[process.env.XTEMPLATE_BROWSER_PATH,'/usr/bin/chromium','/usr/bin/google-chrome',...readdirSync(cached).filter(x=>x.startsWith('chromium-')).map(x=>resolve(cached,x,'chrome-linux64/chrome'))];const executablePath=candidates.find(x=>x&&existsSync(x));assert(executablePath);
+const cached=resolve(homedir(),'.cache/ms-playwright');const candidates=[process.env.XTEMPLATE_BROWSER_PATH,'/usr/bin/chromium','/usr/bin/google-chrome',...(existsSync(cached)?readdirSync(cached):[]).filter(x=>x.startsWith('chromium-')).map(x=>resolve(cached,x,'chrome-linux64/chrome'))];const executablePath=candidates.find(x=>x&&existsSync(x));assert(executablePath);
 const browser=await puppeteer.launch({headless:true,executablePath,args:['--no-sandbox']});
 try{
  for(const [width,height] of [[390,844],[360,740]]){
