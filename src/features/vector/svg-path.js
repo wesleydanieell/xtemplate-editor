@@ -149,3 +149,37 @@ export function svgPathGeometryBounds(parsed) {
  const [minX,maxX]=extrema(coords[0]),[minY,maxY]=extrema(coords[1]);
  return{x:minX,y:minY,w:maxX-minX,h:maxY-minY};
 }
+
+/** Move native SVG path coordinates without introducing unsupported x/y
+ * properties. Preserve the original command letters and spacing. */
+export function translateEditableSvgPath(d,dx,dy){
+ if(!Number.isFinite(dx)||!Number.isFinite(dy))throw new Error('Invalid path translation');
+ const parsed=editablePathNodes(d),edits=[];
+ for(const p of parsed.nodes){
+  for(const [token,delta] of [[p.xToken,dx],[p.yToken,dy]]){
+   const value=Number((token.value+delta).toFixed(4));
+   edits.push({start:token.start,end:token.end,value:String(value)});
+  }
+ }
+ for(const {start,end,value} of edits.sort((a,b)=>b.start-a.start))d=d.slice(0,start)+value+d.slice(end);
+ return d;
+}
+
+/** Scale native explicit SVG path coordinates, including cubic and quadratic
+ * control points, without adding a non-XNotes transform or discarding syntax.
+ * Refuse unsupported path grammar before mutating the document. */
+export function scaleEditableSvgPath(d,from,to){
+ if(!from||!to||![from.x,from.y,from.w,from.h,to.x,to.y,to.w,to.h].every(Number.isFinite)||
+   from.w<=0||from.h<=0||to.w<=0||to.h<=0)throw Error('Invalid path resize frame');
+ const parsed=editablePathNodes(d),changes=[];
+ for(const point of parsed.nodes){
+  const x=to.x+(point.x-from.x)*to.w/from.w;
+  const y=to.y+(point.y-from.y)*to.h/from.h;
+  for(const [token,value] of [[point.xToken,x],[point.yToken,y]]){
+   changes.push({start:token.start,end:token.end,text:String(Number(value.toFixed(4)))});
+  }
+ }
+ for(const change of changes.sort((a,b)=>b.start-a.start))
+  d=d.slice(0,change.start)+change.text+d.slice(change.end);
+ return d;
+}

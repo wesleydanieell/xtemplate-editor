@@ -46,12 +46,45 @@ try{
  await page.mouse.move(pc.x,pc.y);await page.mouse.down();await page.mouse.move(pc.x-26,pc.y+19,{steps:7});await page.mouse.up();
  const doc=await json(),rounded=doc.items[1].d;
  assert(rounded.includes('Q '),'path corners bake native quadratic SVG commands');
+ assert.equal(await page.$$eval('[data-corner-control="path"]',xs=>xs.length),4,'rounded path keeps editable Live Corner controls');
  assert(!('rx' in doc.items[1]),'path never gains unsupported rx');
  await page.keyboard.down('Control');await page.keyboard.press('z');await page.keyboard.up('Control');
  assert.equal((await json()).items[1].d,initial.items[1].d,'undo restores exact original SVG path');
  if(mobile)await page.click('[data-toggle-panel="layers"]');
  await page.$eval('.tree-item[data-path="items.3"]',x=>x.click());
  assert.equal(await page.$$eval('[data-corner-control="path"]',xs=>xs.length),0,'curved source does not expose unsafe bake handles');
+ if(!mobile){
+  // In Bézier edit mode, the editor-only anchor/tangent overlay must follow
+  // the native path during the same drag preview as its transform handles.
+  await page.evaluate(()=>[...document.querySelectorAll('#propertiesPanel button')].find(b=>b.textContent==='Edit SVG nodes')?.click());
+  const pathOverlay=await page.$('#svg-path-overlay');
+  assert(pathOverlay,'Bézier edit overlay should be visible');
+  const beforeOverlay=await page.$eval('#svg-path-overlay',e=>e.getBoundingClientRect().toJSON());
+  const pathHitbox=await page.$eval('g.svg-node[data-path="items.3"] > .svg-hitbox',e=>e.getBoundingClientRect().toJSON());
+  const pageBox=await page.$eval('#paper',e=>e.getBoundingClientRect().toJSON());
+  assert(pathHitbox.width<pageBox.width/2&&pathHitbox.height<pageBox.height/2,
+   'SVG path hitbox uses painted geometry, never a full-page rectangle');
+
+  const pathCenter=await page.$eval('g.svg-node[data-path="items.3"] > .svg-hitbox',element=>{
+   const r=element.getBoundingClientRect();
+   // After correcting the path hitbox to painted bounds, Bézier handles may
+   // occupy the old drag start. Find an exposed spot on the actual path.
+   const points=[];
+   for(let y=.15;y<.9;y+=.1)for(let x=.15;x<.9;x+=.1){
+    const xx=r.x+r.width*x,yy=r.y+r.height*y,hit=document.elementFromPoint(xx,yy);
+    if(hit?.closest('g.svg-node[data-path="items.3"]')&&!hit.closest('[data-handle],[data-svg-path-point]'))
+     points.push({x:xx,y:yy});
+   }
+   return points[0]||{x:r.x+r.width*.65,y:r.y+r.height*.6};
+  });
+  await page.mouse.move(pathCenter.x,pathCenter.y);await page.mouse.down();await page.mouse.move(pathCenter.x+38,pathCenter.y+28,{steps:5});
+  const duringOverlay=await page.$eval('#svg-path-overlay',e=>e.getBoundingClientRect().toJSON());
+  assert(duringOverlay.x>beforeOverlay.x+15&&duringOverlay.y>beforeOverlay.y+8,'Bézier control overlay follows path movement');
+  await page.mouse.up();
+  const afterOverlay=await page.$eval('#svg-path-overlay',e=>e.getBoundingClientRect().toJSON());
+  assert(Math.abs(afterOverlay.x-duringOverlay.x)<7,'Bézier handles remain aligned after drop');
+  await page.keyboard.down('Control');await page.keyboard.press('z');await page.keyboard.up('Control');
+ }
  if(!mobile){
   await page.$eval('.tree-item[data-path="items.2"]',x=>x.click());
   const before=await json(),start=before.items[2];

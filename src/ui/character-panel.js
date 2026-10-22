@@ -54,18 +54,6 @@ export function enhanceCharacterPanel(root){
  }
  compact.append(align.row);
  root.append(compact);
- const place=group('Place on page','character-page-align-row');
- for(const [command,label,iconName] of [
-  ['left','Page left','align-start-vertical'],['center-x','Page horizontal center','align-center-vertical'],
-  ['right','Page right','align-end-vertical'],['top','Page top','align-start-horizontal'],
-  ['center-y','Page vertical center','align-center-horizontal'],['bottom','Page bottom','align-end-horizontal']]){
-  const control=buttonFor({label,name:iconName,pressed:false,onClick:()=>{
-   // Use the existing document-aware alignment command, including geometry,
-   // Undo and text baseline semantics. No duplicated alignment calculations.
-   document.querySelector(`.alignment-tools [data-align="${command}"]`)?.click();
-  }});
-  control.removeAttribute('aria-pressed');control.dataset.pageAlign=command;
-  place.tools.append(control);
- }
- root.append(place.row);
+ // Page alignment remains in Transform > Align to page. Repeating those
+ // six actions inside Character crowded the text panel without adding capability.
 }

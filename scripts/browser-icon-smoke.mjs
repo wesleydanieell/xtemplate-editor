@@ -22,9 +22,9 @@ if(mobile)await page.click('[data-toggle-panel="properties"]');
 const groups=await page.$$eval('.property-block:not([hidden]) .property-block-title',xs=>xs.map(x=>({name:x.textContent.trim(),icon:!!x.querySelector(':scope > svg.ui-icon')})));
 assert(groups.length>=4&&groups.every(x=>x.icon),JSON.stringify(groups));
 const tool=await page.$eval('[data-tool="text"]',x=>({name:x.getAttribute('aria-label'),svg:!!x.querySelector('svg.ui-icon')}));assert(tool.svg&&tool.name.includes('text'));
- const imageTool=await page.$eval('#canvasAddImage',x=>({total:x.querySelectorAll('svg').length,lucide:x.querySelectorAll(':scope > svg.ui-icon').length,aria:x.getAttribute('aria-label')}));
- assert.deepEqual([imageTool.total,imageTool.lucide],[1,1],'image insertion tool must contain exactly one icon');
- assert.match(imageTool.aria,/image/i);
+ const imageTool=await page.$eval('#fileMenu #insertImageBtn',x=>({total:x.querySelectorAll('svg').length,lucide:x.querySelectorAll(':scope > svg.ui-icon').length,label:x.textContent}));
+ assert.deepEqual([imageTool.total,imageTool.lucide],[1,1],'File > Import image must contain exactly one icon');
+ assert.match(imageTool.label,/image/i);
  const measured=await page.evaluate(()=>{
   const box=sel=>{const element=document.querySelector(sel);const r=element?.getBoundingClientRect();return r?{x:r.x,y:r.y,w:r.width,h:r.height}:null;};
   return {x:box('#transformX'),y:box('#transformY'),w:box('#transformW'),h:box('#transformH'),font:box('[data-character-field="font"] select'),size:box('[data-character-field="size"] input'),baseline:box('[data-character-field="baseline"] select'),style:[...document.querySelectorAll('.character-style-row button')].map(x=>({label:x.getAttribute('aria-label'),y:x.getBoundingClientRect().y,h:x.getBoundingClientRect().height})),align:[...document.querySelectorAll('.character-alignment-row button')].map(x=>({label:x.getAttribute('aria-label'),y:x.getBoundingClientRect().y,h:x.getBoundingClientRect().height}))};
@@ -43,9 +43,9 @@ const tool=await page.$eval('[data-tool="text"]',x=>({name:x.getAttribute('aria-
   const row=el=>({rect:rect(el),heading:rect(el.querySelector('.character-action-caption')),
    buttons:[...el.querySelectorAll('.character-segment')].map(rect),control:rect(el.querySelector('.character-segmented'))});
   return {container:rect(group),columns:getComputedStyle(group).gridTemplateColumns,
-   style:row(style),anchor:row(anchor),page:rect(document.querySelector('.character-page-align-row'))};
+   style:row(style),anchor:row(anchor)};
  });
- const {container,style:styleColumn,anchor:anchorColumn,page:pageRow}=characterLayout;
+ const {container,style:styleColumn,anchor:anchorColumn}=characterLayout;
  assert(Math.abs(styleColumn.rect.top-anchorColumn.rect.top)<1,'Style and Text anchor should occupy a single row');
  assert(Math.abs(styleColumn.heading.top-anchorColumn.heading.top)<1,'Style and Text anchor headings should share a baseline');
  assert(Math.abs(styleColumn.control.top-anchorColumn.control.top)<1,'Style and Text anchor button bars should share a baseline');
@@ -56,7 +56,7 @@ const tool=await page.$eval('[data-tool="text"]',x=>({name:x.getAttribute('aria-
   assert(col.buttons.every(r=>r.left>=col.control.left-.5&&r.right<=col.control.right+.5),'No style/anchor button may overflow its column');
   assert(col.buttons.every(r=>Math.abs(r.top-col.control.top)<2&&Math.abs(r.bottom-col.control.bottom)<2),'Segmented buttons align vertically');
  }
- assert(pageRow.top>=styleColumn.control.bottom,'Place on page stays in its own following row');
+ assert.equal(await page.$('.character-page-align-row'),null,'Page alignment lives only in Transform to avoid duplicated controls');
  const currentWeight=await page.$eval('#jsonEditor',el=>JSON.parse(el.value).items[3].weight);
  await page.click('.character-style-row [aria-label="Bold"]');
  const nextWeight=await page.$eval('#jsonEditor',el=>JSON.parse(el.value).items[3].weight);

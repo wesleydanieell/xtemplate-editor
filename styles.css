@@ -1027,3 +1027,7 @@
 .image-position-grid{display:grid;grid-template-columns:repeat(3,31px);gap:3px;justify-content:center;margin:2px 0 6px}
 .image-position-button{min-width:0;width:31px;height:27px;border:1px solid #4a5367;border-radius:4px;background:#2c3445;color:#e4eafa;cursor:pointer}
 .image-position-button:hover,.image-position-button[aria-pressed="true"]{border-color:#85a5ef;background:#425d8d}
+
+/* Live Corner handles keep the standard arrow pointer on hover and drag. */
+#paper #corner-control-overlay .corner-widget,
+#paper #corner-control-overlay .corner-widget *{cursor:default!important}

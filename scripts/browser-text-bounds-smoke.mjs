@@ -62,7 +62,7 @@ try{
  },JSON.stringify(rotatedEdit));
  await page.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Rotated Edit');
  await page.$eval('.tree-item[data-path="items.0"]',x=>x.click());
- await page.click('[data-edit-text]');
+ await page.keyboard.press('Enter');
  const oriented=await page.evaluate(()=>{
   const glyph=document.querySelector('#page-artwork g[data-path="items.0"] > text');
   const editor=document.querySelector('[data-canvas-text-editor]');
@@ -288,13 +288,13 @@ try{
  console.log('PASS Text tool creates and focuses a new text layer directly on the page');
  // Explicit page positioning must be distinguishable from text anchor.
  await page.$eval('.tree-item[data-path="items.0"]',el=>el.click());
- await page.click('.character-page-align-row [data-page-align="center-x"]');
+ await page.$eval('.alignment-tools [data-align="center-x"]',el=>el.click());
  const fromCharacter=await pageRect();
- assert(Math.abs(fromCharacter.center-fromCharacter.paperCenter)<2.5,'Character panel page center aligns actual glyph');
- await page.click('.character-page-align-row [data-page-align="top"]');
+ assert(Math.abs(fromCharacter.center-fromCharacter.paperCenter)<2.5,'Transform page centering aligns actual glyph');
+ await page.$eval('.alignment-tools [data-align="top"]',el=>el.click());
  const upper=await pageRect();
- assert(Math.abs(upper.top-upper.paperTop)<2.5,'Character panel top aligns visible glyph');
- console.log('PASS Character panel page alignment acts on painted text bounds');
+ assert(Math.abs(upper.top-upper.paperTop)<2.5,'Transform page top aligns visible glyph');
+ console.log('PASS Transform page alignment acts on painted text bounds');
  await page.click('[data-tool="text"]');
  await page.mouse.click(blankPoint.x+30,blankPoint.y+25);
  assert.equal(await page.$eval('[data-canvas-text-editor]',el=>!el.hidden),true);
@@ -311,7 +311,8 @@ try{
  await phone.click('[data-toggle-panel="layers"]');
  await phone.$eval('.tree-item[data-path="items.0"]',el=>el.click());
  await phone.click('[data-toggle-panel="properties"]');
- await phone.click('[data-edit-text]');
+ await phone.evaluate(()=>document.activeElement?.blur());
+ await phone.keyboard.press('Enter');
  assert.equal(await phone.$eval('[data-canvas-text-editor]',el=>!el.hidden),true,'phone text editing opens');
  assert.equal(await phone.$eval('.app',el=>el.classList.contains('app--hide-properties')),true,'mobile drawer closed for canvas editor');
  const editing=await phone.$eval('[data-canvas-text-editor]',el=>({visible:el.isConnected,rect:el.getBoundingClientRect().toJSON(),input:el.querySelector('[contenteditable]').getBoundingClientRect().toJSON(),actions:null}));
