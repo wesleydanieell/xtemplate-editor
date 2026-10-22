@@ -1899,12 +1899,22 @@ paper.addEventListener("pointerup",e=>{
  }else if(state.moved)commit(()=>{});
  else render();
 });
+let newlyCreatedTextKey=null;
 const inlineTextEditor=createTextInlineEditor({
  onPreview(path,value){const n=getAt(path);if(n?.type==='text'){n.text=value;renderCanvas();}},
- onApply(path,value,original){const n=getAt(path);if(n?.type!=='text')return;
+ onApply(path,value,original){
+  const n=getAt(path);newlyCreatedTextKey=null;if(n?.type!=='text')return;
   n.text=value;
-  if(value!==original)commit(()=>{});else render();},
- onCancel(path,original){const n=getAt(path);if(n?.type==='text'){n.text=original;render();}}
+  if(value!==original)commit(()=>{});else render();
+ },
+ onCancel(path,original){
+  const wasNew=newlyCreatedTextKey===nodeKey(path);newlyCreatedTextKey=null;
+  const n=getAt(path);if(n?.type!=='text')return;
+  n.text=original;
+  // Canceling an initial empty text creation should remove the unused layer
+  // via history, rather than silently leaving an invisible object behind.
+  if(wasNew)undo();else render();
+ }
 });
 document.addEventListener('click',e=>{if(e.target.closest('[data-edit-text]'))beginCanvasTextEdit();});
 function beginCanvasTextEdit(path=selectedPath,{caret='all',clientX}={}){
@@ -2856,11 +2866,21 @@ paper.addEventListener("pointerdown",e=>{
  if(e.button!==0)return;
 
  if(activeTool==="text"){
-  const pt=pagePoint(e),f=v=>Number(v.toFixed(2))+"mm",{parent,parentPath,box}=insertionContext();
-  const n={type:"text",x:f(pt.x-box.x),y:f(pt.y-box.y),text:"Novo texto",size:"4mm",fill:"ink"};
+  e.preventDefault();e.stopImmediatePropagation();
+  const pt=pagePoint(e),f=v=>Number(v.toFixed(3))+"mm",{parent,parentPath,box}=insertionContext();
+  // Clicking the page with the Text tool creates an object AND immediately
+  // opens a caret at that position. There is no intermediate placeholder that
+  // forces the user to hunt for the Content field in Properties.
+  const n={type:"text",x:f(pt.x-box.x),y:f(pt.y-box.y),text:"",size:"4mm",fill:"ink"};
   const arr=parent?parent.children:(doc.items||(doc.items=[]));arr.push(n);
-  selectedPath=parent?parentPath.concat(["children",arr.length-1]):["items",arr.length-1];selectedPaths=[selectedPath.slice()];
-  commit(()=>{});setInspectorTab("properties");setActiveTool("select");return;
+  const path=parent?parentPath.concat(["children",arr.length-1]):["items",arr.length-1];
+  selectedPath=path;selectedPaths=[path.slice()];
+  commit(()=>{});setInspectorTab("properties");setActiveTool("select");
+  newlyCreatedTextKey=nodeKey(path);
+  if(!beginCanvasTextEdit(path,{caret:'end'})){
+   newlyCreatedTextKey=null;toast('Select the text layer and press Enter to type.');
+  }
+  return;
  }
  if(!["rect","ellipse","polygon","line"].includes(activeTool))return;
  e.preventDefault();e.stopPropagation();

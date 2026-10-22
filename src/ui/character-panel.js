@@ -42,7 +42,7 @@ export function enhanceCharacterPanel(root){
   }})
  );
  root.append(styles.row);
- const align=group('Alignment','character-alignment-row');
+ const align=group('Text anchor','character-alignment-row');
  for(const [value,label,iconName] of [
   ['start','Align left','align-left'],['middle','Align center','align-center'],['end','Align right','align-right']]){
   align.tools.append(buttonFor({label,name:iconName,pressed:alignment.value===value,onClick:()=>{
@@ -51,4 +51,18 @@ export function enhanceCharacterPanel(root){
   }}));
  }
  root.append(align.row);
+ const place=group('Place on page','character-page-align-row');
+ for(const [command,label,iconName] of [
+  ['left','Page left','align-start-vertical'],['center-x','Page horizontal center','align-center-vertical'],
+  ['right','Page right','align-end-vertical'],['top','Page top','align-start-horizontal'],
+  ['center-y','Page vertical center','align-center-horizontal'],['bottom','Page bottom','align-end-horizontal']]){
+  const control=buttonFor({label,name:iconName,pressed:false,onClick:()=>{
+   // Use the existing document-aware alignment command, including geometry,
+   // Undo and text baseline semantics. No duplicated alignment calculations.
+   document.querySelector(`.alignment-tools [data-align="${command}"]`)?.click();
+  }});
+  control.removeAttribute('aria-pressed');control.dataset.pageAlign=command;
+  place.tools.append(control);
+ }
+ root.append(place.row);
 }
