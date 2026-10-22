@@ -1244,8 +1244,13 @@ function renderAdvanced(n){
  }
  if(n.type==="hatch"){addField("Period","period",{json:Array.isArray(n.period)});addField("Angle (degrees)","angle",{numeric:true});addField("Offset","offset");addField("Extend outside frame","extend",{checkbox:true});}
  const styleHead=document.createElement("div");styleHead.className="advanced-heading";styleHead.textContent="TYPE & STROKE";root.appendChild(styleHead);
- if(n.type==="text"){addField("Font size","size");addField("Weight","weight",{select:["normal","bold"]});addField("Font family","font",{select:["sans","serif","mono"]});addField("Text alignment","align",{select:["start","middle","end"]});addField("Baseline","baseline",{select:["alphabetic","middle","top"]});addField("Italic","italic",{checkbox:true});}
- if(n.type==="text")addField("Rotation (degrees, XNotes 90° steps)","rotate");
+ if(n.type==="text"){
+  addField("Size","size");addField("Weight","weight",{select:["normal","bold"]});
+  addField("Font family","font",{select:["sans","serif","mono"]});
+  addField("Align","align",{select:["start","middle","end"]});
+  addField("Baseline","baseline",{select:["alphabetic","middle","top"]});
+  addField("Italic","italic",{checkbox:true});
+ }
  if(n.type!=='image')addField("Dash pattern","dash",{wide:true,json:Array.isArray(n.dash)});
  const fields=[...root.children].filter(child=>child.dataset.fieldKeys).map(element=>({element,keys:element.dataset.fieldKeys.split(",")}));
  const sections=inspectorSections(n.type,fields);
@@ -1256,7 +1261,14 @@ function renderAdvanced(n){
   if(id==='essential'){
    const heading=document.createElement('div');heading.className='advanced-heading';heading.textContent=label;
    root.appendChild(heading);
-   for(const field of sections[id])root.appendChild(field.element);
+   if(n.type==='text'){
+    const controls=document.createElement('div');controls.className='character-controls';controls.setAttribute('role','group');
+    controls.setAttribute('aria-label','Character formatting');
+    for(const field of sections[id]){
+     field.element.dataset.characterField=field.keys[0];controls.appendChild(field.element);
+    }
+    root.appendChild(controls);
+   }else for(const field of sections[id])root.appendChild(field.element);
   }else{
    const detail=document.createElement('details');detail.className='advanced-disclosure';
    const summary=document.createElement('summary');summary.textContent=label;

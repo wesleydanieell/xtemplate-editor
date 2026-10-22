@@ -9,8 +9,8 @@ test('repeat places layout-defining fields ahead of aliases and optional effects
 });
 test('text emphasizes typography before secondary settings',()=>{
  const sections=inspectorSections('text',['italic','rotate','font','size','select'].map(k=>({keys:[k]})));
- assert.deepEqual(sections.essential.map(x=>x.keys[0]),['size','font','rotate']);
- assert.deepEqual(sections.advanced.map(x=>x.keys[0]),['italic','select']);
+ assert.deepEqual(sections.essential.map(x=>x.keys[0]),['font','size','italic']);
+ assert.deepEqual(sections.advanced.map(x=>x.keys[0]),['select']);
 });
 test('grouped coordinates stay together and no fields disappear',()=>{
  const fields=[{keys:['x2','y2']},{keys:['x1','y1']},{keys:['dash']}];

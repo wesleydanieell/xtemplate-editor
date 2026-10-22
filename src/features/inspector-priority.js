@@ -6,7 +6,7 @@ const IMPORTANT = Object.freeze({
   line:['x1','y1','x2','y2'],rect:['rx'],
   circle:['cx','cy','r'],dot:['cx','cy','r'],
   ellipse:['cx','cy','rx','ry'],
-  text:['size','font','weight','align','baseline','rotate'],
+  text:['font','size','weight','italic','align','baseline'],
   polygon:['points'],polyline:['points'],
   path:['d','viewBox','aspect'],
   image:['fit','position'],

@@ -77,6 +77,14 @@ try{
  await select('items.0');
  const textState=await page.evaluate(()=>({kind:document.querySelector('.inspector-blocks')?.dataset.propertyType,content:!document.querySelector('[data-block="content"]').hidden,typography:document.querySelector('[data-block="specific"] .property-block-title')?.textContent.trim(),fields:[...document.querySelectorAll('[data-block="content"] input')].map(x=>x.id),styles:!document.querySelector('[data-block="appearance"]').hidden}));
  assert.equal(textState.kind,'text');assert(textState.content);assert.equal(textState.typography,'Typography');assert(textState.fields.includes('elementText'));assert(textState.styles);
+ const chars=await page.$$eval('#advancedInspector .character-controls [data-character-field]',items=>items.map(item=>({key:item.dataset.characterField,rect:item.getBoundingClientRect().toJSON()})));
+ assert.deepEqual(chars.map(x=>x.key),['font','size','weight','italic','align','baseline']);
+ assert(Math.abs(chars[1].rect.y-chars[2].rect.y)<3,'size and weight should use the same compact row');
+ assert(Math.abs(chars[2].rect.bottom-chars[3].rect.bottom)<6,'italic toggle should share the size/weight row');
+ await page.$eval('#advancedInspector [data-character-field="size"] input',el=>{el.value='15mm';el.dispatchEvent(new Event('change',{bubbles:true}));});
+ assert.equal(await page.$eval('#jsonEditor',x=>JSON.parse(x.value).items[0].size),'15mm');
+ await page.$eval('#advancedInspector [data-character-field="italic"] input',el=>el.click());
+ assert.equal(await page.$eval('#jsonEditor',x=>JSON.parse(x.value).items[0].italic),true);
  await page.$eval('#elementText',x=>{x.value='Edited without losing features';x.dispatchEvent(new Event('change',{bubbles:true}));});
  assert.equal(await page.$eval('#jsonEditor',x=>JSON.parse(x.value).items[0].text),'Edited without losing features');
  await select('items.1');
