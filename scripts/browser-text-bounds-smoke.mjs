@@ -225,6 +225,38 @@ try{
  assert.equal(await page.$eval('#jsonEditor',el=>JSON.parse(el.value).items.length),1,
   'Text tool on existing glyph must not insert an additional layer');
  console.log('PASS Text tool enters direct edit on existing text without adding a node');
+ // Clicking empty canvas while Text is active must immediately focus the
+ // caret: the legacy behavior inserted a generic label with no editor.
+ const blankPoint=await page.$eval('#paper',el=>{
+  const r=el.getBoundingClientRect();return{x:r.left+r.width*.73,y:r.top+r.height*.67};
+ });
+ await page.click('[data-tool="text"]');
+ await page.mouse.click(blankPoint.x,blankPoint.y);
+ assert.equal(await page.$eval('[data-canvas-text-editor]',el=>!el.hidden),true,'Text tool starts in-place editing on a blank page area');
+ assert.equal(await page.$eval('.canvas-inline-text-editor',el=>document.activeElement===el),true,'New text editor must focus the typing caret');
+ await page.keyboard.type('Created on canvas');
+ await page.keyboard.press('Enter');
+ const created=await page.$eval('#jsonEditor',el=>JSON.parse(el.value).items);
+ assert.equal(created.length,2,'Click to create adds one text layer');
+ assert.equal(created[1].type,'text');assert.equal(created[1].text,'Created on canvas');
+ assert(!('w' in created[1]||'h' in created[1]),'native text never receives unsupported size keys');
+ console.log('PASS Text tool creates and focuses a new text layer directly on the page');
+ // Explicit page positioning must be distinguishable from text anchor.
+ await page.$eval('.tree-item[data-path="items.0"]',el=>el.click());
+ await page.click('.character-page-align-row [data-page-align="center-x"]');
+ const fromCharacter=await pageRect();
+ assert(Math.abs(fromCharacter.center-fromCharacter.paperCenter)<2.5,'Character panel page center aligns actual glyph');
+ await page.click('.character-page-align-row [data-page-align="top"]');
+ const upper=await pageRect();
+ assert(Math.abs(upper.top-upper.paperTop)<2.5,'Character panel top aligns visible glyph');
+ console.log('PASS Character panel page alignment acts on painted text bounds');
+ await page.click('[data-tool="text"]');
+ await page.mouse.click(blankPoint.x+30,blankPoint.y+25);
+ assert.equal(await page.$eval('[data-canvas-text-editor]',el=>!el.hidden),true);
+ await page.keyboard.type('Discard me');await page.keyboard.press('Escape');
+ assert.equal(await page.$eval('#jsonEditor',el=>JSON.parse(el.value).items.length),2,
+  'Escape after creating new text should discard the empty layer');
+ console.log('PASS Cancel removes an unfinished newly created text object');
  // Responsive editor: direct edit remains visible and its actions are on-screen.
  const phone=await browser.newPage();await phone.setViewport({width:390,height:844,isMobile:true,hasTouch:true});
  phone.on('pageerror',e=>errors.push(e.message));phone.on('dialog',d=>d.accept());
