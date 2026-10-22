@@ -20,6 +20,8 @@ import { valueHint, variableTypeHint } from "./src/features/value-hints.js";
 import { LAYER_COLORS, readLayerColors, validLayerColor } from "./src/features/layer-colors.js";
 import { screenToDocumentPoint } from "./src/features/pointer-geometry.js";
 import { paintedBounds } from "./src/features/painted-bounds.js";
+import {textPaintedBounds,syncTextSelection} from "./src/features/text-selection-bounds.js";
+import {enhanceCharacterPanel} from "./src/ui/character-panel.js";
 import { imageDisplayBounds, imageResizeFit } from "./src/features/image-frame.js";
 import {isCropGroup,createNativeCropGroup,moveCropPicture,constrainCrop,zoomCropPicture,cropCoverGeometry} from "./src/features/native-image-crop.js";
 import { repeatPositions } from "./src/features/repeat-layout.js";
@@ -763,6 +765,12 @@ const definitions=svg('defs');definitions.appendChild(mask);paper.appendChild(de
 const artwork=svg('g',{id:'page-artwork','clip-path':'url(#xstudio-page-artwork-clip)'});
 paper.appendChild(artwork);
 const box={x:0,y:0,w:pageSize[0],h:pageSize[1],vars:{...previewValues,W:pageSize[0],H:pageSize[1],i:0,j:0}};(doc.items||[]).forEach((n,i)=>{const e=renderNode(n,["items",i],box);if(e)artwork.appendChild(e);});
+// Text boxes are font-, baseline- and rotation-dependent. Wait until text
+// is attached to the actual SVG so the browser can measure painted glyphs;
+// ensure hitboxes and transform handles share those exact measurements.
+for(const node of artwork.querySelectorAll('g.svg-node[data-path]')){
+ if(node.querySelector(':scope > text'))syncTextSelection(node,paper);
+}
 // Overlay for editor controls lives OUTSIDE the clipped artwork. Selected
 // off-page objects still expose their eight resize handles and selection box.
 // Only the rendered shapes remain inside the page clip path.
@@ -1268,6 +1276,7 @@ function renderAdvanced(n){
     for(const field of sections[id]){
      field.element.dataset.characterField=field.keys[0];controls.appendChild(field.element);
     }
+    enhanceCharacterPanel(controls);
     root.appendChild(controls);
    }else for(const field of sections[id])root.appendChild(field.element);
   }else{
@@ -1984,7 +1993,9 @@ function insertionContext(){
 function transformGeometry(n,path=selectedPath){
  const box=parentBoxForPath(path),type=n.type;
  if(type==="repeat")return null;
- const b=selectionBounds(n,box);
+ const b=type==='text' ?
+  ([...paper.querySelectorAll('g.svg-node[data-path]')].filter(el=>el.dataset.path===nodeKey(path)).map(el=>textPaintedBounds(el,paper)).find(Boolean)||selectionBounds(n,box)) :
+  selectionBounds(n,box);
  if(type==="hline"){
   const x1=evalN(n.x1??0,box,"x"),x2=evalN(n.x2??"100%",box,"x");
   return{x:box.x+Math.min(x1,x2),y:box.y+evalN(n.y??0,box,"y"),w:Math.abs(x2-x1),h:0.6};
