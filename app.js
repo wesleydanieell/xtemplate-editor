@@ -21,6 +21,8 @@ import { LAYER_COLORS, readLayerColors, validLayerColor } from "./src/features/l
 import { screenToDocumentPoint } from "./src/features/pointer-geometry.js";
 import { paintedBounds } from "./src/features/painted-bounds.js";
 import {textPaintedBounds,syncTextSelection} from "./src/features/text-selection-bounds.js";
+import {resizeTextToFrame,textResizeAxis} from "./src/features/text-resize.js";
+import {createTextInlineEditor} from "./src/ui/text-inline-editor.js";
 import {enhanceCharacterPanel} from "./src/ui/character-panel.js";
 import { imageDisplayBounds, imageResizeFit } from "./src/features/image-frame.js";
 import {isCropGroup,createNativeCropGroup,moveCropPicture,constrainCrop,zoomCropPicture,cropCoverGeometry} from "./src/features/native-image-crop.js";
@@ -401,7 +403,7 @@ if(type==="repeat"&&(isSelected||repeatedDescendantSelected)&&repeatFrame){
  g.appendChild(svg("rect",{class:"svg-selection repeat-selection",x:b.x,y:b.y,width:Math.max(1,b.w),height:Math.max(1,b.h)}));
 
 }
-const hitTypes=["image","rect","text","path","ellipse","circle","dot","line","hline","vline","polygon","polyline"];if(hitTypes.includes(type)||(isSelected&&["group","repeat"].includes(type))){const hb=selectionBounds(n,box);g.insertBefore(svg("rect",{class:"svg-hitbox",x:hb.x,y:hb.y,width:Math.max(2,hb.w),height:Math.max(2,hb.h),fill:"transparent",stroke:"none","pointer-events":"all"}),g.firstChild);}if(isSelected&&type!=="repeat"&&(!repeatChild||showHandles)){const b=selectionBounds(n,box);g.appendChild(svg("rect",{class:"svg-selection",x:b.x,y:b.y,width:Math.max(1,b.w),height:Math.max(1,b.h)}));if(showHandles&&["image","group","rect","path","ellipse","circle","dot","line","hline","vline","polyline","polygon"].includes(type)&&(b.w>1||b.h>1)){const hs=1.7,pts=[[b.x,b.y,"nw"],[b.x+b.w/2,b.y,"n"],[b.x+b.w,b.y,"ne"],[b.x+b.w,b.y+b.h/2,"e"],[b.x+b.w,b.y+b.h,"se"],[b.x+b.w/2,b.y+b.h,"s"],[b.x,b.y+b.h,"sw"],[b.x,b.y+b.h/2,"w"]],visiblePts=type==="hline"?pts.filter(p=>["e","w"].includes(p[2])):type==="vline"?pts.filter(p=>["n","s"].includes(p[2])):pts;for(const [hx,hy,id] of visiblePts)g.appendChild(svg("rect",{class:"transform-handle handle-"+id,"data-handle":id,x:hx-hs/2,y:hy-hs/2,width:hs,height:hs,rx:.25}));if(!repeatChild&&type==="text"){g.appendChild(svg("line",{class:"rotation-stem",x1:b.x+b.w/2,y1:b.y,x2:b.x+b.w/2,y2:b.y-5}));g.appendChild(svg("circle",{class:"transform-handle rotate-handle","data-handle":"rotate",cx:b.x+b.w/2,cy:b.y-5,r:1.5}));}}else if(type==="text"&&showHandles&&!repeatChild){
+const hitTypes=["image","rect","text","path","ellipse","circle","dot","line","hline","vline","polygon","polyline"];if(hitTypes.includes(type)||(isSelected&&["group","repeat"].includes(type))){const hb=selectionBounds(n,box);g.insertBefore(svg("rect",{class:"svg-hitbox",x:hb.x,y:hb.y,width:Math.max(2,hb.w),height:Math.max(2,hb.h),fill:"transparent",stroke:"none","pointer-events":"all"}),g.firstChild);}if(isSelected&&type!=="repeat"&&(!repeatChild||showHandles)){const b=selectionBounds(n,box);g.appendChild(svg("rect",{class:"svg-selection",x:b.x,y:b.y,width:Math.max(1,b.w),height:Math.max(1,b.h)}));if(showHandles&&["image","group","rect","text","path","ellipse","circle","dot","line","hline","vline","polyline","polygon"].includes(type)&&(b.w>1||b.h>1)){const hs=1.7,pts=[[b.x,b.y,"nw"],[b.x+b.w/2,b.y,"n"],[b.x+b.w,b.y,"ne"],[b.x+b.w,b.y+b.h/2,"e"],[b.x+b.w,b.y+b.h,"se"],[b.x+b.w/2,b.y+b.h,"s"],[b.x,b.y+b.h,"sw"],[b.x,b.y+b.h/2,"w"]],visiblePts=type==="hline"?pts.filter(p=>["e","w"].includes(p[2])):type==="vline"?pts.filter(p=>["n","s"].includes(p[2])):pts;for(const [hx,hy,id] of visiblePts)g.appendChild(svg("rect",{class:"transform-handle handle-"+id,"data-handle":id,x:hx-hs/2,y:hy-hs/2,width:hs,height:hs,rx:.25}));if(!repeatChild&&type==="text"){g.appendChild(svg("line",{class:"rotation-stem",x1:b.x+b.w/2,y1:b.y,x2:b.x+b.w/2,y2:b.y-5}));g.appendChild(svg("circle",{class:"transform-handle rotate-handle","data-handle":"rotate",cx:b.x+b.w/2,cy:b.y-5,r:1.5}));}}else if(type==="text"&&showHandles&&!repeatChild){
  g.appendChild(svg("line",{class:"rotation-stem",x1:b.x+b.w/2,y1:b.y,x2:b.x+b.w/2,y2:b.y-5}));
  g.appendChild(svg("circle",{class:"transform-handle rotate-handle","data-handle":"rotate",cx:b.x+b.w/2,cy:b.y-5,r:1.5}));
  }}
@@ -776,7 +778,7 @@ for(const node of artwork.querySelectorAll('g.svg-node[data-path]')){
 // Only the rendered shapes remain inside the page clip path.
 const selectionOverlay=svg('g',{id:'editor-selection-overlay'});
 for(const node of artwork.querySelectorAll('g[data-path]')){
- const handles=[...node.children].filter(child=>child.classList?.contains('svg-selection')||child.classList?.contains('transform-handle')||child.classList?.contains('rotation-stem'));
+ const handles=[...node.children].filter(child=>child.classList?.contains('svg-selection')||child.classList?.contains('transform-handle')||child.classList?.contains('transform-hit-area')||child.classList?.contains('rotation-stem'));
  if(!handles.length)continue;
  const layer=svg('g',{'data-path':node.dataset.path,'data-instance':node.dataset.instance||0,class:'selection-control-layer'});
  for(const handle of handles)layer.appendChild(handle);
@@ -1439,7 +1441,7 @@ jsonEditor.addEventListener("click",updateCursor);jsonEditor.addEventListener("k
 function updateCursor(){const before=jsonEditor.value.slice(0,jsonEditor.selectionStart),lines=before.split("\n");$("jsonCursor").textContent="Line "+lines.length+", column "+(lines[lines.length-1].length+1);}
 $("formatJson").addEventListener("click",()=>{try{const next=JSON.parse(jsonEditor.value);validate(next);doc=next;syncJson();initializePreviewValues();render();setDirty(true);toast("JSON formatted.");}catch(e){toast("Invalid JSON: "+e.message);}});
 $("resetJson").addEventListener("click",()=>{syncJson();initializePreviewValues();render();toast("JSON editor reverted to the last valid version.");});
-function toggleSplit(force){split=force===undefined?!split:force;$("jsonPane").classList.toggle("hidden",!split);$("splitToggle").classList.toggle("active",split);$("splitToggle").querySelector("span").textContent=split?"Close JSON":"Split editor";if(split){syncJson();$("jsonEditor").focus();}fitPaper();}
+function toggleSplit(force){split=force===undefined?!split:force;$("jsonPane").classList.toggle("hidden",!split);$("splitToggle").classList.toggle("active",split);$("splitToggle").setAttribute("aria-pressed",String(split));$("splitToggle").querySelector("span").textContent=split?"Close JSON":"Split editor";if(split){syncJson();$("jsonEditor").focus();}fitPaper();}
 $("splitToggle").addEventListener("click",()=>toggleSplit());
 $("metaKind").addEventListener('change',e=>commit(()=>{if(e.target.value==='cover')doc.kind='cover';else delete doc.kind;}));
 $("metaName").addEventListener("change",e=>commit(()=>doc.name=e.target.value.trim()||"Untitled"));$("metaId").addEventListener("change",e=>commit(()=>{if(e.target.value)doc.id=e.target.value;else delete doc.id;}));$("metaDescription").addEventListener("change",e=>commit(()=>{if(e.target.value)doc.description=e.target.value;else delete doc.description;}));$("metaAuthor").addEventListener("change",e=>commit(()=>{if(e.target.value)doc.author=e.target.value;else delete doc.author;}));$("metaLicense").addEventListener("change",e=>commit(()=>{if(e.target.value)doc.license=e.target.value;else delete doc.license;}));$("metaVersion").addEventListener("change",e=>commit(()=>{if(e.target.value)doc.version=e.target.value;else delete doc.version;}));$("metaTags").addEventListener("change",e=>commit(()=>{doc.tags=e.target.value.split(",").map(s=>s.trim()).filter(Boolean);}));
@@ -1506,11 +1508,12 @@ function snappedResizeBounds(bounds,handle,excludedPaths=[],targets=null){
  const rect=paper.getBoundingClientRect(),tx=7*pageSize[0]/Math.max(1,rect.width),ty=7*pageSize[1]/Math.max(1,rect.height);
  return calculateResizeSnap(bounds,handle,targets||snapTargetsFor(excludedPaths),{w:pageSize[0],h:pageSize[1]},tx,ty);
 }
-function resizeForGesture(bounds,handle,dx,dy,shiftKey,paths,targets){
- const rect=paper.getBoundingClientRect(),toleranceX=7*pageSize[0]/Math.max(1,rect.width),
-   toleranceY=7*pageSize[1]/Math.max(1,rect.height);
+function resizeForGesture(bounds,handle,dx,dy,shiftKey,paths,targets,options={}){
+ const rect=paper.getBoundingClientRect(),px=options.text?3:7;
+ const toleranceX=px*pageSize[0]/Math.max(1,rect.width),
+   toleranceY=px*pageSize[1]/Math.max(1,rect.height);
  return resizeGestureBounds(bounds,handle,dx,dy,{
-  shiftKey,magnetic:magneticGuidesEnabled,
+  shiftKey,magnetic:magneticGuidesEnabled&&!options.noSnap,
   targets:targets||snapTargetsFor(paths),page:{w:pageSize[0],h:pageSize[1]},
   toleranceX,toleranceY
  });
@@ -1566,7 +1569,20 @@ function replaceAt(path,value){const parent=getAt(path.slice(0,-1)),index=path.a
 function unionBounds(items){const bounds=items.map(item=>item.bounds).filter(Boolean);if(!bounds.length)return null;const x=Math.min(...bounds.map(b=>b.x)),y=Math.min(...bounds.map(b=>b.y)),right=Math.max(...bounds.map(b=>b.x+b.w)),bottom=Math.max(...bounds.map(b=>b.y+b.h));return{x,y,w:right-x,h:bottom-y};}
 
 const draggableTypes=new Set(["image","group","rect","path","text","ellipse","circle","dot","line","hline","vline","polyline","polygon"]);
+let previousTextClick=null;
 paper.addEventListener("pointerdown",e=>{
+ // Type tool on an existing text object edits it, as in Figma/Photoshop.
+ // Clicking empty paper continues to insert a new text object as before.
+ if(activeTool==='text'&&e.button===0){
+  const hit=e.target.closest('g.svg-node[data-path]');
+  if(hit){
+   const path=toPath(hit.dataset.path);
+   if(getAt(path)?.type==='text'){
+    setActiveTool('select');beginCanvasTextEdit(path,{caret:'point',clientX:e.clientX});
+    e.preventDefault();e.stopImmediatePropagation();return;
+   }
+  }
+ }
  if(activeTool==='select'&&e.button===0&&pathCurrent()){
   const handle=e.target.closest('[data-svg-path-point]');if(handle){
    if(document.activeElement?.matches('select,button'))document.activeElement.blur();
@@ -1628,6 +1644,21 @@ paper.addEventListener("pointerdown",e=>{
  }
  const handle=e.target.closest("[data-handle]")?.dataset.handle,key=nodeKey(path);
  if(!n)return;
+ // Rendering the selected layer replaces the SVG hit element between clicks.
+ // Recognize a genuine double-press at the pointer level instead of relying
+ // exclusively on the browser dblclick event (which loses its original target).
+ if(n.type==='text'&&!e.ctrlKey&&!e.shiftKey&&!e.altKey){
+  const now=performance.now();
+  const doublePress=previousTextClick?.key===key&&now-previousTextClick.time<450&&
+    Math.hypot(e.clientX-previousTextClick.x,e.clientY-previousTextClick.y)<13;
+  if((doublePress||e.detail>=2)&&(!handle||e.target.closest('.transform-hit-area'))){
+   previousTextClick=null;drag=null;
+   beginCanvasTextEdit(path,{caret:'point',clientX:e.clientX});
+   e.preventDefault();return;
+  }
+  previousTextClick=handle&&!e.target.closest('.transform-hit-area')?null:
+   {key,time:now,x:e.clientX,y:e.clientY};
+ }else previousTextClick=null;
  if(isCropGroup(n)&&imageCropPath===key&&!handle){
   if(!selectedPath||nodeKey(selectedPath)!==key)select(path);
   drag={pointerId:e.pointerId,mode:'crop-pan',path:path.slice(),origin:clone(n),startPoint:pagePoint(e),startX:e.clientX,startY:e.clientY,moved:false};
@@ -1641,7 +1672,7 @@ paper.addEventListener("pointerdown",e=>{
  else focusedRepeatInstance=null;
  if((e.ctrlKey||e.metaKey||e.shiftKey)&&!handle){selectFromTree(path,e);return;}
  const multi=!handle&&selectedPaths.length>1&&selectedPaths.some(p=>nodeKey(p)===key);
- if(!multi)select(path);
+ if(!multi&&!(selectedPaths.length===1&&selectedPath&&nodeKey(selectedPath)===key))select(path);
  if(n.type==="repeat"&&handle!=="rotate")return;
  if(!draggableTypes.has(n.type)&&n.type!=="repeat")return;
  const parentBox=parentBoxForPath(path),geometry=transformGeometry(n,path);
@@ -1700,8 +1731,9 @@ paper.addEventListener("pointermove",e=>{
   moveCropPicture(n.children[0],cropFrameSize(n,drag.path),delta.dx,delta.dy);
   drag.moved=true;renderCanvas();e.preventDefault();return;
  }
- if(!drag.moved&&Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)<3)return;
- drag.moved=true;const point=pagePoint(e);let dx=point.x-drag.startPoint.x,dy=point.y-drag.startPoint.y;
+ if(!drag.moved&&Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)<
+  (drag.mode==='transform'&&drag.origin.type==='text'?1.5:3))return;
+ drag.moved=true;previousTextClick=null;const point=pagePoint(e);let dx=point.x-drag.startPoint.x,dy=point.y-drag.startPoint.y;
  if(drag.mode==="transform"&&drag.origin.type==="repeat"){
   const b=drag.bounds,angle=Math.atan2(point.y-(b.y+b.h/2),point.x-(b.x+b.w/2))*180/Math.PI-drag.startAngle;
   // Keep pointer capture intact: live-replacing the SVG during the drag
@@ -1743,12 +1775,15 @@ paper.addEventListener("pointermove",e=>{
   if(type==="text")n.rotate=Math.round(((Number(base.rotate)||0)+angle-drag.startAngle)/90)*90;
  }else{
   const h=drag.handle,resize=resizeForGesture(g,h,dx,dy,
-    e.shiftKey||['circle','dot'].includes(type),[drag.path],drag.snapTargets);
+    e.shiftKey||['circle','dot','text'].includes(type),[drag.path],drag.snapTargets,
+    {text:type==='text',noSnap:e.altKey});
   const {x:left,y:top,w:width,h:height}=resize.bounds,
     right=left+width,bottom=top+height;
   smartGuides=resize.guides;smartGuideSegments=resize.segments;
   renderSmartGuideOverlay();
-  if(type==="circle"||type==="dot"){
+  if(type==='text'){
+   resizeTextFromFrame(n,resize.bounds,textResizeAxis(h,g,resize.bounds),drag.path,g);
+  }else if(type==="circle"||type==="dot"){
    const size=Math.max(1,Math.max(width,height));
    n.r=fmt(size/2);n.cx=fmt(left+size/2-box.x);n.cy=fmt(top+size/2-box.y);
   }else if(type==="ellipse"){n.rx=fmt(Math.max(1,right-left)/2);n.ry=fmt(Math.max(1,bottom-top)/2);n.cx=fmt(left+(right-left)/2-box.x);n.cy=fmt(top+(bottom-top)/2-box.y);
@@ -1838,6 +1873,17 @@ paper.addEventListener("pointerup",e=>{
    ensureCropCoverage(node,state.path);
   }
  }
+ // Apply exact released pointer coordinates. The last move event is often
+ // coalesced, making the visual handle lag behind the cursor on release.
+ if(state.mode==='transform'&&state.origin.type==='text'&&state.handle!=='rotate'&&state.moved){
+  const end=pagePoint(e),dx=end.x-state.startPoint.x,dy=end.y-state.startPoint.y;
+  replaceAt(state.path,state.origin);
+  const frame=state.modelBounds||state.bounds;
+  const resized=resizeForGesture(frame,state.handle,dx,dy,true,[state.path],state.snapTargets,
+   {text:true,noSnap:e.altKey});
+  resizeTextFromFrame(getAt(state.path),resized.bounds,
+   textResizeAxis(state.handle,frame,resized.bounds),state.path,frame);
+ }
  // Use the pointerup coordinates too; some browsers coalesce the last pointermove event.
  if(state.mode==="move"&&Math.hypot(e.clientX-state.startX,e.clientY-state.startY)>=3){
   const end=pagePoint(e);let dx=end.x-state.startPoint.x,dy=end.y-state.startPoint.y;
@@ -1853,7 +1899,39 @@ paper.addEventListener("pointerup",e=>{
  }else if(state.moved)commit(()=>{});
  else render();
 });
+const inlineTextEditor=createTextInlineEditor({
+ onPreview(path,value){const n=getAt(path);if(n?.type==='text'){n.text=value;renderCanvas();}},
+ onApply(path,value,original){const n=getAt(path);if(n?.type!=='text')return;
+  n.text=value;
+  if(value!==original)commit(()=>{});else render();},
+ onCancel(path,original){const n=getAt(path);if(n?.type==='text'){n.text=original;render();}}
+});
+document.addEventListener('click',e=>{if(e.target.closest('[data-edit-text]'))beginCanvasTextEdit();});
+function beginCanvasTextEdit(path=selectedPath,{caret='all',clientX}={}){
+ const n=getAt(path);if(n?.type!=='text')return false;
+ // Mobile: close the Properties drawer so the text and keyboard aren't
+ // obscured by the panel that launched the editor.
+ if(window.matchMedia('(max-width: 720px)').matches){
+  const app=document.querySelector('.app');
+  if(app&&!app.classList.contains('app--hide-properties'))document.querySelector('[data-toggle-panel="properties"]')?.click();
+ }
+ if(Array.isArray(n.text)){toast('Array-based text should be edited in the Content field.');return false;}
+ select(path);
+ const glyph=[...paper.querySelectorAll('g.svg-node[data-path]')]
+  .find(el=>el.dataset.path===nodeKey(path))?.querySelector(':scope > text');
+ if(!glyph)return false;
+ return inlineTextEditor.open({path,value:n.text,glyph,caret,clientX,
+  findGlyph:()=>[...paper.querySelectorAll('g.svg-node[data-path]')]
+   .find(el=>el.dataset.path===nodeKey(path))?.querySelector(':scope > text')});
+}
 paper.addEventListener('dblclick',e=>{
+ if(activeTool==='select'){
+  const node=e.target.closest('g.svg-node[data-path]');
+  if(node&&getAt(toPath(node.dataset.path))?.type==='text'){
+   beginCanvasTextEdit(toPath(node.dataset.path),{caret:'point',clientX:e.clientX});e.preventDefault();e.stopPropagation();return;
+  }
+ }
+
  if(!vectorCurrent()||!e.target.closest('[data-vector-segment]'))return;
  const index=Number(e.target.closest('[data-vector-segment]').dataset.vectorSegment),node=vectorCurrent(),box=parentBoxForPath(selectedPath),pairs=readPointPairs(node.points);
  const next=(index+1)%pairs.length,a=pairs[index],b=pairs[next];
@@ -2013,7 +2091,12 @@ function transformRead(){
  if(!supported)return;
  const g=transformGeometry(n),type=n.type;
  const values={transformX:g.x,transformY:g.y,transformW:g.w,transformH:g.h,transformRotate:Number(n.rotate)||0,transformOpacity:Math.round((n.opacity===undefined?1:Number(n.opacity))*100)};
- const disabled={transformW:["text","vline"].includes(type),transformH:["text","hline"].includes(type),transformRotate:type!=="text"};
+ const disabled={transformW:type==="vline",transformH:type==="hline",transformRotate:type!=="text"};
+ for(const field of ['transformW','transformH']){
+  $(field).title=type==='text'
+   ?'Scales native font size proportionally. Hold Alt while dragging a handle to bypass snapping.'
+   :'Size in millimetres';
+ }
  const rotationControls=$("transformRotate").closest("label");
  if(rotationControls)rotationControls.classList.toggle("hidden",type!=="text");
  if(type==="circle"||type==="dot")values.transformH=values.transformW;
@@ -2042,13 +2125,24 @@ function arrangeSelection(action){
 }
 document.querySelectorAll("[data-arrange-selection]").forEach(button=>button.addEventListener("click",()=>arrangeSelection(button.dataset.arrangeSelection)));
 
+function resizeTextFromFrame(n,target,axis,path=selectedPath,frame=transformGeometry(n,path)){
+ const box=parentBoxForPath(path);
+ const fontSize=evalN(n.size??'3.5mm',box,'short',3.5);
+ const anchor={x:box.x+evalN(n.x??0,box,'x'),y:box.y+evalN(n.y??0,box,'y')};
+ const result=resizeTextToFrame({frame,target,anchor,fontSize,axis});
+ if(!result)return;
+ const fmt=x=>Number(x.toFixed(3))+'mm';
+ n.size=fmt(result.size);n.x=fmt(result.x-box.x);n.y=fmt(result.y-box.y);
+}
 function applyTransformChange(n,key,value){
  const g=transformGeometry(n),type=n.type,box=parentBoxForPath(selectedPath),v=Number(value);
  if(key==="rotate"){if(type==="text")n.rotate=Math.round(v/90)*90;return;}
  if(key==="opacity"){n.opacity=Math.max(0,Math.min(1,v/100));return;}
  if(key==="x"||key==="y"){moveBy(n,key==="x"?v-g.x:0,key==="y"?v-g.y:0,box);return;}
  if(key==="w"||key==="h"){
-  if(type==="text")return;
+  if(type==='text'){
+   resizeTextFromFrame(n,{...g,[key]:Math.max(1,v)},key,selectedPath,g);return;
+  }
   if(type==="circle"||type==="dot"){
    const size=Math.max(1,v),left=g.x-box.x,top=g.y-box.y,diam=size;
    n.r=(diam/2)+"mm";n.cx=(left+diam/2)+"mm";n.cy=(top+diam/2)+"mm";return;
@@ -2227,7 +2321,7 @@ function renderQuickProperties(){
  const root=$("quickProperties");if(!root)return;root.replaceChildren();
  if(!selectedPaths.length){const empty=document.createElement("span");empty.className="quick-properties-empty";empty.textContent="Quick properties";root.appendChild(empty);return;}
  const node=getAt(selectedPath);if(!node||node.type==="page"){const label=document.createElement("span");label.className="quick-properties-label";label.textContent="PAGE";root.appendChild(label);const info=document.createElement("span");info.textContent=pageSize[0]+" × "+pageSize[1]+" mm";root.appendChild(info);return;}
- const multi=selectedPaths.length>1,g=multi?null:transformGeometry(node,selectedPath),geometryKeys=g?["x","y","w","h"].filter(key=>!(node.type==="text"&&["w","h"].includes(key))&&!(node.type==="hline"&&key==="h")&&!(node.type==="vline"&&key==="w")):[];
+ const multi=selectedPaths.length>1,g=multi?null:transformGeometry(node,selectedPath),geometryKeys=g?["x","y","w","h"].filter(key=>!(node.type==="hline"&&key==="h")&&!(node.type==="vline"&&key==="w")):[];
  const shared=multi?sharedEditableProperties(selectedPaths.map(path=>getAt(path)).filter(Boolean)):[];
  const fields=multi?(shared.includes("opacity")?[{key:"opacity",label:"Opacity",range:true}]:[]):[...geometryKeys.map(key=>({key,label:key.toUpperCase()})),...(node.type==="text"?[{key:"rotate",label:"Rotation"}]:[]),{key:"opacity",label:"Opacity",range:true}];
  const type=document.createElement("span");type.className="quick-properties-label";type.textContent=multi?selectedPaths.length+" selected":String(node.type||"element").toUpperCase();root.appendChild(type);
@@ -2778,6 +2872,10 @@ paper.addEventListener("pointerup",finishDrawing);
 paper.addEventListener("pointercancel",()=>{drawState=null;renderDrawPreview();});
 // Additional editor shortcuts. Inputs retain normal text-editing behavior.
 window.addEventListener("keydown",e=>{const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)||document.activeElement.isContentEditable;if(activeTool==="pen"&&curveState&&!typing&&e.key==="Backspace"){e.preventDefault();if(curveState.pointerId!==null)return;curveState.points.pop();curveState.activeIndex=curveState.points.length-1;if(!curveState.points.length){curveState=null;toast("Path cleared.");}renderPenPreview();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){if(typing)return;e.preventDefault();if(e.shiftKey)redo();else undo();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="y"){if(typing)return;e.preventDefault();redo();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="n"){e.preventDefault();$("newBtn").click();}if(typing)return;
+ if(e.key==='Enter'&&!e.ctrlKey&&!e.altKey&&!e.metaKey&&activeTool==='select'&&
+  selectedPath&&getAt(selectedPath)?.type==='text'){
+  e.preventDefault();beginCanvasTextEdit(selectedPath,{caret:'end'});return;
+ }
  if(vectorCurrent()&&e.key==='Backspace'){
   e.preventDefault();
   try{

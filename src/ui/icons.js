@@ -41,7 +41,7 @@ const entries=[
  ['#emptySelection .empty-icon','mouse-pointer-2'],
  ['[data-image-crop="toggle"]','crop'],['[data-image-crop-cancel]','x'],
  ['[data-image-replace]','image'],['#penCancel','x'],
- ['#togglePasteboard','scan'],['#splitToggle','file-code-2'],
+ ['#togglePasteboard','scan'],['#splitToggle','columns-2'],
  ['#canvasAddImage','image'],['[data-tool="select"]','mouse-pointer-2'],
  ['[data-tool="rect"]','square'],['[data-tool="ellipse"]','circle'],
  ['[data-tool="pen"]','pen-tool'],['[data-tool="ruled"]','rows-3'],

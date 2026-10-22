@@ -24,6 +24,10 @@ export function buildInspectorLayout(root){
  // Alignment relates to positioning, not to the initial content of the layout.
  const align=layout.querySelector('.alignment-tools');if(align)layout.append(align);
  const content=section('content','Content');content.append(textField);
+ const edit=document.createElement('button');edit.type='button';edit.className='text-edit-launch';
+ edit.dataset.editText='true';edit.textContent='Edit on canvas';
+ edit.title='Double-click a text object on the page to edit it';
+ content.append(edit);
  const geometry=section('layout','Transform');geometry.append(layout);
  const appearance=section('appearance','Appearance');appearance.append(paints,stroke,opacity);
  const specifics=section('specific','Object settings');specifics.append(advanced);
