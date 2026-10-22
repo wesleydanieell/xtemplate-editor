@@ -28,3 +28,8 @@ The entire application uses **Lucide static SVGs** under the ISC license, not re
 - [Adobe Photoshop — Tools overview](https://helpx.adobe.com/photoshop/using/tools.html)
 
 Icon density is deliberately limited in property inputs: X, Y, W, H and numeric controls remain textual for quick scanning. Avoid irrelevant decoration, icon-only destructive actions, or confusing ambiguous symbols.
+
+
+### V3.3 UI cleanup
+
+The image insertion canvas tool now has a single SVG, with a regression test that rejects legacy/new icon overlap. Bold, Italic and Align left/center/right use the same Lucide visual grammar as other editor actions and update the underlying native text properties. On/off state is visible via the segmented button and announced through `aria-pressed`.

@@ -95,3 +95,14 @@ Reference reading:
 ## V3.2 — coherent iconography
 
 All major app surfaces now share one curated [Lucide icon system](ICON_SYSTEM.md), including navigation, insert/tools, layer types, contextual properties and crop actions. The visual hierarchy continues to prioritize task grouping and short text labels, with icon-only display reserved for well-labeled compact tools. Tests confirm that dynamic controls receive only one icon and that desktop/phone views retain all actions.
+
+
+## V3.3 — Character tools, alignment and measured text transforms
+
+The Photoshop-inspired Character panel now places **font family** on its own row, **size/baseline** in equal-width columns, and **Bold/Italic** plus left/center/right alignment in compact icon-button groups. The visible buttons proxy the original `weight`, `italic`, and `align` inputs and dispatch their native change events; they neither invent unsupported XNotes font attributes nor create additional document state. Each icon has accessible text, tooltip and an `aria-pressed` state. Icons remain offline-bundled Lucide SVGs.
+
+All inspector Transform X/Y/W/H numeric fields use consistent two-column baselines, without changing the existing numeric scrubbing semantics. Source image insertion now has exactly one native Lucide icon instead of a legacy SVG under a newly injected icon.
+
+**Text transform bounds** use the actual rendered SVG `getBBox()` projected through the glyph-to-page transform. The selected outline, hit target, rotation stem/handle and numeric inspector X/Y/W/H now share this measured rectangle instead of an approximation based on character count. Empty text retains a small selectable anchor. The text transformation remains constrained by the official format (e.g. 90° rotation steps). Browser regressions cover variable font sizes, typefaces, alignments, baseline positions, 90°/270° rotations and empty strings.
+
+Automated layout assertions check the icon count, text-button baselines, X/Y/W/H column alignment and Character field placement at both desktop and phone widths. The new behavior is covered by `scripts/browser-text-bounds-smoke.mjs` and extended icon/UX tests.
