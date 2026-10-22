@@ -7,7 +7,7 @@
 [![Linux AppImage](https://github.com/wesleydanieell/xtemplate-editor/actions/workflows/appimage.yml/badge.svg)](https://github.com/wesleydanieell/xtemplate-editor/actions/workflows/appimage.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-> **Current release: [v0.1.0-alpha.6](https://github.com/wesleydanieell/xtemplate-editor/releases/tag/v0.1.0-alpha.6)** · Preview software; some advanced rendering may differ from XNotes Android.
+> **Current release: [v0.1.0-alpha.7](https://github.com/wesleydanieell/xtemplate-editor/releases/tag/v0.1.0-alpha.7)** · Preview software; some advanced rendering may differ from XNotes Android.
 
 ## Preview
 
