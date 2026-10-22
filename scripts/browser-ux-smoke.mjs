@@ -15,7 +15,7 @@ const server=createServer(async(req,res)=>{try{const file=resolve(root,decodeURI
  const content=await readFile(file);res.writeHead(200,{'content-type':mime[extname(file)]||'application/octet-stream'});res.end(content);
 }catch{res.writeHead(404);res.end();}});
 server.listen(0,'127.0.0.1');await once(server,'listening');
-const bases=['/usr/bin/chromium','/usr/bin/google-chrome',...readdirSync(resolve(homedir(),'.cache/ms-playwright')).filter(x=>x.startsWith('chromium-')).map(x=>resolve(homedir(),'.cache/ms-playwright',x,'chrome-linux64/chrome'))];
+const bases=[process.env.XTEMPLATE_BROWSER_PATH,'/usr/bin/chromium','/usr/bin/google-chrome',...(existsSync(resolve(homedir(),'.cache/ms-playwright'))?readdirSync(resolve(homedir(),'.cache/ms-playwright')):[]).filter(x=>x.startsWith('chromium-')).map(x=>resolve(homedir(),'.cache/ms-playwright',x,'chrome-linux64/chrome'))];
 const executablePath=process.env.XTEMPLATE_BROWSER_PATH||bases.find(x=>existsSync(x));assert(executablePath,'Chromium executable required');
 const browser=await puppeteer.launch({executablePath,headless:true,args:['--no-sandbox','--disable-gpu']});
 const errors=[];
