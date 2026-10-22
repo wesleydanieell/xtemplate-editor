@@ -32,6 +32,8 @@ export function enhanceCharacterPanel(root){
   // event bindings and remains script-addressable for older editor workflows.
   field.querySelector('input,select')?.setAttribute('tabindex','-1');
  }
+ // Keep both short, related option groups in one compact two-column row.
+ const compact=document.createElement('div');compact.className='character-compact-actions';
  const styles=group('Style','character-style-row');
  styles.tools.append(
   buttonFor({label:'Bold',name:'bold',pressed:weight.value==='bold',onClick:()=>{
@@ -41,7 +43,7 @@ export function enhanceCharacterPanel(root){
    italic.checked=!italic.checked;italic.dispatchEvent(new Event('change',{bubbles:true}));
   }})
  );
- root.append(styles.row);
+ compact.append(styles.row);
  const align=group('Text anchor','character-alignment-row');
  for(const [value,label,iconName] of [
   ['start','Align left','align-left'],['middle','Align center','align-center'],['end','Align right','align-right']]){
@@ -50,7 +52,8 @@ export function enhanceCharacterPanel(root){
    alignment.value=value;alignment.dispatchEvent(new Event('change',{bubbles:true}));
   }}));
  }
- root.append(align.row);
+ compact.append(align.row);
+ root.append(compact);
  const place=group('Place on page','character-page-align-row');
  for(const [command,label,iconName] of [
   ['left','Page left','align-start-vertical'],['center-x','Page horizontal center','align-center-vertical'],

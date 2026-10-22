@@ -20,6 +20,15 @@
 :root[data-theme] #elementInspector .character-controls>.character-native-proxy{position:absolute!important;left:-9999px!important;top:auto!important;width:1px!important;height:1px!important;overflow:hidden!important;pointer-events:none!important;clip-path:inset(50%)!important}
 :root[data-theme] #elementInspector .character-action-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;grid-column:1/-1;min-height:36px;gap:8px}
 :root[data-theme] #elementInspector .character-action-caption{font-size:11px;font-weight:500;color:var(--ui-muted)}
+/* Style and Text anchor share one full-width Character row, two equal columns.
+   Each heading sits above its segmented controls. No fixed-size buttons can
+   spill into the adjacent group even in narrow desktop or phone drawers. */
+:root[data-theme] #elementInspector .character-compact-actions{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;align-items:stretch;min-width:0}
+:root[data-theme] #elementInspector .character-compact-actions>.character-action-row{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;grid-column:auto;grid-template-columns:none;gap:6px;min-height:0;min-width:0}
+:root[data-theme] #elementInspector .character-compact-actions .character-action-caption{display:block;line-height:1.35;min-height:15px;white-space:nowrap}
+:root[data-theme] #elementInspector .character-compact-actions .character-segmented{display:flex;width:100%;min-width:0;min-height:36px}
+:root[data-theme] #elementInspector .character-compact-actions .character-segment{flex:1 1 0;width:0;min-width:0;padding:0}
+
 :root[data-theme] #elementInspector .character-segmented{display:flex;align-items:center;gap:0;border:1px solid var(--ui-border);border-radius:8px;overflow:hidden;background:var(--ui-surface-alt)}
 :root[data-theme] #elementInspector .character-segment{box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:42px;height:36px;min-width:42px;min-height:36px;margin:0;padding:0;border:0;border-radius:0;background:transparent;color:var(--ui-muted);cursor:pointer;transition:background-color .12s ease,color .12s ease}
 :root[data-theme] #elementInspector .character-segment+.character-segment{border-left:1px solid var(--ui-divider)}
