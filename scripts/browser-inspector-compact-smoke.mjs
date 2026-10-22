@@ -17,7 +17,7 @@ const server=createServer(async(req,res)=>{try{
 }catch{res.writeHead(404);res.end();}});
 server.listen(0,'127.0.0.1');await once(server,'listening');
 const base=resolve(homedir(),'.cache/ms-playwright');
-const executablePath=[process.env.XTEMPLATE_BROWSER_PATH,'/usr/bin/chromium',...readdirSync(base).filter(x=>x.startsWith('chromium-')).map(x=>resolve(base,x,'chrome-linux64/chrome'))].find(x=>x&&existsSync(x));assert(executablePath);
+const executablePath=[process.env.XTEMPLATE_BROWSER_PATH,'/usr/bin/chromium',...(existsSync(base)?readdirSync(base):[]).filter(x=>x.startsWith('chromium-')).map(x=>resolve(base,x,'chrome-linux64/chrome'))].find(x=>x&&existsSync(x));assert(executablePath);
 const browser=await puppeteer.launch({executablePath,headless:true,args:['--no-sandbox']});
 const doc={xtemplate:1,name:'Compact inspector',kind:'page',items:[
  {type:'text',text:'Editorial typography',x:'16mm',y:'28mm',size:'8mm',fill:'#385f91',stroke:'none'},

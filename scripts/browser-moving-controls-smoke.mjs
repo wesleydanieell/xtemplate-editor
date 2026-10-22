@@ -15,7 +15,7 @@ const server=createServer(async(req,res)=>{try{
 }catch{res.writeHead(404);res.end();}});
 server.listen(0,'127.0.0.1');await once(server,'listening');
 const base=resolve(homedir(),'.cache/ms-playwright');
-const executablePath=[process.env.XTEMPLATE_BROWSER_PATH,'/usr/bin/chromium',...readdirSync(base).filter(x=>x.startsWith('chromium-')).map(x=>resolve(base,x,'chrome-linux64/chrome'))].find(x=>x&&existsSync(x));
+const executablePath=[process.env.XTEMPLATE_BROWSER_PATH,'/usr/bin/chromium',...(existsSync(base)?readdirSync(base):[]).filter(x=>x.startsWith('chromium-')).map(x=>resolve(base,x,'chrome-linux64/chrome'))].find(x=>x&&existsSync(x));
 const browser=await puppeteer.launch({executablePath,headless:true,args:['--no-sandbox']});
 const template={xtemplate:1,kind:'page',name:'Controls follow movement',items:[
  {type:'rect',x:'20mm',y:'20mm',w:'30mm',h:'16mm',fill:'#6688bb'},
