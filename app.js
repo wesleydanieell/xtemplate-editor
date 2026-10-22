@@ -1,3 +1,4 @@
+import {initIcons} from "./src/ui/icons.js";
 import { initInsertMenu } from "./src/ui/insert-menu.js";
 import { buildInspectorLayout, updateInspectorLayout } from "./src/ui/inspector-layout.js";
 import { initWorkspacePanels } from "./src/ui/workspace-layout.js";
@@ -853,7 +854,7 @@ function renderTree(){
  indexTypes(roots);
  function add(n,path,depth){
   const key=nodeKey(path),children=isCropGroup(n)?[]:(branchTypes.has(n.type)?(n.children||[]):[]),canExpand=children.length>0,active=selectedPaths.some(p=>nodeKey(p)===key),typeOrdinal=typeOrdinalByNode.get(n)||1;
-  const b=document.createElement("button");b.type="button";b.className="tree-item tree-type-"+(n.type||"other")+(active?" active":"");b.setAttribute("aria-pressed",String(active));b.dataset.path=key;b.draggable=true;b.style.paddingLeft=(12+depth*18)+"px";
+  const b=document.createElement("button");b.type="button";b.className="tree-item tree-type-"+(n.type||"other")+(active?" active":"");b.setAttribute("aria-pressed",String(active));b.dataset.path=key;b.dataset.layerType=n.type;b.draggable=true;b.style.paddingLeft=(12+depth*18)+"px";
   b.addEventListener("dragstart",e=>{
    treeDragSource=path.slice();
    const selected=selectedPaths.some(item=>nodeKey(item)===key);
@@ -2878,6 +2879,6 @@ window.addEventListener("keydown",e=>{
  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();e.stopPropagation();if(commandPalette.classList.contains("hidden"))openCommandPalette();else closeCommandPalette();return;}
  if(!commandPalette.classList.contains("hidden")&&e.key==="Escape"){closeCommandPalette();}
 },true);
-initWorkspacePanels();initTemplateLibrary();initInsertMenu();
+initWorkspacePanels();initTemplateLibrary();initInsertMenu();initIcons();
 loadLayerColors();initializePreviewValues();syncJson();render();setInspectorTab("properties");setLeftTab("layers");resetHistory();
 })();
