@@ -15,7 +15,8 @@ import { createHistory } from "./src/core/history.js";
 import { anchoredPan, nextZoomLevel } from "./src/features/zoom.js";
 import { calculateSnap, calculateObjectSnap, calculateResizeSnap } from "./src/features/snapping.js";
 import { rotationFromPointer, normalizeDialAngle } from "./src/features/rotation-wheel.js";
-import { variableChoices, completeExpression } from "./src/features/variable-completion.js";
+import { variableChoices, completeExpression, completeTextInterpolation } from "./src/features/variable-completion.js";
+import {variableFieldKind} from "./src/features/variable-field-support.js";
 import { valueHint, variableTypeHint } from "./src/features/value-hints.js";
 import { LAYER_COLORS, readLayerColors, validLayerColor } from "./src/features/layer-colors.js";
 import { screenToDocumentPoint } from "./src/features/pointer-geometry.js";
@@ -182,30 +183,15 @@ function updateLineNumbers(){const n=(jsonEditor.value.match(/\n/g)||[]).length+
 function ctxVars(c){return{...previewValues,...(c.vars||{}),W:c.w,H:c.h,i:c.i??c.vars?.i??0,j:c.j??c.vars?.j??0};}
 function resolveColor(v){if(v==null)return null;if(v==="ink")return $("inkColor").value;if(v==="accent")return $("accentColor").value;if(v==="none")return"none";if(Object.prototype.hasOwnProperty.call(previewValues,"$"+v))return previewValues["$"+v];return v;}
 const COLOR_SWATCHES=[]; // Kept empty: no palette suggestions; users may type a value or use preview pickers.
-function emitColorChange(input){input.dispatchEvent(new Event("input",{bubbles:true}));input.dispatchEvent(new Event("change",{bubbles:true}));}
-function renderColorChoices(inputId,mode="style"){
- const input=$(inputId),host=$(inputId+"Choices");if(!input||!host)return;host.replaceChildren();
- if(mode!=="style")return;
- const select=document.createElement("select");select.setAttribute("aria-label","Color token or color variable");select.title="Choose a special token or a color variable";
- const choices=[["","Suggestions…"],["ink","Ink (ink)"],["accent","Accent (accent)"],["none",inputId==="elementFill"?"No fill (none)":"No stroke (none)"]];
- for(const [name,p] of Object.entries(doc.params||{}))if(p.type==="color")choices.push([name,(p.label||name)+" · "+name]);
- choices.forEach(([value,label])=>{const o=document.createElement("option");o.value=value;o.textContent=label;select.appendChild(o);});
- select.addEventListener("change",()=>{if(!select.value)return;input.value=select.value;emitColorChange(input);select.value="";});
- host.appendChild(select);
-}
-function renderAllColorChoices(){[["elementStroke","style"],["elementFill","style"]].forEach(([id,mode])=>renderColorChoices(id,mode));}
 const variablePopup=$("variableCompletion");
 let completionInput=null,completionChoices=[],completionIndex=0;
 function completionKind(input){
- if(!(input instanceof HTMLInputElement)||input.type!=="text"||input.disabled||input.readOnly)return null;
- const prop=input.dataset.property;
- if(["elementStroke","elementFill"].includes(input.id)||["stroke","fill"].includes(prop))return "color";
- if(input.closest('#elementInspector')||input.closest('#multiPropertyInspector')){
-  if(input.id==="elementText"||input.id==="elementType"||prop==="text")return null;
-  if(input.id==="elementStrokeWidth"||input.id==="elementX"||input.id==="elementY"||input.id==="elementW"||input.id==="elementH")return "numeric";
-  if(input.closest('#advancedInspector')||prop && !["type","name","font","weight","italic","align","baseline","axis","fit","text","d","points","viewBox"].includes(prop))return "numeric";
- }
- return null;
+ const textInput=input instanceof HTMLInputElement && input.type==='text';
+ const area=input instanceof HTMLTextAreaElement;
+ if(!textInput&&!area)return null;
+ const insideInspector=!!(input.closest('#elementInspector')||input.closest('#multiPropertyInspector'));
+ return variableFieldKind({id:input.id,property:input.dataset.property,type:area?'textarea':input.type,
+  editable:true,disabled:input.disabled,readOnly:input.readOnly,insideInspector});
 }
 function hideVariableCompletion(){
  variablePopup.classList.add("hidden");variablePopup.replaceChildren();
@@ -224,7 +210,9 @@ function updateCompletionHighlight(){
 }
 function chooseVariable(index){
  const input=completionInput,choice=completionChoices[index];if(!input||!choice)return;
- const kind=completionKind(input),result=kind==="color"?{value:choice.name,caret:choice.name.length}:completeExpression(input.value,input.selectionStart??input.value.length,choice.name);
+ const kind=completionKind(input),result=kind==="color"?{value:choice.name,caret:choice.name.length}:
+  kind==='text'?completeTextInterpolation(input.value,input.selectionStart??input.value.length,choice.name):
+  completeExpression(input.value,input.selectionStart??input.value.length,choice.name);
  hideVariableCompletion();input.focus();input.value=result.value;
  input.setSelectionRange(result.caret,result.caret);
  input.dispatchEvent(new Event("input",{bubbles:true}));
@@ -232,14 +220,17 @@ function chooseVariable(index){
 }
 function showVariableCompletion(input,filter=false){
  const kind=completionKind(input);if(!kind){hideVariableCompletion();return;}
- const query=!filter?"":kind==="color"?input.value:input.value.slice(0,input.selectionStart??input.value.length).match(/[A-Za-z0-9_]*$/)?.[0]||"";
+ const before=input.value.slice(0,input.selectionStart??input.value.length);
+ const query=!filter?'':kind==='color'?input.value:
+  kind==='text'?(before.match(/\{([A-Za-z0-9_]*)$/)?.[1]||''):
+  before.match(/[A-Za-z0-9_]*$/)?.[0]||'';
  // Keep suggestions discoverable on focus; filter only while typing.
  completionChoices=variableChoices(doc.params||{},kind,query);
  if(!completionChoices.length){hideVariableCompletion();return;}
  completionInput=input;completionIndex=0;
  variablePopup.replaceChildren();
  const heading=document.createElement("div");heading.className="variable-completion-heading";
- heading.textContent=kind==="color"?"COLOR TOKENS":"TEMPLATE VARIABLES";
+ heading.textContent=kind==="color"?"COLOR TOKENS":kind==="text"?"TEXT EXPRESSIONS":"TEMPLATE VARIABLES";
  variablePopup.appendChild(heading);
  for(const [i,choice] of completionChoices.entries()){
   const button=document.createElement("button");button.type="button";button.className="variable-completion-item";
@@ -808,7 +799,7 @@ paper.appendChild(selectionOverlay);
 paper.appendChild(svg('rect',{id:'page-edit-boundary',x:0,y:0,width:pageSize[0],height:pageSize[1],fill:'none',stroke:'#8599bc','stroke-width':.45,'stroke-dasharray':'2 1.5','pointer-events':'none'}));
 renderSmartGuideOverlay();renderVectorOverlay();renderHatchOverlay();renderPathOverlay();}
 function render(){renderCanvas();
-$("pageDimensions").textContent=pageSize[0]+" × "+pageSize[1]+" mm";if($("filePageSize"))$("filePageSize").value=$("paperSize").value;$("docName").textContent=doc.name||"Untitled";$("nodeStatus").textContent=countNodes(doc.items||[])+" nodes";if(document.activeElement!==$("metaKind"))$("metaKind").value=doc.kind==='cover'?'cover':'page';if(document.activeElement!==$("metaName"))$("metaName").value=doc.name||"";if(document.activeElement!==$("metaId"))$("metaId").value=doc.id||"";if(document.activeElement!==$("metaDescription"))$("metaDescription").value=doc.description||"";if(document.activeElement!==$("metaAuthor"))$("metaAuthor").value=doc.author||"";if(document.activeElement!==$("metaLicense"))$("metaLicense").value=doc.license||"";if(document.activeElement!==$("metaVersion"))$("metaVersion").value=doc.version||"";if(document.activeElement!==$("metaTags"))$("metaTags").value=(doc.tags||[]).join(", ");renderTree();renderInspector();renderParams();renderAllColorChoices();refreshVariableSuggestions();renderQuickProperties();fitPaper();}
+$("pageDimensions").textContent=pageSize[0]+" × "+pageSize[1]+" mm";if($("filePageSize"))$("filePageSize").value=$("paperSize").value;$("docName").textContent=doc.name||"Untitled";$("nodeStatus").textContent=countNodes(doc.items||[])+" nodes";if(document.activeElement!==$("metaKind"))$("metaKind").value=doc.kind==='cover'?'cover':'page';if(document.activeElement!==$("metaName"))$("metaName").value=doc.name||"";if(document.activeElement!==$("metaId"))$("metaId").value=doc.id||"";if(document.activeElement!==$("metaDescription"))$("metaDescription").value=doc.description||"";if(document.activeElement!==$("metaAuthor"))$("metaAuthor").value=doc.author||"";if(document.activeElement!==$("metaLicense"))$("metaLicense").value=doc.license||"";if(document.activeElement!==$("metaVersion"))$("metaVersion").value=doc.version||"";if(document.activeElement!==$("metaTags"))$("metaTags").value=(doc.tags||[]).join(", ");renderTree();renderInspector();renderParams();refreshVariableSuggestions();renderQuickProperties();fitPaper();}
 function countNodes(items){return items.reduce((sum,n)=>sum+1+((n.type==="group"||n.type==="repeat")?countNodes(n.children||[]):0),0);}
 const layerColorPicker=document.createElement("div");
 layerColorPicker.className="layer-color-picker hidden";
@@ -1112,18 +1103,17 @@ function renderMultiPropertyInspector(root){
  applyPropertyValueHints(root);
 }
 function applyPropertyValueHints(scope){
+ // Formatting guidance belongs on hover/focus, not in permanent suggestion
+ // rows under every property. Variable choices appear in the shared popup.
  if(!scope)return;
- const inputs=[...scope.querySelectorAll('input')];
- for(const input of inputs){
-  const key=input.dataset.property || ({elementX:'x',elementY:'y',elementW:'w',elementH:'h',elementStroke:'stroke',elementFill:'fill',elementStrokeWidth:'strokeWidth',elementText:'text'})[input.id];
+ for(const input of scope.querySelectorAll('input')){
+  const key=input.dataset.property || ({elementX:'x',elementY:'y',elementW:'w',elementH:'h',
+   elementStroke:'stroke',elementFill:'fill',elementStrokeWidth:'strokeWidth',elementText:'text'})[input.id];
   const hint=valueHint(key);
   if(!hint||!['text','number'].includes(input.type))continue;
   input.title=hint[0]+' — '+hint[1];
   if(input.type==='text'&&!input.placeholder)input.placeholder=hint[1];
-  const parent=input.closest('label.field');
-  if(!parent||parent.querySelector('.value-field-hint'))continue;
-  const small=document.createElement('small');small.className='value-field-hint';small.textContent=hint[0]+' · '+hint[1];
-  parent.appendChild(small);
+  input.closest('label.field')?.querySelectorAll('.value-field-hint').forEach(node=>node.remove());
  }
 }
 function cropFrameSize(group,path=selectedPath){
@@ -1234,9 +1224,10 @@ function renderAdvanced(n){
     commit(()=>{});
    }catch(e){toast("Invalid value: "+e.message);}
   });
+  inp.dataset.property=key;
   lab.dataset.fieldKeys=key;lab.appendChild(inp);root.appendChild(lab);
  }
- const row=(a,b)=>{const wrap=document.createElement("div");wrap.className="field-row";wrap.dataset.fieldKeys=a[1]+","+b[1];root.appendChild(wrap);function fieldIn(label,key,opt={}){const lab=document.createElement("label");lab.className="field";lab.append(document.createTextNode(label));const inp=document.createElement("input");inp.value=getValue(n,key);inp.addEventListener("change",()=>{if(inp.value.trim()==="")delete n[key];else if(opt.numeric&&Number.isFinite(Number(inp.value)))n[key]=Number(inp.value);else n[key]=inp.value;commit(()=>{});});lab.appendChild(inp);wrap.appendChild(lab);}fieldIn(a[0],a[1],a[2]||{});fieldIn(b[0],b[1],b[2]||{});};
+ const row=(a,b)=>{const wrap=document.createElement("div");wrap.className="field-row";wrap.dataset.fieldKeys=a[1]+","+b[1];root.appendChild(wrap);function fieldIn(label,key,opt={}){const lab=document.createElement("label");lab.className="field";lab.append(document.createTextNode(label));const inp=document.createElement("input");inp.value=getValue(n,key);inp.dataset.property=key;inp.addEventListener("change",()=>{if(inp.value.trim()==="")delete n[key];else if(opt.numeric&&Number.isFinite(Number(inp.value)))n[key]=Number(inp.value);else n[key]=inp.value;commit(()=>{});});lab.appendChild(inp);wrap.appendChild(lab);}fieldIn(a[0],a[1],a[2]||{});fieldIn(b[0],b[1],b[2]||{});};
  if(n.type==="group"){addField("Inner padding","inset",{wide:true,json:Array.isArray(n.inset)});addField("Clip contents","clip",{checkbox:true});}
  if(n.type==="repeat"){addField("Axis","axis",{select:["x","y","xy","none"]});addField("Period (period)","period",{wide:true,json:Array.isArray(n.period)});addField("Count","count",{wide:true,json:Array.isArray(n.count)});addField("Distribution","fit",Array.isArray(n.fit)?{wide:true,json:true}:{select:["repeat","space","round","center"]});addField("Index name","index",{wide:true,json:Array.isArray(n.index)});addField("Stagger","stagger");addField("Extend to page","extend",{checkbox:true});}
  if(n.type==="line"){row(["Start X","x1"],["Start Y","y1"]);row(["End X","x2"],["End Y","y2"]);}
@@ -1374,8 +1365,8 @@ function renderParams(){const root=$("paramsEditor");root.replaceChildren();cons
  row.append(inp,picker,val,choices);live.appendChild(row);}else{const inp=document.createElement("input");inp.type="number";inp.step=p.type==="integer"?"1":"any";inp.min=p.min!==undefined?String(p.type==="length"?(mm(p.min)??p.min):p.min):"";inp.max=p.max!==undefined?String(p.type==="length"?(mm(p.max)??p.max):p.max):"";inp.value=previewValues[name]??p.default??"";inp.addEventListener("change",()=>{let v=p.type==="length"?(mm(inp.value)??(Number(inp.value)||0)):Number(inp.value);const low=p.min===undefined?null:(p.type==="length"?(mm(p.min)??Number(p.min)):Number(p.min)),high=p.max===undefined?null:(p.type==="length"?(mm(p.max)??Number(p.max)):Number(p.max));if(Number.isFinite(low))v=Math.max(low,v);if(Number.isFinite(high))v=Math.min(high,v);if(p.type==="integer")v=Math.round(v);previewValues[name]=Number.isFinite(v)?v:0;renderCanvas();});live.appendChild(inp);}grid.appendChild(live);card.appendChild(grid);const usage=document.createElement("div");usage.className="param-usage";const uses=[];function scanUses(nodes,path="items"){(nodes||[]).forEach((node,index)=>{if(!node||typeof node!=="object")return;const nodePath=path+"["+index+"]";for(const prop of ["stroke","fill"]){if(p.type==="color"&&node[prop]===name)uses.push({type:node.type,prop,nodePath});}if(p.type!=="color"){for(const [prop,value] of Object.entries(node)){if(["children","type","stroke","fill","font","weight","align","baseline"].includes(prop)||typeof value!=="string")continue;const re=new RegExp("(^|[^A-Za-z0-9_])"+name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"([^A-Za-z0-9_]|$)");if(re.test(value))uses.push({type:node.type,prop,nodePath});}}if(Array.isArray(node.children))scanUses(node.children,nodePath+".children");});}scanUses(doc.items);const usageTitle=document.createElement("b");usageTitle.textContent=uses.length?"Where it is used":"Not linked yet";usage.appendChild(usageTitle);const usageText=document.createElement("p");usageText.textContent=uses.length?uses.slice(0,5).map(u=>u.type+" · "+u.prop+" · "+u.nodePath).join("\n")+(uses.length>5?"\n+ "+(uses.length-5)+" use(s)":""):(p.type==="color"?"To link it, select an element and choose this variable in the Stroke or Fill field.":"To link it, use the name "+name+" in an element measurement or expression, for example: "+name+" * 2.");usage.appendChild(usageText);card.appendChild(usage);root.appendChild(card);});}
 const paramCreateForm=$("paramCreateForm");
 function syncParamRoleOption(){const option=$("newParamRole").querySelector('option[value="spacing"]');if(!option)return;const name=$("newParamName").value.trim(),owner=Object.entries(doc.params||{}).some(([key,p])=>key!==name&&p.role==="spacing");option.disabled=$("newParamType").value!=="length"||owner;if(option.disabled&&$("newParamRole").value==="spacing")$("newParamRole").value="";}
-function resetParamForm(){paramCreateForm.reset();$("newParamName").value="";$("newParamLabel").value="";$("newParamType").value="length";$("newParamDefault").value=5;$("newParamMin").value="";$("newParamMax").value="";$("newParamDefault").type="number";$("newParamDefault").min="0";$("newParamDefault").step="any";["newParamMin","newParamMax"].forEach(id=>{const input=$(id);input.type="number";input.step="any";input.min="0";input.placeholder="mm";});$("newParamRole").value="";$("newParamError").classList.add("hidden");$("newParamLimits").classList.remove("hidden");renderColorChoices("newParamDefault","literal");$("newParamDefaultChoices").classList.add("hidden");$("newParamColorPicker").classList.add("hidden");$("newParamColorPicker").value="#4f7cff";syncParamRoleOption();}
-function updateParamFormType(){const type=$("newParamType").value,defaults={length:"5mm",color:"#4f7cff",number:"1",integer:"1"};$("newParamDefault").type=type==="color"?"text":(["number","integer","length"].includes(type)?"number":"text");$("newParamDefault").step=type==="integer"?"1":"any";$("newParamDefault").min=type==="length"?"0":"";$("newParamDefault").value=type==="length"?5:defaults[type];renderColorChoices("newParamDefault","literal");$("newParamDefaultChoices").classList.toggle("hidden",type!=="color");$("newParamColorPicker").classList.toggle("hidden",type!=="color");if(type==="color")$("newParamColorPicker").value="#4f7cff";["newParamMin","newParamMax"].forEach(id=>{const input=$(id);input.type=type==="color"?"text":"number";input.step="any";input.min=type==="length"?"0":"";input.placeholder=type==="length"?"mm":"Opcional";});$("newParamLimits").classList.toggle("hidden",type==="color");syncParamRoleOption();}
+function resetParamForm(){paramCreateForm.reset();$("newParamName").value="";$("newParamLabel").value="";$("newParamType").value="length";$("newParamDefault").value=5;$("newParamMin").value="";$("newParamMax").value="";$("newParamDefault").type="number";$("newParamDefault").min="0";$("newParamDefault").step="any";["newParamMin","newParamMax"].forEach(id=>{const input=$(id);input.type="number";input.step="any";input.min="0";input.placeholder="mm";});$("newParamRole").value="";$("newParamError").classList.add("hidden");$("newParamLimits").classList.remove("hidden");$("newParamColorPicker").classList.add("hidden");$("newParamColorPicker").value="#4f7cff";syncParamRoleOption();}
+function updateParamFormType(){const type=$("newParamType").value,defaults={length:"5mm",color:"#4f7cff",number:"1",integer:"1"};$("newParamDefault").type=type==="color"?"text":(["number","integer","length"].includes(type)?"number":"text");$("newParamDefault").step=type==="integer"?"1":"any";$("newParamDefault").min=type==="length"?"0":"";$("newParamDefault").value=type==="length"?5:defaults[type];$("newParamColorPicker").classList.toggle("hidden",type!=="color");if(type==="color")$("newParamColorPicker").value="#4f7cff";["newParamMin","newParamMax"].forEach(id=>{const input=$(id);input.type=type==="color"?"text":"number";input.step="any";input.min=type==="length"?"0":"";input.placeholder=type==="length"?"mm":"Opcional";});$("newParamLimits").classList.toggle("hidden",type==="color");syncParamRoleOption();}
 $("addParam").addEventListener("click",()=>{resetParamForm();refreshNewVariableHint();$("newVariableModal").classList.remove("hidden");paramCreateForm.classList.remove("hidden");$("newParamName").focus();});
 $("cancelAddParam").addEventListener("click",()=>{paramCreateForm.classList.add("hidden");closeModal("newVariableModal");});
 function refreshNewVariableHint(){

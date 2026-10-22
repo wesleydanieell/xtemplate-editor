@@ -886,8 +886,7 @@
 .variable-completion-item:focus-visible{outline:2px solid var(--ui-focus,#99b5ff);outline-offset:-2px}
 
 /* Concise value-format hints; secondary to the editable field. */
-.value-field-hint,.value-type-hint{display:block;max-width:100%;margin-top:5px;font-size:10px;font-weight:400;line-height:1.5;color:var(--ui-soft,#a2adbe);overflow-wrap:anywhere}
-#elementInspector .field>.value-field-hint,#multiPropertyInspector .field>.value-field-hint{margin-top:6px}
+.value-type-hint{display:block;max-width:100%;margin-top:5px;font-size:10px;font-weight:400;line-height:1.5;color:var(--ui-soft,#a2adbe);overflow-wrap:anywhere}
 #newParamTypeHint{margin-top:8px;padding:9px 10px;border-left:2px solid var(--accent2);background:var(--ui-surface-alt,#293140);border-radius:0 5px 5px 0}
 #paramsPanel .value-type-hint{padding-top:2px}
 

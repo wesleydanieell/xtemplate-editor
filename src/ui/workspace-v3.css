@@ -65,7 +65,7 @@
 #elementInspector .property-block[data-block="layout"] .alignment-tools{margin:9px 0 0;padding:0!important}
 #elementInspector .property-block[data-block="layout"] .alignment-tools summary{padding:10px 12px!important}
 #elementInspector .property-block[data-block="layout"] .alignment-section-body{padding:0 12px 14px}
-#elementInspector .transform-note,.property-block .value-field-hint{display:none}
+#elementInspector .transform-note{display:none}
 #elementInspector .property-block[data-block="specific"] .crop-controls{margin:0 0 12px;background:var(--ui-surface-alt);padding:13px;border:1px solid var(--ui-divider);border-radius:var(--studio-radius-md)}
 #elementInspector .property-block[data-block="specific"] .crop-controls .inspector-section-title{font-size:12px}
 #elementInspector .property-block[data-block="specific"] .crop-controls button{min-height:36px}
@@ -130,7 +130,6 @@
 #multiPropertyInspector .multi-property-block{padding:15px 2px;border-bottom:1px solid var(--ui-divider);display:flex;flex-direction:column;gap:8px}
 #multiPropertyInspector .multi-property-block .property-block-title{font-size:12px;color:var(--ui-text);font-weight:700;margin:0 0 5px}
 #multiPropertyInspector .multi-property-block>.field{margin:3px 0 7px;min-width:0}
-#multiPropertyInspector .value-field-hint{display:none}
 /* Avoid nested duplicate headings and keep image opacity after framing options. */
 #elementInspector .property-block[data-block="specific"] .advanced-inspector{order:0}
 #elementInspector .property-block[data-block="specific"] .advanced-inspector>.advanced-heading{display:none}

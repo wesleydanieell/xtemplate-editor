@@ -86,3 +86,8 @@
 @media(max-width:720px){:root[data-theme] #elementInspector .character-page-align-row .character-segment{min-height:44px}}
 
 :root[data-theme] #elementInspector .character-page-align-row [data-page-align="top"]{border-left:2px solid var(--ui-border)}
+
+/* Center both tab labels and their icons, regardless of the base icon
+   primitive's default justify-content:flex-start. */
+:root[data-theme] .right-panel .right-tabs>.right-tab{display:inline-flex;align-items:center;justify-content:center;text-align:center;gap:7px;min-width:0;padding:0 8px;line-height:1.15}
+:root[data-theme] .right-panel .right-tabs>.right-tab>.ui-icon{flex:0 0 15px;width:15px;height:15px}
