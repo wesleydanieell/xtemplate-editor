@@ -22,7 +22,7 @@ import { LAYER_COLORS, readLayerColors, validLayerColor } from "./src/features/l
 import { screenToDocumentPoint } from "./src/features/pointer-geometry.js";
 import { paintedBounds } from "./src/features/painted-bounds.js";
 import {textPaintedBounds,syncTextSelection} from "./src/features/text-selection-bounds.js";
-import {resizeTextToFrame,textResizeAxis} from "./src/features/text-resize.js";
+import {resizeTextToFrame,textResizeAxis,resizeTextFontAtAnchor} from "./src/features/text-resize.js";
 import {createTextInlineEditor} from "./src/ui/text-inline-editor.js";
 import {enhanceCharacterPanel} from "./src/ui/character-panel.js";
 import { imageDisplayBounds, imageResizeFit } from "./src/features/image-frame.js";
@@ -31,6 +31,7 @@ import { repeatPositions } from "./src/features/repeat-layout.js";
 import { inspectorSections } from "./src/features/inspector-priority.js";
 import { readPointPairs, requiresBake, replacePointCoordinate, addPoint, removePoint, reversePoints, midpoint, alignPoints, distributePoints } from "./src/features/vector/points.js";
 import { editablePathNodes, replaceSvgPathPoint, appendSvgLine, toggleSvgClosed, removeSvgPathAnchor, pathHandleConnections, closedSvgAnchorAlias } from "./src/features/vector/svg-path.js";
+import {clampRectCorner,straightPathCorners,roundStraightPath} from "./src/features/vector/corner-rounding.js";
 import { PEN_MODES,createPenNode,snapPenAngle,snapPenOrthogonal,penIncoming,penOutgoing,penPathData,resetOutgoingTangent } from "./src/features/vector/pen-model.js";
 import { FLIPPABLE_TYPES, flipNativeNode, flipNeedsExpressionConfirmation } from "./src/features/vector/flip-geometry.js";
 import { translate as matrixTranslate, scale as matrixScale, rotate as matrixRotate, around as matrixAround, multiply as matrixMultiply, toSVG as matrixSVG } from "./src/features/affine-transform.js";
@@ -53,6 +54,7 @@ engineering:{xtemplate:1,id:"xtemplate.examples.engineering",name:"Engineering p
 todo:{xtemplate:1,id:"xtemplate.examples.todo",name:"Checklist",description:"Rows with a tick box each, stretched slightly so the rows fill the page exactly.",license:"MIT",tags:["planner","lists"],params:{row:{type:"length",default:"9mm",min:"6mm",max:"14mm",label:"Row height",role:"spacing"}},items:[{type:"text",text:"To do",x:"15mm",y:"18mm",size:"5mm",weight:"bold"},{type:"group",inset:["25mm","15mm","15mm","15mm"],children:[{type:"repeat",axis:"y",period:"row",fit:"round",children:[{type:"rect",y:"50% - 2.25mm",w:"4.5mm",h:"4.5mm",rx:"0.8mm"},{type:"hline",y:"100%",x1:"8mm"}]}]}]}
 };
 let doc=createBlankTemplate(),selectedPath=null,selectedPaths=[],dirty=false,drag=null,marqueeState=null,split=false,activeInspector="properties",suppressJson=false,toastTimer,clipboardNodes=[];
+let cornerDrag=null; // Temporary rounded-corner gesture, never exported.
 let imageCropPath=null; // Active crop interaction; image stays in native clipped group.
 let imageCropSession=null; // Baseline for Apply / Cancel; never persisted into .xtemplate.
 let documentAssets=new Map();
@@ -467,6 +469,27 @@ function renderPathOverlay(){
 }
 function renderSvgPathControls(root,node){
  const title=document.createElement('div');title.className='advanced-heading';title.textContent='SVG PATH EDITOR';root.appendChild(title);
+ const corners=straightPathCorners(node.d);
+ if(corners){
+  const row=document.createElement('div');row.className='path-corner-settings';
+  const label=document.createElement('label');label.className='field';
+  label.textContent='Round corners (mm)';
+  const input=document.createElement('input');input.type='number';input.min='0';input.step='0.5';input.value='4';
+  input.setAttribute('aria-label','Path corner smoothing in millimeters');
+  label.appendChild(input);
+  const apply=document.createElement('button');apply.type='button';apply.className='quiet';
+  apply.textContent='Apply';apply.title='Bake rounded corners to native SVG path Q commands (Undo to reverse)';
+  apply.addEventListener('click',()=>{
+   const radius=Number(input.value);
+   if(!Number.isFinite(radius)||radius<=0)return;
+   try{const next=roundStraightPath(node.d,radius);commit(()=>{node.d=next;});}
+   catch(e){toast(e.message);}
+  });
+  row.append(label,apply);root.appendChild(row);
+  const tip=document.createElement('p');tip.className='corner-bake-tip';
+  tip.textContent='Drag cyan corner widgets on the canvas, or apply a distance here. Paths become editable SVG Q curves; Undo restores the original corners.';
+  root.appendChild(tip);
+ }
  let parsed,reason='';try{parsed=editablePathNodes(node.d);}catch(e){reason=e.message;}
  if(!parsed){const note=document.createElement('p');note.className='inspector-tip';note.textContent='Visual editing is read-only for this path: '+reason+'. Use the original d field above. No normalization or data loss occurs.';root.appendChild(note);return;}
  const buttons=document.createElement('div');buttons.className='vector-actions';root.appendChild(buttons);
@@ -747,6 +770,63 @@ function previewVectorPoints(dragState,dx,dy){
  }
  }
 }
+/** Illustrator-like corner widgets. Rectangles retain editable native rx.
+ * Straight-line SVG paths are rounded by baking Q commands into native d:
+ * unsupported curves are never silently rewritten. */
+function renderCornerOverlay(){
+ const node=selectedPaths.length===1?getAt(selectedPath):null;
+ if(!node||!['rect','path'].includes(node.type)||activeTool!=='select')return;
+ if(node.type==='path'&&pathCurrent())return;
+ const group=svg('g',{id:'corner-control-overlay',class:'corner-control-overlay'});
+ const key=nodeKey(selectedPath);
+ const shape=[...paper.querySelectorAll('g.svg-node[data-path]')]
+  .find(el=>el.dataset.path===key)?.querySelector(node.type==='rect'?':scope > rect:not(.svg-hitbox):not(.svg-selection)':':scope > path');
+ if(!shape)return;
+ const pageMatrix=pathToPageMatrix(shape);
+ if(!pageMatrix)return;
+ const toPage=(x,y)=>{const pos=new DOMPoint(x,y).matrixTransform(pageMatrix);return{x:pos.x,y:pos.y};};
+ const pxPerMm=Math.max(.05,Math.hypot(paper.getScreenCTM()?.a||2,paper.getScreenCTM()?.b||0));
+ // Smaller visual dots (about 5px in diameter); preserve a usable invisible
+ // hit area, but keep it well inside the regular resize-handle zone.
+ const markerSize=Math.max(.35,2/pxPerMm),targetSize=Math.max(markerSize,(window.matchMedia('(pointer:coarse)').matches?9:6)/pxPerMm);
+ let controls=[];
+ if(node.type==='rect'){
+  const bounds=shape.getBBox(),r=clampRectCorner(evalN(node.rx??0,parentBoxForPath(selectedPath),'short'),bounds.width,bounds.height);
+  // Illustrator-like Live Corners: every dot is inset equally in X and Y,
+  // and moves along the 45° bisector as rx increases. This keeps the entire
+  // gesture away from the edge/corner resize handles.
+  const pad=Math.min(7,Math.max(2.4,Math.min(bounds.width,bounds.height)*.14));
+  const inset=Math.min(pad+r/Math.SQRT2,Math.min(bounds.width,bounds.height)/2);
+  controls=[
+   {x:bounds.x+inset,y:bounds.y+inset,index:0},
+   {x:bounds.x+bounds.width-inset,y:bounds.y+inset,index:1},
+   {x:bounds.x+bounds.width-inset,y:bounds.y+bounds.height-inset,index:2},
+   {x:bounds.x+inset,y:bounds.y+bounds.height-inset,index:3}
+  ];
+ }else{
+  const info=cornerDrag?.pathKey===key&&cornerDrag.type==='path'?straightPathCorners(cornerDrag.origin.d):straightPathCorners(node.d);
+  if(!info)return;
+  const {vertices,closed}=info;
+  const bounds=shape.getBBox(),center={x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};
+  controls=vertices.flatMap((v,i)=>{
+   if(!closed&&(i===0||i===vertices.length-1))return[];
+   const direction=Math.hypot(center.x-v.x,center.y-v.y)||1;
+   const shift=Math.min(3,Math.max(1,Math.min(bounds.width,bounds.height)/12));
+   const offset=(cornerDrag?.pathKey===key&&cornerDrag.type==='path'?cornerDrag.radius:0);
+   const distance=shift+offset;
+   return [{x:v.x+(center.x-v.x)/direction*distance,y:v.y+(center.y-v.y)/direction*distance,index:i}];
+  });
+ }
+ for(const point of controls){
+  const screen=toPage(point.x,point.y);
+  const handle=svg('g',{'data-corner-control':node.type,'data-corner-index':point.index,class:'corner-widget'});
+  handle.appendChild(svg('circle',{cx:screen.x,cy:screen.y,r:targetSize,fill:'transparent','pointer-events':'all'}));
+  handle.appendChild(svg('circle',{cx:screen.x,cy:screen.y,r:markerSize,fill:'#f7fdff',stroke:'#2696dd','stroke-width':Math.max(.25,1/pxPerMm),'pointer-events':'none'}));
+  const title=svg('title',{});title.textContent=node.type==='rect'?'Drag to round all rectangle corners · rx':'Drag to round straight-line path corners · bakes native Q curves';
+  handle.appendChild(title);group.appendChild(handle);
+ }
+ if(controls.length)paper.appendChild(group);
+}
 function initializePreviewValues(){const previous=previewValues,next={};for(const [name,p] of Object.entries(doc.params||{})){const d=p.default;if(p.type==="color")next["$"+name]=previous["$"+name]||d||"#333333";else next[name]=previous[name]!==undefined?previous[name]:(typeof d==="number"?d:(mm(d,1) ?? (Number(d)||0)));}previewValues=next;}
 function renderCanvas(){renderInstanceCounts.clear();repeatFrameBounds.clear();paper.replaceChildren();paper.setAttribute("viewBox","0 0 "+pageSize[0]+" "+pageSize[1]);paper.appendChild(svg("rect",{x:0,y:0,width:pageSize[0],height:pageSize[1],fill:"#fffefa"}));
 // The artwork must *always* be clipped to the physical XNotes page, even in
@@ -797,7 +877,7 @@ if(imageCropPath&&selectedPath&&imageCropPath===nodeKey(selectedPath)){
 }
 paper.appendChild(selectionOverlay);
 paper.appendChild(svg('rect',{id:'page-edit-boundary',x:0,y:0,width:pageSize[0],height:pageSize[1],fill:'none',stroke:'#8599bc','stroke-width':.45,'stroke-dasharray':'2 1.5','pointer-events':'none'}));
-renderSmartGuideOverlay();renderVectorOverlay();renderHatchOverlay();renderPathOverlay();}
+renderSmartGuideOverlay();renderVectorOverlay();renderHatchOverlay();renderPathOverlay();renderCornerOverlay();}
 function render(){renderCanvas();
 $("pageDimensions").textContent=pageSize[0]+" × "+pageSize[1]+" mm";if($("filePageSize"))$("filePageSize").value=$("paperSize").value;$("docName").textContent=doc.name||"Untitled";$("nodeStatus").textContent=countNodes(doc.items||[])+" nodes";if(document.activeElement!==$("metaKind"))$("metaKind").value=doc.kind==='cover'?'cover':'page';if(document.activeElement!==$("metaName"))$("metaName").value=doc.name||"";if(document.activeElement!==$("metaId"))$("metaId").value=doc.id||"";if(document.activeElement!==$("metaDescription"))$("metaDescription").value=doc.description||"";if(document.activeElement!==$("metaAuthor"))$("metaAuthor").value=doc.author||"";if(document.activeElement!==$("metaLicense"))$("metaLicense").value=doc.license||"";if(document.activeElement!==$("metaVersion"))$("metaVersion").value=doc.version||"";if(document.activeElement!==$("metaTags"))$("metaTags").value=(doc.tags||[]).join(", ");renderTree();renderInspector();renderParams();refreshVariableSuggestions();renderQuickProperties();fitPaper();}
 function countNodes(items){return items.reduce((sum,n)=>sum+1+((n.type==="group"||n.type==="repeat")?countNodes(n.children||[]):0),0);}
@@ -1205,6 +1285,7 @@ function renderAdvanced(n){
  const heading=document.createElement("div");heading.className="advanced-heading";heading.textContent="GEOMETRY & OPTIONS";root.appendChild(heading);
  function addField(label,key,opt={}){
   const lab=document.createElement("label");lab.className="field"+(opt.wide?" wide":"");lab.append(document.createTextNode(label));
+  if(key==='rx'&&n.type==='rect')lab.title='Drag cyan corner widgets on the rectangle, or type a native rx radius';
   let inp;
   if(opt.select&&!opt.json){inp=document.createElement("select");opt.select.forEach(v=>{
    const o=document.createElement('option');o.value=v;
@@ -1444,7 +1525,7 @@ for(const [main,quick] of [["inkColor","quickInkColor"],["accentColor","quickAcc
   });
  }
 }
-function addNode(type){if(type==='image'){$('imageFileInput').click();return;}const n=createDefaultNode(type);if(!n){toast("Unsupported element type: "+type);return;}const {parent,parentPath}=insertionContext();const arr=parent?parent.children:(doc.items||(doc.items=[]));arr.push(n);selectedPath=parent?parentPath.concat(["children",arr.length-1]):["items",arr.length-1];selectedPaths=[selectedPath.slice()];commit(()=>{});setInspectorTab("properties");setStatus("Element added");}
+function addNode(type){if(type==='image'){$('imageFileInput').click();return;}const n=createDefaultNode(type);if(!n){toast("Unsupported element type: "+type);return;}const {parent,parentPath}=insertionContext();const arr=parent?parent.children:(doc.items||(doc.items=[]));arr.push(n);selectedPath=parent?parentPath.concat(["children",arr.length-1]):["items",arr.length-1];selectedPaths=[selectedPath.slice()];if(type==="rect")setActiveTool("select");commit(()=>{});setInspectorTab("properties");setStatus("Element added");}
 $("addElement").addEventListener("click",openStructureAddMenu);
 $("deleteElement").addEventListener("click",async()=>{
  if(!selectedPaths.length)return;
@@ -1562,6 +1643,27 @@ function unionBounds(items){const bounds=items.map(item=>item.bounds).filter(Boo
 const draggableTypes=new Set(["image","group","rect","path","text","ellipse","circle","dot","line","hline","vline","polyline","polygon"]);
 let previousTextClick=null;
 paper.addEventListener("pointerdown",e=>{
+ const corner=e.target.closest('[data-corner-control]');
+ if(corner&&activeTool==='select'&&e.button===0&&selectedPath){
+  const path=selectedPath.slice(),node=getAt(path),type=corner.dataset.cornerControl;
+  if(!node||node.type!==type)return;
+  if(type==='rect'&&requiresBake(node.rx??'0mm')&&!confirm('The corner radius contains a variable/expression. Replace it with a fixed mm value?'))return;
+  const key=nodeKey(path),shape=[...paper.querySelectorAll('g.svg-node[data-path]')].find(el=>el.dataset.path===key)?.querySelector(type==='rect'?':scope > rect:not(.svg-hitbox):not(.svg-selection)':':scope > path');
+  const matrix=shape&&pathToPageMatrix(shape);
+  if(!matrix)return;
+  const parent=parentBoxForPath(path),bounds=shape.getBBox();
+  const point=pagePoint(e),local=new DOMPoint(point.x,point.y).matrixTransform(matrix.inverse());
+  const info=type==='path'?straightPathCorners(node.d):null;
+  if(type==='path'&&!info)return;
+  const center={x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};
+  const vertex=info?.vertices[Number(corner.dataset.cornerIndex)];
+  const distance=vertex?Math.hypot(center.x-vertex.x,center.y-vertex.y)||1:1;
+  cornerDrag={pointerId:e.pointerId,path,pathKey:key,type,origin:clone(node),start:local,
+   index:Number(corner.dataset.cornerIndex),matrix,center,vertex,distance,
+   radius:type==='rect'?clampRectCorner(evalN(node.rx??0,parent,'short'),bounds.width,bounds.height):0,
+   width:bounds.width,height:bounds.height,moved:false};
+  paper.setPointerCapture(e.pointerId);e.preventDefault();e.stopImmediatePropagation();return;
+ }
  // Type tool on an existing text object edits it, as in Figma/Photoshop.
  // Clicking empty paper continues to insert a new text object as before.
  if(activeTool==='text'&&e.button===0){
@@ -1674,6 +1776,29 @@ paper.addEventListener("pointerdown",e=>{
  const point=pagePoint(e),snapTargets=snapTargetsFor(items.map(item=>item.path)),previewTransforms=captureDragTransforms(items.map(item=>item.path));
  drag={pointerId:e.pointerId,path,mode:handle?"transform":"move",handle,modelBounds:geometry,startX:e.clientX,startY:e.clientY,startPoint:point,parentBox:clone(parentBox),bounds,origin:clone(n),items,moved:false,repeated:isRepeatedPath(path),snapTargets,previewTransforms,lastDelta:{dx:0,dy:0},startAngle:Math.atan2(point.y-(bounds.y+bounds.h/2),point.x-(bounds.x+bounds.w/2))*180/Math.PI};
  try{paper.setPointerCapture(e.pointerId);}catch{}e.preventDefault();
+});
+paper.addEventListener('pointermove',e=>{
+ if(!cornerDrag||cornerDrag.pointerId!==e.pointerId)return;
+ const state=cornerDrag,node=getAt(state.path);if(!node)return;
+ const point=pagePoint(e),local=new DOMPoint(point.x,point.y).matrixTransform(state.matrix.inverse());
+ let radius;
+ if(state.type==='rect'){
+  const signX=state.index===0||state.index===3?1:-1;
+  const signY=state.index===0||state.index===1?1:-1;
+  // Project the pointer onto the inward 45° diagonal: x and y both
+  // contribute. Pure horizontal/vertical movement has a weaker effect.
+  const diagonal=((local.x-state.start.x)*signX+(local.y-state.start.y)*signY)/Math.SQRT2;
+  radius=clampRectCorner(state.radius+diagonal,state.width,state.height);
+ }else{
+  const vector={x:(state.center.x-state.vertex.x)/state.distance,y:(state.center.y-state.vertex.y)/state.distance};
+  const change=(local.x-state.start.x)*vector.x+(local.y-state.start.y)*vector.y;
+  radius=Math.max(0,Math.min(1000,change));
+ }
+ if(Math.hypot(local.x-state.start.x,local.y-state.start.y)<.15&&!state.moved)return;
+ state.moved=true;if(state.type==='path')state.radius=radius;
+ if(state.type==='rect')node.rx=Number(radius.toFixed(3))+'mm';
+ else node.d=roundStraightPath(state.origin.d,radius);
+ renderCanvas();e.preventDefault();e.stopImmediatePropagation();
 });
 paper.addEventListener("pointermove",e=>{
  if(pathDrag?.pointerId===e.pointerId){
@@ -1803,6 +1928,16 @@ function cancelCanvasGesture(e){
  if(typeof curveState!=="undefined"&&curveState&&(!e||curveState.pointerId===e.pointerId)){curveState.pointerId=null;renderPenPreview();}
  if(typeof drawState!=="undefined"&&drawState&&(!e||drawState.pointerId===e.pointerId)){drawState=null;renderDrawPreview();}
 }
+paper.addEventListener('pointerup',e=>{
+ if(!cornerDrag||cornerDrag.pointerId!==e.pointerId)return;
+ const state=cornerDrag;cornerDrag=null;
+ if(state.moved)commit(()=>{});else render();
+ e.preventDefault();e.stopImmediatePropagation();
+});
+paper.addEventListener('pointercancel',e=>{
+ if(!cornerDrag||cornerDrag.pointerId!==e.pointerId)return;
+ const state=cornerDrag;cornerDrag=null;replaceAt(state.path,state.origin);render();
+});
 paper.addEventListener("pointerup",e=>{
  if(pathDrag?.pointerId===e.pointerId){
   const state=pathDrag;pathDrag=null;
@@ -2135,14 +2270,20 @@ function resizeTextFromFrame(n,target,axis,path=selectedPath,frame=transformGeom
  const fmt=x=>Number(x.toFixed(3))+'mm';
  n.size=fmt(result.size);n.x=fmt(result.x-box.x);n.y=fmt(result.y-box.y);
 }
-function applyTransformChange(n,key,value){
- const g=transformGeometry(n),type=n.type,box=parentBoxForPath(selectedPath),v=Number(value);
+function applyTransformChange(n,key,value,{frame=null,path=selectedPath}={}){
+ const g=frame||transformGeometry(n,path),type=n.type,box=parentBoxForPath(path),v=Number(value);
  if(key==="rotate"){if(type==="text")n.rotate=Math.round(v/90)*90;return;}
  if(key==="opacity"){n.opacity=Math.max(0,Math.min(1,v/100));return;}
  if(key==="x"||key==="y"){moveBy(n,key==="x"?v-g.x:0,key==="y"?v-g.y:0,box);return;}
  if(key==="w"||key==="h"){
   if(type==='text'){
-   resizeTextFromFrame(n,{...g,[key]:Math.max(1,v)},key,selectedPath,g);return;
+   const originalSize=evalN(n.size??'3.5mm',box,'short',3.5);
+   const size=resizeTextFontAtAnchor({frame:g,target:v,fontSize:originalSize,axis:key});
+   if(size!==null)n.size=Number(size.toFixed(4))+'mm';
+   // Inspector size changes grow/shrink around the author's text anchor;
+   // x/y must not be rewritten. Canvas handles intentionally have a
+   // separate opposite-corner behavior via resizeTextFromFrame().
+   return;
   }
   if(type==="circle"||type==="dot"){
    const size=Math.max(1,v),left=g.x-box.x,top=g.y-box.y,diam=size;
@@ -2231,14 +2372,20 @@ for(const [id,cfg] of Object.entries(scrubConfig)){
  label.addEventListener("pointerdown",e=>{
   if(e.button!==0||e.target===input||input.disabled||e.target.closest("button,input,select,textarea"))return;
   const n=getAt(selectedPath);if(!n)return;
-  state={pointerId:e.pointerId,startX:e.clientX,startValue:Number(input.value)||0,origin:clone(n),path:selectedPath.slice(),fine:e.shiftKey,fast:e.ctrlKey||e.metaKey,moved:false};
+  state={pointerId:e.pointerId,startX:e.clientX,startValue:Number(input.value)||0,
+   origin:clone(n),path:selectedPath.slice(),frame:transformGeometry(n),moved:false};
   label.classList.add("scrubbing");label.setPointerCapture(e.pointerId);e.preventDefault();
  });
  label.addEventListener("pointermove",e=>{
   if(!state||state.pointerId!==e.pointerId)return;
   const delta=e.clientX-state.startX;if(Math.abs(delta)<1&&!state.moved)return;state.moved=true;
   const factor=e.shiftKey?0.1:(e.ctrlKey||e.metaKey)?10:1,raw=state.startValue+delta*cfg.step*factor,value=Math.max(cfg.min??-Infinity,Math.min(cfg.max??Infinity,raw)),n=getAt(state.path);
-  if(!n)return;Object.assign(n,clone(state.origin));applyTransformChange(n,Object.entries({transformX:"x",transformY:"y",transformW:"w",transformH:"h",transformRotate:"rotate",transformOpacity:"opacity"}).find(([k])=>k===id)[1],value);
+  if(!n)return;
+  // Reapply every sample from a *single measured origin*. Measuring from the
+  // already-updated SVG after restoring only the model caused oscillating
+  // text sizes and cumulative Y drift in the H/W scrub fields.
+  Object.assign(n,clone(state.origin));
+  applyTransformChange(n,Object.entries({transformX:"x",transformY:"y",transformW:"w",transformH:"h",transformRotate:"rotate",transformOpacity:"opacity"}).find(([k])=>k===id)[1],value,{frame:state.frame,path:state.path});
   input.value=Number(value.toFixed(2));renderCanvas();
  });
  const finish=e=>{if(!state||state.pointerId!==e.pointerId)return;const changed=state.moved;state=null;label.classList.remove("scrubbing");if(changed)commit(()=>{});};
@@ -2593,7 +2740,7 @@ function addNodeAtContext(type,point){
  }
  const items=parent?parent.children:(doc.items||(doc.items=[]));items.push(node);
  selectedPath=parent?parentPath.concat(["children",items.length-1]):["items",items.length-1];
- selectedPaths=[selectedPath.slice()];commit(()=>{});setInspectorTab("properties");
+ selectedPaths=[selectedPath.slice()];if(type==="rect")setActiveTool("select");commit(()=>{});setInspectorTab("properties");
 }
 // Pointer-activated buttons should not retain keyboard focus. Otherwise a
 // subsequent Space press can unintentionally activate the last clicked tool.
@@ -2816,6 +2963,10 @@ function insertDrawnNode(type,a,b,points){
  const arr=parent?parent.children:(doc.items||(doc.items=[]));arr.push(n);
  selectedPath=parent?parentPath.concat(["children",arr.length-1]):["items",arr.length-1];selectedPaths=[selectedPath.slice()];
  commit(()=>{});setInspectorTab("properties");
+ // commit() renders while the drawing tool is still active, so the selected
+ // rect had no Live Corner widgets until another selection was made.
+ // Redraw once as a Select tool, immediately after creation finishes.
+ setActiveTool('select');renderCanvas();
 }
 function renderDrawPreview(){let p=paper.querySelector("#draw-preview");if(!drawState){p?.remove();return;}if(!p){p=svg("g",{id:"draw-preview","pointer-events":"none"});paper.appendChild(p);}p.replaceChildren();const a=drawState.start,b=drawState.current,x=Math.min(a.x,b.x),y=Math.min(a.y,b.y),w=Math.max(.3,Math.abs(b.x-a.x)),h=Math.max(.3,Math.abs(b.y-a.y));if(drawState.tool==="rect")p.appendChild(svg("rect",{x,y,width:w,height:h,fill:"#6485f522",stroke:"#6485f5","stroke-width":.6,"stroke-dasharray":"2 1"}));else if(drawState.tool==="ellipse")p.appendChild(svg("ellipse",{cx:x+w/2,cy:y+h/2,rx:w/2,ry:h/2,fill:"#6485f522",stroke:"#6485f5","stroke-width":.6,"stroke-dasharray":"2 1"}));else if(drawState.tool==="polygon")p.appendChild(svg("polygon",{points:polygonVertices(a,b,5).map(v=>v.x+","+v.y).join(" "),fill:"#6485f522",stroke:"#6485f5","stroke-width":.6,"stroke-dasharray":"2 1"}));else p.appendChild(svg("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:"#6485f5","stroke-width":.8,"stroke-dasharray":"2 1"}));}
 function addPattern(type){const spacing=type==="grid"?"5mm":"8mm",line={type:"repeat",axis:type==="grid"?"xy":"y",period:spacing,fit:"space",children:type==="grid"?[{type:"hline",y:"100%",stroke:"#b5c5df",strokeWidth:"0.15mm"},{type:"vline",x:"100%",stroke:"#b5c5df",strokeWidth:"0.15mm"}]:[{type:"hline",y:"100%",stroke:"#9eb8df",strokeWidth:"0.2mm"}]},node={type:"group",inset:"10mm",children:[line]};const items=doc.items||(doc.items=[]);items.push(node);const path=["items",items.length-1];selectedPath=path;selectedPaths=[path];commit(()=>{});setInspectorTab("properties");toast(type==="grid"?"Grid inserted — adjust the period in properties.":"Ruled lines inserted — adjust spacing in properties.");setActiveTool("select");}
@@ -2878,7 +3029,7 @@ paper.addEventListener("pointerdown",e=>{
  startShapeDrawing(e,paper);
 });
 paper.addEventListener("pointermove",e=>updateShapeDrawing(e));
-function finishDrawing(e){if(!drawState||drawState.pointerId!==e.pointerId)return;const d=drawState;drawState=null;renderDrawPreview();if(Math.hypot(d.current.x-d.start.x,d.current.y-d.start.y)<1){toast("Drag to set the element dimensions.");return;}insertDrawnNode(d.tool,d.start,d.current,d.points);setActiveTool("select");}
+function finishDrawing(e){if(!drawState||drawState.pointerId!==e.pointerId)return;const d=drawState;drawState=null;renderDrawPreview();if(Math.hypot(d.current.x-d.start.x,d.current.y-d.start.y)<1){toast("Drag to set the element dimensions.");return;}setActiveTool("select");insertDrawnNode(d.tool,d.start,d.current,d.points);}
 paper.addEventListener("pointerup",finishDrawing);
 paper.addEventListener("pointercancel",()=>{drawState=null;renderDrawPreview();});
 // Additional editor shortcuts. Inputs retain normal text-editing behavior.

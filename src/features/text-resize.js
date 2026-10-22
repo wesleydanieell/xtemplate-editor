@@ -17,6 +17,18 @@ export function resizeTextToFrame({frame,target,anchor,fontSize,axis='w'}){
  return {size,x,y,scale:actualScale};
 }
 
+/** Inspector W/H edits are font-size controls, not canvas-edge drags.
+ * Scale from the captured painted extent and keep the authored text anchor
+ * unchanged: moving x/y merely to preserve the glyph's upper-left rectangle
+ * would make the baseline visibly jump when changing Height. */
+export function resizeTextFontAtAnchor({frame,target,fontSize,axis='w'}){
+ if(!frame||!Number.isFinite(fontSize)||fontSize<=0||!Number.isFinite(target))return null;
+ const extent=axis==='h'?frame.h:frame.w;
+ if(!(extent>0))return null;
+ const ratio=Math.max(.02,Math.min(100,Math.max(.2,target)/extent));
+ return Math.max(.2,Math.min(1000,fontSize*ratio));
+}
+
 export function textResizeAxis(handle,frame,target){
  const horizontal=/[we]/.test(handle),vertical=/[ns]/.test(handle);
  if(horizontal&&vertical){

@@ -91,3 +91,14 @@
    primitive's default justify-content:flex-start. */
 :root[data-theme] .right-panel .right-tabs>.right-tab{display:inline-flex;align-items:center;justify-content:center;text-align:center;gap:7px;min-width:0;padding:0 8px;line-height:1.15}
 :root[data-theme] .right-panel .right-tabs>.right-tab>.ui-icon{flex:0 0 15px;width:15px;height:15px}
+
+/* Native XNotes geometry editing: cyan, nonexported live-corner widgets. */
+.corner-control-overlay .corner-widget{cursor:nwse-resize;touch-action:none}
+.corner-control-overlay .corner-widget circle:nth-child(2){filter:drop-shadow(0 0 .7px #204771);transition:fill .1s}
+.corner-control-overlay .corner-widget:hover circle:nth-child(2){fill:#c4edff}
+#elementInspector .path-corner-settings{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px;margin:9px 0 4px}
+#elementInspector .path-corner-settings .field{min-width:0;margin:0!important}
+#elementInspector .path-corner-settings input{width:100%;min-width:0;min-height:34px}
+#elementInspector .path-corner-settings button{min-height:34px;white-space:nowrap;border-radius:7px;padding:5px 12px}
+#elementInspector .corner-bake-tip{font-size:10px;line-height:1.45;color:var(--ui-soft);margin:7px 0 12px}
+@media(max-width:720px){#elementInspector .path-corner-settings button{min-height:42px}}
