@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { variableChoices, completeExpression } from '../src/features/variable-completion.js';
+import { variableChoices, completeExpression, completeTextInterpolation } from '../src/features/variable-completion.js';
 const params = {
   spacing: {type:'length', label:'Row spacing', default:'8mm'},
   columns: {type:'integer',label:'Column count',default:4},
@@ -20,4 +20,15 @@ test('completion keeps neighboring expression intact',()=>{
 test('choices are capped and do not depend on executable HTML',()=>{
  const huge=Object.fromEntries(Array.from({length:25},(_,i)=>['v'+i,{type:'number',label:'v'+i}]));
  assert.equal(variableChoices(huge,'numeric').length,12);
+});
+
+test('numeric fields always offer built-in expression variables',()=>{
+ assert.deepEqual(variableChoices({},'numeric').map(x=>x.name),['W','H','i','j','pi']);
+ assert(!variableChoices({},'numeric').some(x=>x.name==='ink'));
+});
+test('text interpolation inserts native braces without changing adjacent words',()=>{
+ assert.deepEqual(completeTextInterpolation('Hello ',6,'columns'),{value:'Hello {columns}',caret:15});
+ assert.deepEqual(completeTextInterpolation('Page {spa',9,'spacing'),{value:'Page {spacing}',caret:14});
+ assert.deepEqual(completeTextInterpolation('X {spa} done',6,'spacing'),{value:'X {spacing} done',caret:11});
+ assert.deepEqual(completeTextInterpolation('abc',1,'W'),{value:'a{W}bc',caret:4});
 });

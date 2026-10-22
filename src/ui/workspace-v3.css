@@ -1,0 +1,246 @@
+/* Workspace V3 — desktop editor adapted from Material principles, not a mobile
+   screen clone. Structural regions: layers / stage / contextual properties.
+   Four semantic levels: global actions, local actions, primary properties,
+   secondary technical controls. No functionality is removed. */
+:root{
+ --studio-space-1:4px;--studio-space-2:8px;--studio-space-3:12px;
+ --studio-space-4:16px;--studio-space-5:20px;--studio-space-6:24px;
+ --studio-radius-sm:8px;--studio-radius-md:12px;--studio-radius-lg:16px;
+ --studio-control:36px;
+}
+:root[data-theme] .app{grid-template-columns:minmax(210px,250px) minmax(300px,1fr) minmax(292px,328px)}
+:root[data-theme] .app.app--hide-layers{grid-template-columns:minmax(300px,1fr) minmax(292px,328px)}
+:root[data-theme] .app.app--hide-properties{grid-template-columns:minmax(210px,250px) minmax(320px,1fr)}
+:root[data-theme] .app.app--hide-layers.app--hide-properties{grid-template-columns:minmax(320px,1fr)}
+:root[data-theme] .app.app--hide-layers .left-panel,:root[data-theme] .app.app--hide-properties .right-panel{display:none}
+:root[data-theme] .left-panel,:root[data-theme] .right-panel{min-width:0}
+:root[data-theme] .left-tabs,:root[data-theme] .right-tabs{background:var(--ui-surface);border-bottom:1px solid var(--ui-divider)}
+:root[data-theme] .left-tab,:root[data-theme] .right-tab{transition:background .15s ease,color .15s ease,border-color .15s ease}
+:root[data-theme] .tree-item{transition:background .1s ease,border-color .1s ease;min-height:38px}
+:root[data-theme] .tree-item.active{border-color:color-mix(in srgb,var(--ux-accent) 62%,transparent)}
+:root[data-theme] .tree-item .tree-meta{margin-top:3px}
+:root[data-theme] .tree-item .tree-label{font-size:12px}
+:root[data-theme] .tree-item.tree-page{margin-bottom:13px}
+:root[data-theme] .outline-subtitle{padding:10px 16px}
+:root[data-theme] .inspector-content{padding:16px 16px 28px}
+:root[data-theme] .inspector-heading{font-weight:700;letter-spacing:.08em}
+/* The real inputs are moved, never replicated. One authoritative input per
+   property preserves hotkeys, numeric scrubbing, undo/redo and JSON bindings. */
+#elementInspector{display:block;min-width:0}
+#elementInspector .inspector-blocks{display:flex;flex-direction:column;gap:0;min-width:0}
+#elementInspector .property-block{display:flex;flex-direction:column;min-width:0;padding:15px 1px 17px;border-bottom:1px solid var(--ui-divider)}
+#elementInspector [hidden],.property-block[hidden],.inspector-legacy-values[hidden]{display:none!important}
+#elementInspector .property-block-title{font-size:11.5px;font-weight:730;letter-spacing:.006em;line-height:1.45;margin:0 0 13px;color:var(--ui-text)}
+#elementInspector .property-block[data-block="specific"]{order:2}
+#elementInspector .property-block[data-block="layout"]{order:1}
+#elementInspector .property-block[data-block="appearance"]{order:3}
+#elementInspector .property-block[data-block="content"]{order:0}
+#elementInspector .property-block[data-block="technical"]{order:4;border:0}
+#elementInspector .inspector-blocks[data-property-type="image"] [data-block="specific"],
+#elementInspector .inspector-blocks[data-property-type="repeat"] [data-block="specific"]{order:0}
+#elementInspector .inspector-blocks[data-property-type="text"] [data-block="specific"]{order:1}
+#elementInspector .property-block-footer{order:5;padding-top:10px}
+#elementInspector #contextualElementTools{order:-1}
+#elementInspector .inspector-legacy-values{order:9}
+:root[data-theme] #elementInspector .transform-panel{background:transparent;border:0!important;margin:0!important;padding:0!important}
+#elementInspector .transform-title{display:none}
+#elementInspector .property-block[data-block="layout"] .field-row{margin:0 0 11px!important}
+#elementInspector .property-block[data-block="appearance"] .appearance-section{display:flex;flex-direction:column;padding:0!important;margin:0!important;border:0!important}
+#elementInspector .appearance-section>label{display:none!important}
+#elementInspector .appearance-section>.field-row{gap:9px}
+#elementInspector .appearance-section .inspector-tip{display:none}
+#elementInspector .property-block[data-block="appearance"] > label.field{margin-top:12px}
+#elementInspector .property-block[data-block="appearance"] .opacity-slider-field{margin-top:12px;display:block}
+#elementInspector .property-block[data-block="content"] > label.field{font-weight:600}
+#elementInspector .property-block[data-block="content"] input{width:100%;min-height:40px}
+#elementInspector .property-block[data-block="specific"] .advanced-inspector{display:flex;flex-direction:column;min-width:0;border:0;margin:0;padding:0}
+#elementInspector .property-block[data-block="specific"] .advanced-heading{font-size:10.5px;letter-spacing:.015em;font-weight:650;margin:8px 0 9px;color:var(--ui-muted)}
+#elementInspector .property-block[data-block="specific"] .advanced-heading:first-child{display:none}
+#elementInspector .property-block[data-block="specific"] .field{margin:0 0 10px}
+#elementInspector .property-block[data-block="specific"] .field-row{gap:9px}
+#elementInspector .advanced-disclosure{margin:7px 0;background:var(--ui-surface-alt)}
+#elementInspector .advanced-disclosure summary{min-height:38px;display:flex;align-items:center}
+#elementInspector .property-block[data-block="technical"] .expression-settings{margin:0;border-color:var(--ui-divider);background:var(--ui-surface-alt)}
+#elementInspector .property-block[data-block="technical"] .expression-settings>summary{min-height:42px;display:flex;align-items:center;font-size:12px}
+#elementInspector .property-block[data-block="layout"] .alignment-tools{margin:9px 0 0;padding:0!important}
+#elementInspector .property-block[data-block="layout"] .alignment-tools summary{padding:10px 12px!important}
+#elementInspector .property-block[data-block="layout"] .alignment-section-body{padding:0 12px 14px}
+#elementInspector .transform-note{display:none}
+#elementInspector .property-block[data-block="specific"] .crop-controls{margin:0 0 12px;background:var(--ui-surface-alt);padding:13px;border:1px solid var(--ui-divider);border-radius:var(--studio-radius-md)}
+#elementInspector .property-block[data-block="specific"] .crop-controls .inspector-section-title{font-size:12px}
+#elementInspector .property-block[data-block="specific"] .crop-controls button{min-height:36px}
+#elementInspector .inspector-actions{margin:10px 0 0;padding:14px 0 0;display:flex;gap:8px}
+#elementInspector .inspector-actions>*{flex:1}
+#elementInspector .property-block[data-block="technical"] .visually-hidden{position:absolute!important;width:1px;height:1px;clip:rect(0,0,0,0);overflow:hidden;white-space:nowrap}
+:root[data-theme] input:focus-visible,:root[data-theme] select:focus-visible,
+:root[data-theme] textarea:focus-visible,:root[data-theme] button:focus-visible,
+:root[data-theme] summary:focus-visible{outline:2px solid var(--ux-accent);outline-offset:2px}
+/* Compact top-bar dock toggles make workspace focus a discoverable action. */
+.dock-toggle-group{display:flex;align-items:center;gap:5px;margin-right:6px;padding-right:10px;border-right:1px solid var(--ui-divider)}
+.dock-toggle{border:1px solid transparent;background:transparent;color:var(--ui-muted);border-radius:8px;min-height:34px;padding:0 9px;font-size:11px;font-weight:610;cursor:pointer}
+.dock-toggle.is-active{background:var(--ui-selected);border-color:var(--ui-border);color:var(--ui-text)}
+.dock-toggle:hover{background:var(--ui-hover);color:var(--ui-text)}
+/* Template library: simple facets, search, and a categorized native select.
+   Retains native keyboard navigation and the old select change contract. */
+.template-discovery{display:flex;flex-direction:column;gap:10px;padding:14px 14px 4px}
+.template-search{border-radius:9px;min-height:38px;width:100%;padding:9px 11px;background:var(--ui-input);color:var(--ui-text);border:1px solid var(--ui-input-border);font:inherit;font-size:12px}
+.template-search::placeholder{color:var(--ui-soft)}
+.template-categories{display:flex;flex-wrap:wrap;gap:6px}
+.template-chip{padding:6px 10px;min-height:32px;border:1px solid var(--ui-border);border-radius:100px;background:transparent;color:var(--ui-muted);font-size:11px;cursor:pointer}
+.template-chip.active{background:var(--ui-selected);border-color:var(--ux-accent);color:var(--ui-selected-text)}
+.template-chip:hover{background:var(--ui-hover)}
+.template-results{font-size:11px;color:var(--ui-soft);margin:0}
+:root[data-theme] .template-picker{padding:10px 14px}
+/* Desktop breakpoints: UI remains usable without reducing control sizes. */
+@media(max-width:1160px){
+ :root[data-theme] .app{grid-template-columns:205px minmax(300px,1fr) 290px}
+ :root[data-theme] .app.app--hide-properties{grid-template-columns:205px minmax(300px,1fr)}
+ :root[data-theme] .app.app--hide-layers{grid-template-columns:minmax(300px,1fr) 290px}
+ :root[data-theme] .inspector-content{padding:12px}
+ .dock-toggle{font-size:10.5px;padding:0 7px}
+}
+@media(max-width:880px){
+ :root[data-theme] .app{grid-template-columns:170px minmax(260px,1fr) 264px}
+ :root[data-theme] .app.app--hide-properties{grid-template-columns:170px minmax(260px,1fr)}
+ :root[data-theme] .app.app--hide-layers{grid-template-columns:minmax(260px,1fr) 264px}
+ :root[data-theme] .app.app--hide-layers.app--hide-properties{grid-template-columns:minmax(260px,1fr)}
+ .dock-toggle-group{gap:2px;margin:0;padding-right:5px}
+ .dock-toggle{padding:0 5px}
+}
+@media(prefers-reduced-motion:reduce){.dock-toggle,.tree-item,.left-tab,.right-tab{transition:none!important}}
+/* Interior spacing is part of the existing editor usability contract. */
+:root[data-theme] #elementInspector .property-block[data-block="layout"] .transform-panel{padding:10px!important}
+:root[data-theme] #elementInspector .property-block[data-block="layout"] .alignment-tools{padding:10px!important}
+
+/* Opacity is a frequent image operation, so show it with image framing and fit. */
+#elementInspector .primary-opacity{display:block;margin:10px 0 0;border-top:1px solid var(--ui-divider);padding-top:12px}
+#elementInspector .primary-opacity:empty{display:none}
+#elementInspector .primary-opacity .opacity-slider-field{margin:0}
+
+/* Insert popover: tools grouped by task, searchable by name. */
+:root[data-theme] .context-submenu{width:242px;max-height:min(70vh,600px);padding:8px;border-radius:12px;background:var(--ui-surface);border-color:var(--ui-border);box-shadow:0 18px 36px #0008}
+.context-submenu .insert-search{width:100%;min-height:38px;border-radius:8px;padding:8px 10px;background:var(--ui-input);color:var(--ui-text);border:1px solid var(--ui-input-border);margin-bottom:8px;font-size:12px}
+.context-submenu .insert-category-label{font-size:10px;font-weight:740;letter-spacing:.07em;color:var(--ui-soft);padding:13px 8px 4px;text-transform:uppercase}
+.context-submenu .insert-category:first-of-type .insert-category-label{padding-top:5px}
+.context-submenu .insert-category button{min-height:36px;width:100%;border-radius:7px;font-size:11.5px;padding:7px 10px}
+.context-submenu .insert-category button[hidden],.context-submenu .insert-category[hidden],.context-submenu .insert-no-results[hidden]{display:none!important}
+.context-submenu .insert-no-results{padding:10px;font-size:12px;color:var(--ui-soft);margin:0}
+
+/* Multi-select uses the same task vocabulary, even when capabilities differ. */
+#multiPropertyInspector .multi-property-block{padding:15px 2px;border-bottom:1px solid var(--ui-divider);display:flex;flex-direction:column;gap:8px}
+#multiPropertyInspector .multi-property-block .property-block-title{font-size:12px;color:var(--ui-text);font-weight:700;margin:0 0 5px}
+#multiPropertyInspector .multi-property-block>.field{margin:3px 0 7px;min-width:0}
+/* Avoid nested duplicate headings and keep image opacity after framing options. */
+#elementInspector .property-block[data-block="specific"] .advanced-inspector{order:0}
+#elementInspector .property-block[data-block="specific"] .advanced-inspector>.advanced-heading{display:none}
+#elementInspector .property-block[data-block="specific"] .primary-opacity{order:1}
+/* V3.1 / compact desktop properties — typography borrows the visual grammar
+   of Photoshop's Character panel without claiming unsupported glyph features.
+   Existing .xtemplate controls remain editable and target >= 32 CSS px. */
+:root[data-theme] .right-panel .inspector-content{padding:10px 12px 18px}
+#elementInspector .property-block{padding:9px 1px 12px}
+#elementInspector .property-block-title{font-size:11px;margin-bottom:9px}
+#elementInspector .property-block[data-block="specific"] .advanced-inspector .field{margin:0 0 5px;min-width:0}
+#elementInspector .property-block[data-block="specific"] .advanced-inspector .field input,
+#elementInspector .property-block[data-block="specific"] .advanced-inspector .field select{height:32px;min-height:32px}
+#elementInspector .property-block[data-block="layout"] .transform-panel{padding:3px!important}
+#elementInspector .property-block[data-block="layout"] .transform-panel > .field-row:has(#transformX),
+#elementInspector .property-block[data-block="layout"] .transform-panel > .field-row:has(#transformW){gap:6px;margin:0 0 6px!important}
+#elementInspector .transform-panel .field-row:has(#transformX)>.field,
+#elementInspector .transform-panel .field-row:has(#transformW)>.field{display:flex;flex-direction:row;align-items:center;gap:5px;font-size:10.5px;margin:0}
+#elementInspector .transform-panel .field-row:has(#transformX) input,
+#elementInspector .transform-panel .field-row:has(#transformW) input{height:32px;min-height:32px;padding:5px 6px;font-size:11px;min-width:0}
+#elementInspector .transform-panel .field-row:has(#transformX)>.field,
+#elementInspector .transform-panel .field-row:has(#transformW)>.field{flex:1;min-width:0}
+#elementInspector .transform-panel .field-row:has(#transformX)>.field:first-child,
+#elementInspector .transform-panel .field-row:has(#transformW)>.field:first-child{margin-right:3px}
+#elementInspector .property-block[data-block="specific"] .advanced-inspector .character-controls{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:7px 8px;align-items:end}
+#elementInspector .character-controls>.field{min-width:0;margin:0!important;gap:3px}
+#elementInspector .character-controls>.field[data-character-field="font"]{grid-column:1/-1}
+#elementInspector .character-controls>.field[data-character-field="size"]{grid-column:1}
+#elementInspector .character-controls>.field[data-character-field="weight"]{grid-column:2}
+#elementInspector .character-controls>.field[data-character-field="italic"]{grid-column:2;display:flex;flex-direction:row;align-items:center;align-self:center;min-height:32px;gap:9px}
+#elementInspector .character-controls .field[data-character-field="italic"]>input[type=checkbox]{height:18px;min-height:18px;width:18px;margin-left:auto;flex:0 0 auto}
+#elementInspector .character-controls .field select,
+#elementInspector .character-controls .field input:not([type=checkbox]){font-size:11px;padding:6px 8px}
+#elementInspector .property-block[data-block="specific"] .character-controls+.advanced-disclosure{margin-top:12px}
+#elementInspector .property-block[data-block="specific"] .advanced-inspector .crop-tip{font-size:10.5px;line-height:1.45}
+/* Affordance and accessibility survive the density change. */
+#elementInspector .character-controls .field:focus-within{color:var(--ui-text)}
+/* V3.1 phone experience: canvas-first workspace and exclusive dock drawers.
+   Native browser buttons/files/pickers remain usable and all editing runs
+   locally on the phone; there is no shared editing session with the PC. */
+@media(max-width:720px){
+ html,body{margin:0!important;min-width:0!important;width:100%;height:100dvh!important;overflow:hidden!important}
+ body{font-size:12px;-webkit-text-size-adjust:100%}
+ :root[data-theme] .topbar{height:95px!important;min-height:95px!important;padding:5px 8px!important;gap:3px!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;justify-content:center!important}
+ .topbar .menubar-left{flex:0 0 auto;min-width:0;width:100%;height:40px;display:flex;align-items:center;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none}
+ .topbar .menubar-left::-webkit-scrollbar{display:none}
+ .topbar .brand{gap:5px;flex:0 0 auto}
+ .topbar .brand-mark,.topbar .brand-mark img{height:28px;width:28px}
+ .topbar .app-name{font-size:11px;white-space:nowrap}
+ .topbar .app-menubar{display:flex;flex:0 0 auto;gap:0}
+ .topbar .app-menu-trigger{font-size:11px;min-height:36px;padding:0 7px}
+ .topbar .top-actions{flex:0 0 auto;width:100%;height:38px;display:flex;flex-wrap:nowrap!important;justify-content:space-between;gap:4px}
+ .topbar .top-actions .history-button{min-width:27px;height:32px}
+ .topbar .top-actions .top-export{height:34px;min-height:34px;padding:0 10px;font-size:11px}
+ .topbar .dock-toggle-group{border:0;margin-right:auto;gap:5px}
+ .topbar .dock-toggle{height:34px;min-height:34px;font-size:12px;padding:0 11px}
+ .topbar .top-divider{display:none}
+ :root[data-theme] .app,:root[data-theme] .app.app--hide-layers,:root[data-theme] .app.app--hide-properties,:root[data-theme] .app.app--hide-layers.app--hide-properties{display:block!important;position:relative;height:calc(100dvh - 95px)!important;min-height:0!important;grid-template-columns:none!important;overflow:hidden}
+ :root[data-theme] .app .workspace{width:100%;height:100%;min-height:0;overflow:hidden}
+ :root[data-theme] .app .left-panel,:root[data-theme] .app .right-panel{position:absolute;top:0;bottom:0;height:100%;z-index:44;box-shadow:0 14px 46px #000b;max-height:none;min-height:0;background:var(--ui-surface);border:1px solid var(--ui-border)}
+ :root[data-theme] .app .left-panel{left:0;right:auto;width:min(90vw,340px)}
+ :root[data-theme] .app .right-panel{right:0;left:auto;width:min(94vw,360px)}
+ :root[data-theme] .app.app--hide-layers .left-panel,:root[data-theme] .app.app--hide-properties .right-panel{display:none!important}
+ :root[data-theme] .app .outline-dock{flex:1 1 auto;max-height:none!important;min-height:0}
+ :root[data-theme] .app .library-dock{flex:1;min-height:0;max-height:none;overflow:auto}
+ :root[data-theme] .app .tree{flex:1;overflow-y:auto;min-height:0}
+ :root[data-theme] .app .right-panel .inspector-content{overflow-y:auto}
+ :root[data-theme] .document-tabs{height:37px!important}
+ :root[data-theme] .document-tabs .doc-tab{min-width:0;max-width:calc(100vw - 86px);font-size:11px;padding:0 8px}
+ #docName{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ :root[data-theme] .document-tabs #splitToggle{max-width:66px;overflow:hidden;font-size:10px;white-space:nowrap}
+ :root[data-theme] .workspace-toolbar{height:43px;min-height:43px;padding:0 7px;gap:2px}
+ :root[data-theme] .workspace-toolbar .toolbar-group{gap:2px}
+ :root[data-theme] .workspace-toolbar .toolbar-group>select{font-size:11px;max-width:110px;height:31px;min-height:31px}
+ :root[data-theme] .workspace-toolbar .toolbar-label,.workspace-toolbar .pan-hint,.workspace-toolbar .validation,.workspace-toolbar .toolbar-divider{display:none!important}
+ :root[data-theme] .workspace-toolbar .toolbar-group button{min-width:30px;min-height:31px;padding:0 5px}
+ :root[data-theme] .editor-area{flex:1;min-height:0;width:100%}
+ :root[data-theme] .preview-pane{height:100%;min-height:0;width:100%;flex:1}
+ :root[data-theme] .pane-title{height:26px;font-size:9px;padding:0 8px}
+ :root[data-theme] .pane-title .muted{display:none}
+ :root[data-theme] .canvas-area{min-height:0;width:100%;padding:0 0 42px;display:flex;align-items:center;justify-content:center}
+ :root[data-theme] .canvas-hint{display:none}
+ :root[data-theme] .paper-wrap{width:min(75vw,calc((100dvh - 270px) * .7071))!important;max-height:calc(100% - 22px)!important}
+ :root[data-theme] .canvas-tools{position:absolute;top:auto;bottom:28px;left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100vw - 18px);max-height:46px;height:46px;display:flex;flex-direction:row;align-items:center;overflow-x:auto;overscroll-behavior-x:contain;white-space:nowrap;gap:3px;padding:4px;scrollbar-width:none}
+ :root[data-theme] .canvas-tools .canvas-tool{flex:0 0 36px;width:36px;height:36px;min-width:36px;padding:6px}
+ :root[data-theme] .canvas-tools .tool-separator,:root[data-theme] .canvas-tools>span{height:24px;width:1px;flex:0 0 1px;margin:0 3px}
+ :root[data-theme] .canvas-footer{height:22px;font-size:9px;padding:0 8px}
+ :root[data-theme] .statusbar{height:22px;gap:8px;padding:0 8px}
+ :root[data-theme] .statusbar span:last-child{display:none}
+ :root[data-theme] .json-pane{position:absolute;inset:37px 0 22px;min-width:0;width:100%;z-index:22;background:var(--ui-surface)}
+ :root[data-theme] .app-menu{max-width:min(94vw,370px);max-height:65dvh;overflow:auto}
+ :root[data-theme] .modal-card{width:min(96vw,540px);max-height:82dvh;padding:15px}
+ :root[data-theme] .context-menu,.context-submenu{max-width:calc(100vw - 12px)}
+}
+/* Character row: size / weight / italic side-by-side like desktop type tools. */
+#elementInspector .property-block[data-block="specific"] .character-controls{grid-template-columns:minmax(0,.83fr) minmax(0,1.15fr) 45px;gap:6px}
+#elementInspector .character-controls>.field[data-character-field="font"]{grid-column:1/-1}
+#elementInspector .character-controls>.field[data-character-field="size"]{grid-column:1}
+#elementInspector .character-controls>.field[data-character-field="weight"]{grid-column:2}
+#elementInspector .character-controls>.field[data-character-field="italic"]{grid-column:3;align-self:end;height:32px;display:flex;flex-direction:row;justify-content:center;gap:2px;font-size:9.5px}
+#elementInspector .character-controls>.field[data-character-field="italic"] input{margin:0!important;width:18px;height:18px}
+#elementInspector .character-controls>.field[data-character-field="align"]{grid-column:1}
+#elementInspector .character-controls>.field[data-character-field="baseline"]{grid-column:2/-1}
+@media(max-width:720px){
+ /* Phone drawers use larger touch targets than the space-efficient desktop
+    inspector; no input/label is allowed to shrink below an easy tap area. */
+ :root[data-theme] .right-panel .inspector-content input:not([type=checkbox]):not([type=range]),
+ :root[data-theme] .right-panel .inspector-content select,
+ :root[data-theme] .right-panel .inspector-content button:not(.rotation-wheel){min-height:40px;font-size:13px}
+ :root[data-theme] .right-panel .inspector-content label.field{font-size:12px}
+ :root[data-theme] .right-panel .inspector-content .property-block-title{font-size:12px}
+ :root[data-theme] .left-panel .left-tab,:root[data-theme] .right-panel .right-tab{min-height:43px;font-size:12px}
+ :root[data-theme] .left-panel .tree-item{min-height:42px}
+}

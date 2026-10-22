@@ -6,13 +6,13 @@ const IMPORTANT = Object.freeze({
   line:['x1','y1','x2','y2'],rect:['rx'],
   circle:['cx','cy','r'],dot:['cx','cy','r'],
   ellipse:['cx','cy','rx','ry'],
-  text:['size','font','weight','align','baseline','rotate'],
+  text:['font','size','weight','italic','align','baseline'],
   polygon:['points'],polyline:['points'],
   path:['d','viewBox','aspect'],
-  image:['src','fit','position'],
+  image:['fit','position'],
   hatch:['period','angle','offset'],
 });
-const ADVANCED=new Set(['index','stagger','extend','select','italic','dash']);
+const ADVANCED=new Set(['index','stagger','extend','select','italic','dash','src']);
 export function inspectorSections(type,fieldGroups){
   const important=new Set(IMPORTANT[type]||[]);
   const groups={essential:[],additional:[],advanced:[]};

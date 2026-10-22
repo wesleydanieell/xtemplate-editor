@@ -23,15 +23,10 @@ export function createAlignmentTools(api) {
     };
 
     if (alignments[action]) {
-      if (type === 'text') {
-        const box = parent;
-        const targetX = action === 'left' ? 0 : action === 'right' ? pageW - b.w : action === 'center-x' ? (pageW - b.w) / 2 : b.x;
-        const targetY = action === 'top' ? 0 : action === 'bottom' ? pageH - b.h : action === 'center-y' ? (pageH - b.h) / 2 : b.y;
-        node.x = mm(targetX - box.x);
-        node.y = mm(targetY - box.y);
-      } else {
-        alignments[action]();
-      }
+      // XNotes text stores its baseline/anchor, not the bounding-box corner.
+      // Moving the native anchor by the PAINTED bounds delta makes page
+      // alignment work for start/middle/end, all baselines and rotations.
+      alignments[action]();
       api.commit();
       return;
     }
@@ -79,7 +74,7 @@ export function createAlignmentTools(api) {
         node.y2 = mm(pageH - box.y);
       }
     } else {
-      api.toast(horizontal ? 'Este tipo de elemento não possui largura ajustável.' : 'Este tipo de elemento não possui altura ajustável.');
+      api.toast(horizontal ? 'This element has no adjustable width.' : 'This element has no adjustable height.');
       return;
     }
     api.commit();

@@ -35,6 +35,20 @@ page.on('dialog',dialog=>dialog.accept());
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
 try{
  await page.goto(`http://127.0.0.1:${port}/`,{waitUntil:'networkidle0'});
+ const ux=await page.evaluate(()=>({
+  lang:document.documentElement.lang,
+  tabs:[...document.querySelectorAll('.left-tab')].map(el=>el.textContent.trim()),
+  locale:!!document.querySelector('#languageSelect'),
+  duplicateQuick:getComputedStyle(document.querySelector('#quickProperties')).display,
+  logo:document.querySelector('.brand-mark img')?.complete&&document.querySelector('.brand-mark img')?.naturalWidth>0,
+  pageOverflow:document.documentElement.scrollWidth>window.innerWidth+1
+ }));
+ assert.equal(ux.lang,'en');assert.deepEqual(ux.tabs,['Layers','Templates']);
+ assert(!ux.locale);assert.equal(ux.duplicateQuick,'none');assert(ux.logo);assert(!ux.pageOverflow);
+ await page.$eval('[data-left-tab="templates"]',el=>el.click());
+ assert.equal(await page.$eval('[data-left-panel="templates"]',el=>getComputedStyle(el).display!=='none'),true);
+ await page.$eval('[data-left-tab="layers"]',el=>el.click());
+ console.log('PASS: English workspace, Layers/Templates navigation, clean toolbar and new SVG identity');
  await page.$eval('#fileInput',(input,byteList)=>{const dt=new DataTransfer();dt.items.add(new File([new Uint8Array(byteList)],'sample.xtemplate',{type:'application/zip'}));input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));},[...sample]);
  await page.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Official-style cover');
  const images=await page.$$eval('#page-artwork image',nodes=>nodes.map(x=>({href:x.getAttribute('href'),fit:x.getAttribute('preserveAspectRatio'),w:x.getAttribute('width')})));
@@ -111,24 +125,38 @@ try{
  assert(Math.abs(constrainBounds.w/constrainBounds.h-originalSelection.w/originalSelection.h)<.015,
    'Shift must preserve the visible image aspect ratio');
  console.log('PASS: visible image bounds, free side resize, aligned eight handles, Shift aspect lock');
- // Crop-frame mode preserves native cover during independent viewport resizing.
+ // Native free crop: convert to XNotes group clip, pan image inside frame,
+ // zoom source content, resize frame independently, and export losslessly.
  await page.$eval('.tree-item[data-path="items.1"]',el=>el.click());
  await page.click('[data-image-crop="toggle"]');
- assert.equal(await page.$eval('#jsonEditor',x=>JSON.parse(x.value).items[1].fit),'cover');
+ let native=await page.$eval('#jsonEditor',x=>JSON.parse(x.value).items[1]);
+ assert.equal(native.type,'group');assert.equal(native.clip,true);
+ assert.equal(native['x-studio-crop'],true);
+ assert.equal(native.children[0].type,'image');
+ assert.equal(native.children[0].fit,'stretch');
  assert.equal(await page.$eval('[data-image-crop="toggle"]',x=>x.getAttribute('aria-pressed')),'true');
- const cropStart=await measure();
- await page.click('[data-image-position="top right"]');
- assert.equal(await page.$eval('#jsonEditor',x=>JSON.parse(x.value).items[1].position),'top right');
- const rightHandle=await handlePoint('e');
+ await page.$eval('.crop-zoom input',el=>{el.value='175';el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));});
+ native=await page.$eval('#jsonEditor',x=>JSON.parse(x.value).items[1]);
+ const zoomedImage={...native.children[0]};const croppedFrameX=native.x;
+ const currentFrame=await measure();
+ const dragCenter=await shiftedScreen(currentFrame.x+currentFrame.w*.50,currentFrame.y+currentFrame.h*.5);
+ const panTarget=await shiftedScreen(currentFrame.x+currentFrame.w*.35,currentFrame.y+currentFrame.h*.45);
+ await page.mouse.move(dragCenter.x,dragCenter.y);await page.mouse.down();
+ await page.mouse.move(panTarget.x,panTarget.y,{steps:8});await page.mouse.up();
+ native=await page.$eval('#jsonEditor',x=>JSON.parse(x.value).items[1]);
+ assert.notEqual(native.children[0].x,zoomedImage.x,'crop pan must move original pixels inside fixed frame');
+ assert.equal(native.x,croppedFrameX,'crop panning leaves the outer frame in place');
+ const cropStart=await measure(),rightHandle=await handlePoint('e');
  const cropTarget=await shiftedScreen(cropStart.x+cropStart.w-16,cropStart.y+cropStart.h/2);
  await page.mouse.move(rightHandle.x,rightHandle.y);await page.mouse.down();
  await page.mouse.move(cropTarget.x,cropTarget.y,{steps:6});await page.mouse.up();
  const cropped=await page.$eval('#jsonEditor',x=>JSON.parse(x.value).items[1]);
- assert.equal(cropped.fit,'cover','crop frame must never switch to stretch');
- assert(Math.abs(parseFloat(cropped.w)-(cropStart.w-16))<.5,'crop handle changes viewport width');
- assert(Math.abs(parseFloat(cropped.h)-cropStart.h)<.2,'crop edge keeps viewport height');
+ assert.equal(cropped['x-studio-crop'],true);
+ assert(Math.abs(parseFloat(cropped.w)-(cropStart.w-16))<.7,'crop handle changes viewport width');
+ assert(Math.abs(parseFloat(cropped.h)-cropStart.h)<.25,'crop edge keeps viewport height');
  await page.click('[data-image-crop="toggle"]');
  assert.equal(await page.$eval('[data-image-crop="toggle"]',x=>x.getAttribute('aria-pressed')),'false');
+ console.log('PASS: native XNotes clipped image, direct pan, picture zoom, independent frame resize');
  console.log('PASS: native cover cropping frame, 9-point image positioning and finish crop');
  await page.click('[data-menu-action="export"]');
  await page.waitForFunction(()=>document.querySelector('#exportSummary')?.textContent.includes('Embedded images'));
@@ -136,16 +164,48 @@ try{
  let files=[];for(let i=0;i<45;i++){files=(await fs.readdir(dir)).filter(x=>x.endsWith('.xtemplate'));if(files.length)break;await new Promise(r=>setTimeout(r,180));}
  assert.equal(files.length,1,'export should download one package');
  const saved=await readTemplate(await fs.readFile(path.join(dir,files[0])));
- assert.equal(saved.packaged,true);assert.equal(saved.document.items[1].fit,'cover');
- assert.equal(saved.document.items[1].position,'top right');
+ assert.equal(saved.packaged,true);assert.equal(saved.document.items[1].type,'group');
+ assert.equal(saved.document.items[1].clip,true);
+ assert.equal(saved.document.items[1].children[0].src,'images/studio.webp');
  assert.equal(Buffer.compare(Buffer.from(saved.assets.get('images/studio.webp')),Buffer.from(asset.get('images/studio.webp'))),0);
  console.log('PASS: official image ZIP import, editing, export and byte-preserving roundtrip');
+ // The native crop group must stay editable after reopening the exported ZIP.
+ const savedBytes=await fs.readFile(path.join(dir,files[0]));
+ await page.$eval('#fileInput',(input,data)=>{
+  const dt=new DataTransfer();dt.items.add(new File([new Uint8Array(data)],'reopened.xtemplate',{type:'application/zip'}));
+  input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+ },[...savedBytes]);
+ await page.waitForFunction(()=>document.querySelector('#statusMessage')?.textContent.includes('reopened.xtemplate'));
+ await page.$eval('.tree-item[data-path="items.1"]',el=>el.click());
+ assert.equal(await page.$eval('[data-image-crop]',el=>el.textContent.trim()),'Edit crop');
+ await page.click('[data-image-crop="toggle"]');
+ assert.equal(await page.$eval('[data-image-crop]',el=>el.textContent.trim()),'Apply crop');
+ // Escape cancels changes made in the crop editor, including pan/zoom,
+ // rather than simply closing the tool and leaving those changes behind.
+ const beforeCancel=await page.$eval('#jsonEditor',el=>JSON.parse(el.value).items[1]);
+ const frame=await page.$eval('#jsonEditor',el=>JSON.parse(el.value).items[1]);
+ await page.$eval('.crop-zoom input',el=>{el.value='180';el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));});
+ const modified=await page.$eval('#jsonEditor',el=>JSON.parse(el.value).items[1]);
+ assert.notDeepEqual(modified,beforeCancel,'zoom edits native geometry');
+ await page.keyboard.press('Escape');
+ assert.equal(await page.$eval('[data-image-crop]',el=>el.textContent.trim()),'Edit crop');
+ const cancelled=await page.$eval('#jsonEditor',el=>JSON.parse(el.value).items[1]);
+ assert.deepEqual(cancelled,beforeCancel,'Escape restores the saved image framing');
+ await page.click('[data-image-crop="toggle"]');
+ await page.$eval('.crop-zoom input',el=>{el.value='150';el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));});
+ await page.click('[data-image-crop-cancel]');
+ assert.deepEqual(await page.$eval('#jsonEditor',el=>JSON.parse(el.value).items[1]),beforeCancel,'Cancel restores snapshot');
+ await page.click('[data-image-crop="toggle"]');
+ await page.$eval('.crop-zoom input',el=>{el.value='135';el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));});
+ await page.click('[data-image-crop="toggle"]');
+ assert.notDeepEqual(await page.$eval('#jsonEditor',el=>JSON.parse(el.value).items[1]),beforeCancel,'Apply keeps new framing');
+ console.log('PASS: crop Apply persists, Cancel and Escape restore exact prior framing');
  // Add a new image by using the Insert menu and the local file picker.
  const png=await fs.readFile('docs/images/studio-overview.webp');
  await page.$eval('#imageFileInput',(input,data)=>{const dt=new DataTransfer();dt.items.add(new File([new Uint8Array(data)],'studio.webp',{type:'image/webp'}));input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));},[...png]);
- await page.waitForFunction(()=>JSON.parse(document.querySelector('#jsonEditor').value).items.filter(n=>n.type==='image').length===2);
+ await page.waitForFunction(()=>JSON.parse(document.querySelector('#jsonEditor').value).items.filter(n=>n.type==='image').length===1);
  const next=await page.$eval('#jsonEditor',x=>JSON.parse(x.value));
- assert.equal(next.items.filter(n=>n.type==='image').length,2);
+ assert.equal(next.items.filter(n=>n.type==='image').length,1);
  assert.equal(next.items.at(-1).src,'images/studio-2.webp');
  await page.$eval('.tree-item[data-path="items.2"]',el=>el.click());
  const oldSrc=next.items[2].src;

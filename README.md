@@ -22,7 +22,7 @@
 ## Features
 
 - **Visual canvas + JSON editor:** draw, inspect and edit native XNotes elements with undo/redo and optional split view.
-- **Image covers and watermarks (development):** insert PNG/JPEG/WebP, adjust crop frames and image focus, then export a portable ZIP `.xtemplate`. Try the [bundled image-based examples](examples/README.md) or read the [image-package guide](docs/IMAGE_PACKAGES.md).
+- **Image covers and watermarks (development):** insert PNG/JPEG/WebP, adjust crop frames and image focus, then export a portable ZIP `.xtemplate`. Try the [bundled image-based examples](examples/README.md) or read the [image-package guide](docs/IMAGE_PACKAGES.md) · [Phone preview on local Wi-Fi](docs/PHONE_PREVIEW.md) · [Interface icon system](docs/ICON_SYSTEM.md).
 - **Pen and vector tools:** lines, polygons, polylines, Bézier paths, Hatch patterns, snapping, node editing and horizontal/vertical mirroring.
 - **Layer organization:** nested groups, `repeat`, multi-selection, drag-and-drop in **Structure**, and alignment guides.
 - **Cover design:** place shapes and control points outside the page; only the portion inside the sheet is rendered, while editing handles stay accessible.
@@ -64,3 +64,7 @@ XTemplate Studio targets the [official `.xtemplate` specification](https://githu
 ## Contribute
 
 Bug reports and pull requests are welcome through [Issues](https://github.com/wesleydanieell/xtemplate-editor/issues) and [Pull requests](https://github.com/wesleydanieell/xtemplate-editor/pulls). See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md). Source code is [MIT licensed](LICENSE); bundled example templates may have their own licenses.
+
+## UI and editing model
+
+The editor follows a clean [Layers → Canvas → Properties design system](docs/DESIGN_SYSTEM.md). For images, **Crop image** now lets you move and zoom the original picture within a freely resizable native clipping frame; no pixels are deleted.

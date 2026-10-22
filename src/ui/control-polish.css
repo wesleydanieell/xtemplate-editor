@@ -1,0 +1,104 @@
+/* v3.3: use one ergonomic compact-property grid. DOM inputs are unchanged. */
+:root{--studio-property-control:34px;--studio-property-space:8px}
+:root[data-theme] #elementInspector .property-block-title{display:flex;align-items:center;min-height:20px;margin-bottom:10px;font-size:11.5px;letter-spacing:.01em}
+:root[data-theme] #elementInspector .property-block{padding:11px 0 13px}
+:root[data-theme] #elementInspector .transform-panel>.field-row:has(#transformX),
+:root[data-theme] #elementInspector .transform-panel>.field-row:has(#transformW){display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px!important;margin:0 0 8px!important}
+:root[data-theme] #elementInspector .transform-panel>.field-row:has(#transformX)>.field,
+:root[data-theme] #elementInspector .transform-panel>.field-row:has(#transformW)>.field{display:grid!important;grid-template-columns:12px minmax(0,1fr);gap:6px!important;align-items:center;font-size:11px;margin:0!important;min-width:0}
+:root[data-theme] #elementInspector .transform-panel>.field-row:has(#transformX) input,
+:root[data-theme] #elementInspector .transform-panel>.field-row:has(#transformW) input{box-sizing:border-box;min-width:0;width:100%;height:var(--studio-property-control);min-height:var(--studio-property-control);margin:0;padding:5px 7px;font-variant-numeric:tabular-nums}
+/* Character: font / size / baseline / icon-style / alignment. Two controls
+   are never squeezed into a visually misaligned three-column row. */
+:root[data-theme] #elementInspector .advanced-inspector .character-controls{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 9px;align-items:end;min-width:0}
+:root[data-theme] #elementInspector .character-controls>.field{display:flex!important;flex-direction:column!important;gap:5px!important;align-self:stretch!important;width:auto!important;min-width:0;margin:0!important;font-size:10.5px;line-height:1.3;color:var(--ui-muted)}
+:root[data-theme] #elementInspector .character-controls>.field[data-character-field="font"]{grid-column:1/-1}
+:root[data-theme] #elementInspector .character-controls>.field[data-character-field="size"]{grid-column:1}
+:root[data-theme] #elementInspector .character-controls>.field[data-character-field="baseline"]{grid-column:2}
+:root[data-theme] #elementInspector .character-controls>.field select,
+:root[data-theme] #elementInspector .character-controls>.field input:not([type=checkbox]){box-sizing:border-box;min-width:0;width:100%;height:var(--studio-property-control);min-height:var(--studio-property-control);margin:0;padding:5px 8px;font-size:12px;border-radius:7px}
+:root[data-theme] #elementInspector .character-controls>.character-native-proxy{position:absolute!important;left:-9999px!important;top:auto!important;width:1px!important;height:1px!important;overflow:hidden!important;pointer-events:none!important;clip-path:inset(50%)!important}
+:root[data-theme] #elementInspector .character-action-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;grid-column:1/-1;min-height:36px;gap:8px}
+:root[data-theme] #elementInspector .character-action-caption{font-size:11px;font-weight:500;color:var(--ui-muted)}
+/* Style and Text anchor share one full-width Character row, two equal columns.
+   Each heading sits above its segmented controls. No fixed-size buttons can
+   spill into the adjacent group even in narrow desktop or phone drawers. */
+:root[data-theme] #elementInspector .character-compact-actions{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;align-items:stretch;min-width:0}
+:root[data-theme] #elementInspector .character-compact-actions>.character-action-row{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;grid-column:auto;grid-template-columns:none;gap:6px;min-height:0;min-width:0}
+:root[data-theme] #elementInspector .character-compact-actions .character-action-caption{display:block;line-height:1.35;min-height:15px;white-space:nowrap}
+:root[data-theme] #elementInspector .character-compact-actions .character-segmented{display:flex;width:100%;min-width:0;min-height:36px}
+:root[data-theme] #elementInspector .character-compact-actions .character-segment{flex:1 1 0;width:0;min-width:0;padding:0}
+
+:root[data-theme] #elementInspector .character-segmented{display:flex;align-items:center;gap:0;border:1px solid var(--ui-border);border-radius:8px;overflow:hidden;background:var(--ui-surface-alt)}
+:root[data-theme] #elementInspector .character-segment{box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:42px;height:36px;min-width:42px;min-height:36px;margin:0;padding:0;border:0;border-radius:0;background:transparent;color:var(--ui-muted);cursor:pointer;transition:background-color .12s ease,color .12s ease}
+:root[data-theme] #elementInspector .character-segment+.character-segment{border-left:1px solid var(--ui-divider)}
+:root[data-theme] #elementInspector .character-segment:hover{background:var(--ui-hover);color:var(--ui-text)}
+:root[data-theme] #elementInspector .character-segment[aria-pressed="true"]{background:var(--ui-selected);color:var(--ui-text);box-shadow:inset 0 -2px var(--ux-accent)}
+:root[data-theme] #elementInspector .character-segment:focus-visible{outline:2px solid var(--ux-accent);outline-offset:-2px;z-index:1}
+:root[data-theme] #elementInspector .character-segment .ui-icon{width:17px;height:17px}
+/* Universal button icon alignment, including image actions that once drew two SVGs. */
+:root[data-theme] .canvas-tool:has(>.ui-icon){display:flex;align-items:center;justify-content:center;line-height:1}
+:root[data-theme] #canvasAddImage svg:not(.ui-icon){display:none}
+:root[data-theme] .crop-actions button{display:inline-flex;justify-content:center;align-items:center;gap:7px;min-height:34px}
+@media(max-width:720px){
+ :root[data-theme] #elementInspector .character-segment{min-height:44px;height:44px;min-width:44px;width:44px}
+ :root[data-theme] #elementInspector .character-controls>.field select,
+ :root[data-theme] #elementInspector .character-controls>.field input:not([type=checkbox]){height:42px;min-height:42px;font-size:13px}
+}
+@media(prefers-reduced-motion:reduce){:root[data-theme] #elementInspector .character-segment{transition:none}}
+/* Native in-page type editing. A transparent foreignObject follows the glyph's
+   SVG transform; the contenteditable looks like typography, not a dialog. */
+.svg-text-edit{overflow:visible;pointer-events:all;outline:0!important}
+.svg-text-edit .svg-text-edit-content{display:block;box-sizing:border-box;margin:0;padding:0!important;line-height:1.1;white-space:pre;overflow:visible;border:0!important;outline:0!important;box-shadow:none!important;background:transparent!important;border-radius:0!important;min-width:0;max-width:none;letter-spacing:normal;word-break:normal;caret-color:#3b8cff;cursor:text;user-select:text;-webkit-user-select:text;touch-action:manipulation}
+.svg-text-edit .svg-text-edit-content::selection{background:#5c94f674}
+.svg-text-edit .svg-text-edit-content:focus{outline:0!important}
+.text-edit-launch{min-height:34px;display:inline-flex;align-items:center;justify-content:center;gap:7px;margin:5px 0 0;border:1px solid var(--ui-border);border-radius:7px;background:var(--ui-surface-alt);color:var(--ui-text);font-size:11px;cursor:pointer}
+.text-edit-launch:hover{background:var(--ui-hover)}
+.text-edit-launch>.ui-icon{width:15px;height:15px}
+@media(max-width:720px){.text-edit-launch{min-height:42px;font-size:13px}}
+/* Split Editor communicates a two-pane layout instead of a code-file action. */
+:root[data-theme] #splitToggle{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:31px;padding:4px 10px;border:1px solid transparent;border-radius:7px;color:var(--ui-muted);font-size:11px;font-weight:600;white-space:nowrap}
+:root[data-theme] #splitToggle>.ui-icon{width:17px;height:17px;stroke-width:1.8}
+:root[data-theme] #splitToggle.active{background:var(--ui-selected);color:var(--ui-text);border-color:var(--ui-border);box-shadow:inset 0 -2px var(--ux-accent)}
+:root[data-theme] #splitToggle:hover{background:var(--ui-hover);color:var(--ui-text)}
+
+@media(max-width:720px){
+ /* Header is 390px wide: compact split toggle displays a proper icon only.
+    Name and keyboard shortcut remain accessible via aria-label/title. */
+ :root[data-theme] #splitToggle{width:36px;min-width:36px;max-width:36px;padding:5px;gap:0}
+ :root[data-theme] #splitToggle>span{display:none}
+}
+
+/* Screen-constant, invisible handles: rendered glyphs still use small visual
+   control squares, while exact mouse/touch acquisition has a 16px hit area. */
+#editor-selection-overlay .transform-hit-area{fill:transparent!important;stroke:none!important;pointer-events:all!important;touch-action:none;cursor:nwse-resize}
+#editor-selection-overlay .transform-hit-area[data-handle="n"],#editor-selection-overlay .transform-hit-area[data-handle="s"]{cursor:ns-resize}
+#editor-selection-overlay .transform-hit-area[data-handle="e"],#editor-selection-overlay .transform-hit-area[data-handle="w"]{cursor:ew-resize}
+#editor-selection-overlay .transform-hit-area[data-handle="ne"],#editor-selection-overlay .transform-hit-area[data-handle="sw"]{cursor:nesw-resize}
+#editor-selection-overlay .transform-hit-area[data-handle="rotate"]{cursor:crosshair}
+
+/* Explicit distinction: text anchor changes glyph distribution around X;
+   Place on page positions the actual painted glyph in the document. */
+:root[data-theme] #elementInspector .character-page-align-row{grid-template-columns:1fr;gap:6px;margin-top:3px}
+:root[data-theme] #elementInspector .character-page-align-row .character-action-caption{font-weight:600}
+:root[data-theme] #elementInspector .character-page-align-row .character-segmented{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));width:100%}
+:root[data-theme] #elementInspector .character-page-align-row .character-segment{width:100%;min-width:0;min-height:36px}
+@media(max-width:720px){:root[data-theme] #elementInspector .character-page-align-row .character-segment{min-height:44px}}
+
+:root[data-theme] #elementInspector .character-page-align-row [data-page-align="top"]{border-left:2px solid var(--ui-border)}
+
+/* Center both tab labels and their icons, regardless of the base icon
+   primitive's default justify-content:flex-start. */
+:root[data-theme] .right-panel .right-tabs>.right-tab{display:inline-flex;align-items:center;justify-content:center;text-align:center;gap:7px;min-width:0;padding:0 8px;line-height:1.15}
+:root[data-theme] .right-panel .right-tabs>.right-tab>.ui-icon{flex:0 0 15px;width:15px;height:15px}
+
+/* Native XNotes geometry editing: cyan, nonexported live-corner widgets. */
+.corner-control-overlay .corner-widget{cursor:nwse-resize;touch-action:none}
+.corner-control-overlay .corner-widget circle:nth-child(2){filter:drop-shadow(0 0 .7px #204771);transition:fill .1s}
+.corner-control-overlay .corner-widget:hover circle:nth-child(2){fill:#c4edff}
+#elementInspector .path-corner-settings{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px;margin:9px 0 4px}
+#elementInspector .path-corner-settings .field{min-width:0;margin:0!important}
+#elementInspector .path-corner-settings input{width:100%;min-width:0;min-height:34px}
+#elementInspector .path-corner-settings button{min-height:34px;white-space:nowrap;border-radius:7px;padding:5px 12px}
+#elementInspector .corner-bake-tip{font-size:10px;line-height:1.45;color:var(--ui-soft);margin:7px 0 12px}
+@media(max-width:720px){#elementInspector .path-corner-settings button{min-height:42px}}

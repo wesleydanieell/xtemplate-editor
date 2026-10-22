@@ -1,0 +1,61 @@
+/** Editor-only live-corner math. Output contains only supported .xtemplate
+ * geometry: rect.rx or SVG d commands M/L/Q/Z. This is deliberately strict:
+ * curves, relative commands, multiple contours and expressions are NEVER
+ * silently baked or rewritten by the polygonal-path corner tool. */
+import {editablePathNodes} from './svg-path.js';
+const fmt=x=>String(Number(x.toFixed(4)));
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const lerp=(a,b,part)=>({x:a.x+(b.x-a.x)*part,y:a.y+(b.y-a.y)*part});
+export const maxRectCorner=(w,h)=>Math.max(0,Math.min(w,h)/2);
+export function clampRectCorner(value,w,h){return Math.max(0,Math.min(Number(value)||0,maxRectCorner(w,h)));}
+export function straightPathCorners(d){
+ let parsed;
+ try{parsed=editablePathNodes(d);}catch{return null;}
+ if(parsed.segments.some(({command})=>!['M','L','Z'].includes(command)))return null;
+ const vertices=parsed.segments.filter(({command})=>command==='M'||command==='L').map(segment=>({x:segment.points[0].x,y:segment.points[0].y}));
+ const closed=parsed.closed;
+ if(vertices.length<(closed?3:3))return null;
+ if(closed&&dist(vertices[0],vertices.at(-1))<1e-7)vertices.pop();
+ if(vertices.length<3)return null;
+ if(vertices.some((p,i)=>dist(p,vertices[(i+1)%vertices.length])<1e-7&&(closed||i<vertices.length-1)))return null;
+ return {vertices,closed};
+}
+export function roundStraightPath(d,radius){
+ const info=straightPathCorners(d);
+ if(!info)throw Error('Round corners supports only explicit M/L/Z polygonal path segments. Curved/relative paths remain unchanged.');
+ if(!Number.isFinite(radius)||radius<0)throw Error('Invalid round-corner distance');
+ if(radius===0)return d;
+ const {vertices,closed}=info;
+ const pairs=vertices.map((vertex,i)=>{
+  const first=i===0,last=i===vertices.length-1;
+  if(!closed&&(first||last))return{vertex,entry:vertex,exit:vertex,rounded:false};
+  const previous=vertices[(i-1+vertices.length)%vertices.length],next=vertices[(i+1)%vertices.length];
+  const incoming=dist(vertex,previous),outgoing=dist(vertex,next);
+  // Never overlap fillets even on very short edges. A Q midpoint produces
+  // a smooth tangent at the path's original sharp-corner location.
+  const cut=Math.min(radius,incoming/2,outgoing/2);
+  const cross=(vertex.x-previous.x)*(next.y-vertex.y)-(vertex.y-previous.y)*(next.x-vertex.x);
+  if(cut<1e-6||Math.abs(cross)<1e-8)return{vertex,entry:vertex,exit:vertex,rounded:false};
+  return {vertex,entry:lerp(vertex,previous,cut/incoming),exit:lerp(vertex,next,cut/outgoing),rounded:true};
+ });
+ const point=p=>fmt(p.x)+' '+fmt(p.y);
+ const result=[];
+ if(closed){
+  result.push('M '+point(pairs[0].exit));
+  for(let i=1;i<pairs.length;i++){
+   const q=pairs[i];result.push('L '+point(q.entry));
+   if(q.rounded)result.push('Q '+point(q.vertex)+' '+point(q.exit));
+  }
+  const q=pairs[0];result.push('L '+point(q.entry));
+  if(q.rounded)result.push('Q '+point(q.vertex)+' '+point(q.exit));
+  result.push('Z');
+ }else{
+  result.push('M '+point(vertices[0]));
+  for(let i=1;i<vertices.length-1;i++){
+   const q=pairs[i];result.push('L '+point(q.entry));
+   if(q.rounded)result.push('Q '+point(q.vertex)+' '+point(q.exit));
+  }
+  result.push('L '+point(vertices.at(-1)));
+ }
+ return result.join(' ');
+}

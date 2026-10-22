@@ -60,7 +60,7 @@ try{
  await blankPage.goto(`http://127.0.0.1:${port}/`,{waitUntil:'networkidle0'});
  await blankPage.click('[data-menu="fileMenu"]');
  await blankPage.click('#newBtn');
- assert.match(await blankPage.$eval('#newTemplateModal .modal-description',el=>el.textContent),/no elements or predefined variables/);
+ assert.match(await blankPage.$eval('#newTemplateModal .modal-description',el=>el.textContent),/Start with a blank page or cover/);
  assert.equal(await blankPage.$eval('#newTemplateLicense',el=>el.value),'');
  await blankPage.$eval('#newTemplateName',el=>{el.value='Empty cover';});
  await blankPage.click('#newTemplateForm button[type="submit"]');
@@ -388,9 +388,9 @@ try{
  await workspacePage.keyboard.press('ArrowDown');
  await workspacePage.keyboard.press('Enter');
  assert.equal(await workspacePage.$eval('#elementStroke',el=>el.value),'accent');
- const strokeFormat=await workspacePage.$eval('#elementStrokeWidth',el=>({title:el.title,hint:el.closest('label').querySelector('.value-field-hint')?.textContent}));
- assert.match(strokeFormat.title,/mm/);
- assert.match(strokeFormat.hint,/Line thickness/);
+ const strokeFormat=await workspacePage.$eval('#elementStrokeWidth',el=>({title:el.title,hints:el.closest('label').querySelectorAll('.value-field-hint').length}));
+ assert.match(strokeFormat.title,/Line thickness.*mm/);
+ assert.equal(strokeFormat.hints,0,'field guidance is shown on hover, not in a permanent row');
  await workspacePage.click('[data-inspector="params"]');
  await workspacePage.click('#addParam');
  await workspacePage.select('#newParamType','color');
@@ -734,10 +734,11 @@ try{
  },JSON.stringify(priorityDoc));
  await compatibilityPage.waitForFunction(()=>document.querySelector('#docName')?.textContent==='Priority inspector');
  await compatibilityPage.$eval('.tree-item[data-path="items.0"]',e=>e.click());
- const inspectorOrder=await compatibilityPage.$$eval('#advancedInspector > *',els=>els.map(el=>el.dataset.fieldKeys||el.textContent.trim()));
+ const inspectorOrder=await compatibilityPage.$$eval('#advancedInspector [data-field-keys]',els=>els.map(el=>el.dataset.fieldKeys));
  assert(inspectorOrder.indexOf('axis')<inspectorOrder.indexOf('index'),'repeat axis precedes alias');
  assert(inspectorOrder.indexOf('period')<inspectorOrder.indexOf('stagger'),'repeat period precedes stagger');
- assert(inspectorOrder.some(x=>x.startsWith('ESSENTIAL'))&&inspectorOrder.some(x=>x.startsWith('ADVANCED')));
+ assert((await compatibilityPage.$$eval('#advancedInspector .advanced-disclosure',els=>els.filter(el=>!el.open).length))>=1,
+  'secondary and advanced fields should stay collapsed until requested');
  // Native visual vertex editor preserves untouched expressions and commits a single history change.
  const vertexDoc={xtemplate:1,id:'test.vector.vertices',name:'Vector vertex test',items:[
   {type:'polygon',points:[['W/4','30mm'],['90mm','30mm'],['80mm','90mm']],stroke:'ink',fill:'none'},
