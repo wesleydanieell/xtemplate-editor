@@ -22,6 +22,20 @@ if(mobile)await page.click('[data-toggle-panel="properties"]');
 const groups=await page.$$eval('.property-block:not([hidden]) .property-block-title',xs=>xs.map(x=>({name:x.textContent.trim(),icon:!!x.querySelector(':scope > svg.ui-icon')})));
 assert(groups.length>=4&&groups.every(x=>x.icon),JSON.stringify(groups));
 const tool=await page.$eval('[data-tool="text"]',x=>({name:x.getAttribute('aria-label'),svg:!!x.querySelector('svg.ui-icon')}));assert(tool.svg&&tool.name.includes('text'));
+ const imageTool=await page.$eval('#canvasAddImage',x=>({total:x.querySelectorAll('svg').length,lucide:x.querySelectorAll(':scope > svg.ui-icon').length,aria:x.getAttribute('aria-label')}));
+ assert.deepEqual([imageTool.total,imageTool.lucide],[1,1],'image insertion tool must contain exactly one icon');
+ assert.match(imageTool.aria,/image/i);
+ const measured=await page.evaluate(()=>{
+  const box=sel=>{const element=document.querySelector(sel);const r=element?.getBoundingClientRect();return r?{x:r.x,y:r.y,w:r.width,h:r.height}:null;};
+  return {x:box('#transformX'),y:box('#transformY'),w:box('#transformW'),h:box('#transformH'),font:box('[data-character-field="font"] select'),size:box('[data-character-field="size"] input'),baseline:box('[data-character-field="baseline"] select'),style:[...document.querySelectorAll('.character-style-row button')].map(x=>({label:x.getAttribute('aria-label'),y:x.getBoundingClientRect().y,h:x.getBoundingClientRect().height})),align:[...document.querySelectorAll('.character-alignment-row button')].map(x=>({label:x.getAttribute('aria-label'),y:x.getBoundingClientRect().y,h:x.getBoundingClientRect().height}))};
+ });
+ assert(Math.abs(measured.x.y-measured.y.y)<2 && Math.abs(measured.w.y-measured.h.y)<2, 'transform X/Y and W/H inputs share rows');
+ assert(Math.abs(measured.x.x-measured.w.x)<2 && Math.abs(measured.y.x-measured.h.x)<2, 'transform columns align vertically');
+ assert(measured.font.w>measured.size.w,'font family spans the available width');
+ assert(Math.abs(measured.size.y-measured.baseline.y)<2,'size and baseline have matching top edges');
+ assert.deepEqual(measured.style.map(x=>x.label),['Bold','Italic']);
+ assert.deepEqual(measured.align.map(x=>x.label),['Align left','Align center','Align right']);
+ for(const row of [measured.style,measured.align])assert(row.every(x=>Math.abs(x.y-row[0].y)<1 && Math.abs(x.h-row[0].h)<1),'icon buttons share exactly the same baseline and height');
 if(mobile){await page.click('[data-toggle-panel="properties"]');await page.click('[data-toggle-panel="layers"]');}
 await page.click('#addElement');
 const insert=await page.$$eval('.context-submenu [data-add]',xs=>xs.map(x=>({type:x.dataset.add,icon:!!x.querySelector('.context-icon svg.ui-icon'),label:x.textContent.trim()})));

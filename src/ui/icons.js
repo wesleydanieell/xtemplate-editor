@@ -52,7 +52,10 @@ const layerIcons={rect:'square',text:'type',circle:'circle',ellipse:'orbit',imag
 const specialHeadings={'Typography':'type','Image':'image','Repeat pattern':'repeat-2','Group':'group','Vector geometry':'pen-tool','Line geometry':'minus','Shape settings':'square'};
 const titleIcons={'STRUCTURE':'list-tree','PROPERTIES':'sliders-horizontal','PREVIEW':'scan','QUICK ACTIONS':'search','NEW ELEMENT':'plus'};
 function add(target,name,{replace=false}={}){
- if(!target||target.dataset.uiIcon===name)return;
+ if(!target)return;
+ // Repair leftover legacy SVGs even when the target has been decorated before.
+ const existing=target.querySelector(':scope > .ui-icon');
+ if(target.dataset.uiIcon===name && existing && (!replace || target.querySelectorAll(':scope > svg').length===1))return;
  if(target.querySelector(':scope > .ui-icon'))target.querySelector(':scope > .ui-icon').remove();
  if(replace){
   // Keep semantic keyboard shortcut nodes from the existing toolbar;
@@ -65,8 +68,8 @@ function add(target,name,{replace=false}={}){
 function decorate(root){
  const scope=root?.querySelectorAll?root:document;
  for(const [selector,name] of entries){
-  try{if(scope.matches?.(selector))add(scope,name,{replace:selector.includes('[data-tool=')||selector.includes('empty-icon')||selector==='#addElement'||selector==='#expandTree'});
-   for(const node of scope.querySelectorAll(selector))add(node,name,{replace:selector.includes('[data-tool=')||selector.includes('empty-icon')||selector==='#addElement'||selector==='#expandTree'});
+  try{if(scope.matches?.(selector))add(scope,name,{replace:selector.includes('[data-tool=')||selector.includes('empty-icon')||selector==='#addElement'||selector==='#expandTree'||selector==='#canvasAddImage'||selector==='#undoBtn'||selector==='#redoBtn'});
+   for(const node of scope.querySelectorAll(selector))add(node,name,{replace:selector.includes('[data-tool=')||selector.includes('empty-icon')||selector==='#addElement'||selector==='#expandTree'||selector==='#canvasAddImage'||selector==='#undoBtn'||selector==='#redoBtn'});
   }catch{/* Broken selectors must never affect document editing. */}
  }
  for(const node of [...(scope.matches?.('.tree-item')?[...scope.querySelectorAll('.tree-symbol')]:[]),...scope.querySelectorAll('.tree-item .tree-symbol')]){
