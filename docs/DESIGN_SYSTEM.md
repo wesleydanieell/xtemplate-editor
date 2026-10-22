@@ -140,3 +140,8 @@ The former fixed-position HTML `textarea` with a background, border, and Done/Ca
 Press **Enter** to apply, **Escape** to cancel, or click elsewhere to apply. A single undo step reverses a committed change. Existing templates, native `text` attributes, JSON/ZIP import/export and editable layer data remain unchanged. No `foreignObject` is exported; it is only an editor UI node.
 
 Automated browser checks reject the former floating editor shell and textarea, verify transparent editing directly under `#paper`, and exercise typing, cancellation, Undo, page placement, rotation/zoom, and mobile double-tap.
+
+
+## V3.7 — Character button layout
+
+The Style controls (Bold/Italic) and Text anchor controls (start/center/end) now occupy **two equal vertical columns** in the same Character row, each with its own label on top and equally tall segmented buttons below. The width of Properties is unchanged. Place on page retains its separate full-width group. The layout uses a single `.character-compact-actions` wrapper and `minmax(0, 1fr)` to prevent overflow; mobile touch targets remain 44 px high. Automated desktop/mobile checks verify equal column widths, matching heading and button baselines, no button overflow, and working Bold/anchor edits.
