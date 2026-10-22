@@ -78,3 +78,15 @@ Automated Chromium checks run at **1536 × 960** and **1024 × 768** and verify:
 - Existing canvas, selection, vector editing, crop Apply/Cancel, JSON import/export and ZIP asset roundtrip regressions.
 
 This is a **principles-based Material-inspired design**, not a claim that the application implements or has been certified against the entire Material 3 specification. Android/XNotes rendering parity and formal moderated user research still require independent validation.
+
+
+## V3.1 — compact typography and phone layout
+
+The inspector now mirrors a familiar Character panel: font family (full width), size, weight and italic on one compact row, followed by alignment and baseline. X/Y/W/H fields use concise labels and inline values to reduce vertical space. Both the Photoshop Character panel and PhotoCraft inspired the control density, but only the official `.xtemplate` v1 fields (`font`, `size`, `weight`, `italic`, `align`, `baseline`) are editable. Kerning, tracking and leading are not represented as supported native features and are deliberately not offered.
+
+On mobile, side panels are exclusive drawers and the canvas is first. Controls remain functional; a static browser build is served from a private LAN address, not the entire repository. For setup, security boundaries and limitations, see [Phone preview](PHONE_PREVIEW.md).
+
+Reference reading:
+- [Adobe — Format characters](https://helpx.adobe.com/photoshop/desktop/text-typography/characters-glyphs/format-characters.html)
+- [Adobe — Line and character spacing](https://helpx.adobe.com/photoshop/desktop/text-typography/characters-glyphs/adjust-line-and-character-spacing.html)
+- [PhotoCraft source and screenshots](https://github.com/photocraft-desktop/photocraft)
