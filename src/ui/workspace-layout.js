@@ -15,6 +15,34 @@ export function initWorkspacePanels({app=document.querySelector('.app'),containe
   slot.append(button);update();
  }
  container.prepend(slot);
+ const compact=window.matchMedia('(max-width: 720px)');
+ // Phone layout starts with the canvas, not two stacked editor docks.
+ if(compact.matches){
+  app.classList.add('app--hide-layers','app--hide-properties');
+  for(const button of slot.querySelectorAll('[data-toggle-panel]')){
+   button.setAttribute('aria-pressed','false');button.classList.remove('is-active');
+  }
+ }
+ // Docks behave as exclusive drawers on phones; no simultaneous overlays.
+ for(const button of slot.querySelectorAll('[data-toggle-panel]')){
+  button.addEventListener('click',()=>{
+   if(!compact.matches)return;
+   const name=button.dataset.togglePanel,other=name==='layers'?'properties':'layers';
+   if(!app.classList.contains('app--hide-'+other)){
+    app.classList.add('app--hide-'+other);
+    const otherButton=slot.querySelector(`[data-toggle-panel="${other}"]`);
+    otherButton.setAttribute('aria-pressed','false');otherButton.classList.remove('is-active');
+   }
+  });
+ }
+ document.querySelector('#topExample')?.addEventListener('change',()=>{
+  if(compact.matches&&!app.classList.contains('app--hide-layers'))slot.querySelector('[data-toggle-panel="layers"]').click();
+ });
+ document.querySelector('#tree')?.addEventListener('click',e=>{
+  if(compact.matches&&e.target.closest('.tree-item')&&!e.target.closest('.tree-disclosure')&&!app.classList.contains('app--hide-layers')){
+   slot.querySelector('[data-toggle-panel="layers"]').click();
+  }
+ });
  window.addEventListener('keydown',event=>{
   if(!event.altKey||event.ctrlKey||event.metaKey||event.shiftKey)return;
   const name=event.code==='Digit1'?'layers':event.code==='Digit2'?'properties':null;
