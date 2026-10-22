@@ -90,3 +90,8 @@ Reference reading:
 - [Adobe — Format characters](https://helpx.adobe.com/photoshop/desktop/text-typography/characters-glyphs/format-characters.html)
 - [Adobe — Line and character spacing](https://helpx.adobe.com/photoshop/desktop/text-typography/characters-glyphs/adjust-line-and-character-spacing.html)
 - [PhotoCraft source and screenshots](https://github.com/photocraft-desktop/photocraft)
+
+
+## V3.2 — coherent iconography
+
+All major app surfaces now share one curated [Lucide icon system](ICON_SYSTEM.md), including navigation, insert/tools, layer types, contextual properties and crop actions. The visual hierarchy continues to prioritize task grouping and short text labels, with icon-only display reserved for well-labeled compact tools. Tests confirm that dynamic controls receive only one icon and that desktop/phone views retain all actions.
