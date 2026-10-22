@@ -388,9 +388,9 @@ try{
  await workspacePage.keyboard.press('ArrowDown');
  await workspacePage.keyboard.press('Enter');
  assert.equal(await workspacePage.$eval('#elementStroke',el=>el.value),'accent');
- const strokeFormat=await workspacePage.$eval('#elementStrokeWidth',el=>({title:el.title,hint:el.closest('label').querySelector('.value-field-hint')?.textContent}));
- assert.match(strokeFormat.title,/mm/);
- assert.match(strokeFormat.hint,/Line thickness/);
+ const strokeFormat=await workspacePage.$eval('#elementStrokeWidth',el=>({title:el.title,hints:el.closest('label').querySelectorAll('.value-field-hint').length}));
+ assert.match(strokeFormat.title,/Line thickness.*mm/);
+ assert.equal(strokeFormat.hints,0,'field guidance is shown on hover, not in a permanent row');
  await workspacePage.click('[data-inspector="params"]');
  await workspacePage.click('#addParam');
  await workspacePage.select('#newParamType','color');

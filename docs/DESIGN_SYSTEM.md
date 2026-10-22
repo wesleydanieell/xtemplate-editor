@@ -145,3 +145,12 @@ Automated browser checks reject the former floating editor shell and textarea, v
 ## V3.7 — Character button layout
 
 The Style controls (Bold/Italic) and Text anchor controls (start/center/end) now occupy **two equal vertical columns** in the same Character row, each with its own label on top and equally tall segmented buttons below. The width of Properties is unchanged. Place on page retains its separate full-width group. The layout uses a single `.character-compact-actions` wrapper and `minmax(0, 1fr)` to prevent overflow; mobile touch targets remain 44 px high. Automated desktop/mobile checks verify equal column widths, matching heading and button baselines, no button overflow, and working Bold/anchor edits.
+
+
+## V3.8 — centered Element/Variables navigation and contextual variable completion
+
+The Element and Variables tab contents are centered as complete groups (label and any icon) on desktop and phone. In the inspector, the duplicate `Suggestions…` dropdowns below Stroke/Fill and all persistent `.value-field-hint` subrows are removed. Hover titles retain measurement-format help; the shared keyboard-accessible variable picker opens on **focus or click** on compatible property inputs, without consuming layout height.
+
+The completion classifier is explicit: color-token fields (`stroke`/`fill`) offer `ink`, `accent`, `none` and declared color parameters; numeric expression properties (geometry, radii, spacing, count, text size, angles, opacity and text index) offer compatible parameters plus official `W`, `H`, `i`, `j` and `pi`; text-content fields insert `{parameter}` interpolation. Dynamic advanced, repeated, Hatch and compatible multi-selection property inputs carry their actual property key so the same completion rules apply. The popup never suggests variables for enums, asset paths, SVG commands, or disabled/nonnumeric controls, which would be misleading or non-exportable.
+
+Color pickers and the Variable creation form remain intact; variable-type help in that form is a type explanation, not a duplicate value suggestion. Existing ArrowUp/Down, Enter/Tab, Esc and pointer selection behaviors of the popup are preserved.
