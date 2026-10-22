@@ -1578,7 +1578,7 @@ paper.addEventListener("pointerdown",e=>{
   if(hit){
    const path=toPath(hit.dataset.path);
    if(getAt(path)?.type==='text'){
-    setActiveTool('select');beginCanvasTextEdit(path,{caret:'point',clientX:e.clientX});
+    setActiveTool('select');beginCanvasTextEdit(path,{caret:'point',clientX:e.clientX,clientY:e.clientY});
     e.preventDefault();e.stopImmediatePropagation();return;
    }
   }
@@ -1653,7 +1653,7 @@ paper.addEventListener("pointerdown",e=>{
     Math.hypot(e.clientX-previousTextClick.x,e.clientY-previousTextClick.y)<13;
   if((doublePress||e.detail>=2)&&(!handle||e.target.closest('.transform-hit-area'))){
    previousTextClick=null;drag=null;
-   beginCanvasTextEdit(path,{caret:'point',clientX:e.clientX});
+   beginCanvasTextEdit(path,{caret:'point',clientX:e.clientX,clientY:e.clientY});
    e.preventDefault();return;
   }
   previousTextClick=handle&&!e.target.closest('.transform-hit-area')?null:
@@ -1901,7 +1901,7 @@ paper.addEventListener("pointerup",e=>{
 });
 let newlyCreatedTextKey=null;
 const inlineTextEditor=createTextInlineEditor({
- onPreview(path,value){const n=getAt(path);if(n?.type==='text'){n.text=value;renderCanvas();}},
+ onPreview(path,value,glyph){const n=getAt(path);if(n?.type==='text'){n.text=value;if(glyph)glyph.textContent=value;}},
  onApply(path,value,original){
   const n=getAt(path);newlyCreatedTextKey=null;if(n?.type!=='text')return;
   n.text=value;
@@ -1917,7 +1917,7 @@ const inlineTextEditor=createTextInlineEditor({
  }
 });
 document.addEventListener('click',e=>{if(e.target.closest('[data-edit-text]'))beginCanvasTextEdit();});
-function beginCanvasTextEdit(path=selectedPath,{caret='all',clientX}={}){
+function beginCanvasTextEdit(path=selectedPath,{caret='all',clientX,clientY}={}){
  const n=getAt(path);if(n?.type!=='text')return false;
  // Mobile: close the Properties drawer so the text and keyboard aren't
  // obscured by the panel that launched the editor.
@@ -1930,7 +1930,7 @@ function beginCanvasTextEdit(path=selectedPath,{caret='all',clientX}={}){
  const glyph=[...paper.querySelectorAll('g.svg-node[data-path]')]
   .find(el=>el.dataset.path===nodeKey(path))?.querySelector(':scope > text');
  if(!glyph)return false;
- return inlineTextEditor.open({path,value:n.text,glyph,caret,clientX,
+ return inlineTextEditor.open({path,value:n.text,glyph,caret,clientX,clientY,
   findGlyph:()=>[...paper.querySelectorAll('g.svg-node[data-path]')]
    .find(el=>el.dataset.path===nodeKey(path))?.querySelector(':scope > text')});
 }
@@ -1938,7 +1938,7 @@ paper.addEventListener('dblclick',e=>{
  if(activeTool==='select'){
   const node=e.target.closest('g.svg-node[data-path]');
   if(node&&getAt(toPath(node.dataset.path))?.type==='text'){
-   beginCanvasTextEdit(toPath(node.dataset.path),{caret:'point',clientX:e.clientX});e.preventDefault();e.stopPropagation();return;
+   beginCanvasTextEdit(toPath(node.dataset.path),{caret:'point',clientX:e.clientX,clientY:e.clientY});e.preventDefault();e.stopPropagation();return;
   }
  }
 
