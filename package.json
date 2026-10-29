@@ -20,7 +20,7 @@
     "node": ">=18"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.0.0",
+    "@tauri-apps/cli": "^2.12.4",
     "ajv": "^8.20.0",
     "lucide-static": "^1.61.0",
     "puppeteer-core": "^25.14.0"
